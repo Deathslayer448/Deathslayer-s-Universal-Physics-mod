@@ -47,17 +47,11 @@ void Element::Element_BANG()
 
 static int update(UPDATE_FUNC_ARGS)
 {
-
-
+	
 	if(parts[i].tmp==0)
 	{
 		if(parts[i].temp>=673.0f)
-			parts[i].tmp = 1;
-	//	else
-		
-
-
-
+			parts[i].tmp = 1;		
 	}
 	else if(parts[i].tmp==1)
 	{
@@ -84,6 +78,9 @@ static int update(UPDATE_FUNC_ARGS)
 			if (RNG::Ref().chance(1, 2))
 			{
 				sim->create_part(i, x, y, PT_FIRE);
+				sim->create_part(i, x+1, y+1, PT_N2);
+				sim->create_part(i, x-1, y-1, PT_CO2);
+				sim->create_part(i, x-1, y, PT_WATR);
 			}
 			else
 			{

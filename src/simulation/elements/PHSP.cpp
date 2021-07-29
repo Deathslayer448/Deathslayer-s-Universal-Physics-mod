@@ -81,7 +81,7 @@ static int update(UPDATE_FUNC_ARGS) {
 			}
 
 			// Ignite
-			if (TYP(r) == PT_FIRE || TYP(r) == PT_PLSM || TYP(r) == PT_LAVA) {
+			if (TYP(r) == PT_FIRE || TYP(r) == PT_PLSM || TYP(r) == PT_LAVA || (TYP(r) == PT_O2 && parts[i].tmp2 == 0 )) {
 				parts[i].life += RNG::Ref().between(0, 5);
 			}
 			// Burn
