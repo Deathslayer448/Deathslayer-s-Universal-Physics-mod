@@ -1,9 +1,6 @@
-#ifndef DROPDOWN_H_
-#define DROPDOWN_H_
-
-#include <utility>
+#pragma once
 #include "Component.h"
-
+#include <utility>
 #include <functional>
 
 namespace ui {
@@ -32,7 +29,6 @@ public:
 	void SetOption(int option);
 	void SetOption(String option);
 	void AddOption(std::pair<String, int> option);
-	void RemoveOption(String option);
 	void SetOptions(std::vector<std::pair<String, int> > options);
 	inline void SetActionCallback(DropDownAction action) { actionCallback = action; }
 	void Draw(const Point& screenPos) override;
@@ -42,4 +38,3 @@ public:
 };
 
 } /* namespace ui */
-#endif /* DROPDOWN_H_ */

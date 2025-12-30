@@ -1,191 +1,152 @@
-#ifndef CLIENT_H
-#define CLIENT_H
-#include "Config.h"
-
-#include <vector>
-#include <list>
-
+#pragma once
+#include "common/Bson.h"
 #include "common/String.h"
-#include "common/Singleton.h"
-#include "json/json.h"
-
+#include "common/ExplicitSingleton.h"
+#include "StartupInfo.h"
 #include "User.h"
+#include <vector>
+#include <cstdint>
+#include <list>
+#include <memory>
+#include <optional>
 
 class SaveInfo;
 class SaveFile;
-class SaveComment;
 class GameSave;
 class VideoBuffer;
 
-enum LoginStatus {
-	LoginOkay, LoginError
-};
-
-enum RequestStatus {
-	RequestOkay, RequestFailure
-};
-
-class UpdateInfo
-{
-public:
-	enum BuildType { Stable, Beta, Snapshot };
-	ByteString File;
-	String Changelog;
-	int Major;
-	int Minor;
-	int Build;
-	int Time;
-	BuildType Type;
-	UpdateInfo() : File(""), Changelog(""), Major(0), Minor(0), Build(0), Time(0), Type(Stable) {}
-	UpdateInfo(int major, int minor, int build, ByteString file, String changelog, BuildType type) : File(file), Changelog(changelog), Major(major), Minor(minor), Build(build), Time(0), Type(type) {}
-	UpdateInfo(int time, ByteString file, String changelog, BuildType type) : File(file), Changelog(changelog), Major(0), Minor(0), Build(0), Time(time), Type(type) {}
-};
-
+class Prefs;
 class RequestListener;
 class ClientListener;
 namespace http
 {
-	class Request;
+	class StartupRequest;
 }
-class Client: public Singleton<Client> {
-private:
-	String messageOfTheDay;
-	std::vector<std::pair<String, ByteString> > serverNotifications;
+class Client: public ExplicitSingleton<Client> {
+public:
+	enum class StartupRequestStatus
+	{
+		notYetDone,
+		inProgress,
+		succeeded,
+		failed,
+	};
 
-	http::Request *versionCheckRequest;
-	http::Request *alternateVersionCheckRequest;
+private:
+	bool autoStartupRequest = true;
+	String messageOfTheDay;
+	std::vector<ServerNotification> serverNotifications;
+
+	std::unique_ptr<http::StartupRequest> versionCheckRequest;
+	std::unique_ptr<http::StartupRequest> alternateVersionCheckRequest;
 	bool usingAltUpdateServer;
 	bool updateAvailable;
-	UpdateInfo updateInfo;
+	std::optional<UpdateInfo> updateInfo;
 
-	String lastError;
 	bool firstRun;
+	bool redirectStd = false;
 
-	std::list<ByteString> stampIDs;
-	unsigned lastStampTime;
-	int lastStampName;
+	std::vector<ByteString> stampIDs;
+	uint64_t lastStampTime = 0;
+	int lastStampName = 0;
 
 	//Auth session
-	User authUser;
+	std::optional<User> authUser;
 
 	void notifyUpdateAvailable();
 	void notifyAuthUserChanged();
 	void notifyMessageOfTheDay();
-	void notifyNewNotification(std::pair<String, ByteString> notification);
-
-	// internal preferences handling
-	Json::Value preferences;
-	Json::Value GetPref(Json::Value root, ByteString prop, Json::Value defaultValue = Json::nullValue);
-	Json::Value SetPrefHelper(Json::Value root, ByteString prop, Json::Value value);
+	void notifyNewNotification(ServerNotification notification);
 
 	// Save stealing info
-	Json::Value authors;
+	Bson authors;
+
+	std::unique_ptr<Prefs> stamps;
+	void MigrateStampsDef();
+	void WriteStamps();
+
+	void LoadAuthUser();
+	void SaveAuthUser();
+
+	StartupRequestStatus startupRequestStatus = StartupRequestStatus::notYetDone;
+	std::optional<ByteString> startupRequestError;
 
 public:
 
 	std::vector<ClientListener*> listeners;
 
 	// Save stealing info
-	void MergeStampAuthorInfo(Json::Value linksToAdd);
-	void MergeAuthorInfo(Json::Value linksToAdd);
-	void OverwriteAuthorInfo(Json::Value overwrite) { authors = overwrite; }
-	Json::Value GetAuthorInfo() { return authors; }
-	void SaveAuthorInfo(Json::Value *saveInto);
-	void ClearAuthorInfo() { authors.clear(); }
-	bool IsAuthorsEmpty() { return authors.size() == 0; }
+	void MergeStampAuthorInfo(const Bson &linksToAdd);
+	void MergeAuthorInfo(const Bson &linksToAdd);
+	void OverwriteAuthorInfo(Bson overwrite) { authors = std::move(overwrite); }
+	const Bson &GetAuthorInfo() const { return authors; }
+	void SaveAuthorInfo(Bson &saveInto) const;
+	void ClearAuthorInfo() { authors = Bson{}; }
+	bool IsAuthorsEmpty() const { return authors.GetSize() == 0; }
 
-	UpdateInfo GetUpdateInfo();
+	std::optional<UpdateInfo> GetUpdateInfo();
 
 	Client();
 	~Client();
 
-	std::vector<ByteString> DirectorySearch(ByteString directory, ByteString search, std::vector<ByteString> extensions);
-	std::vector<ByteString> DirectorySearch(ByteString directory, ByteString search, ByteString extension);
-
 	ByteString FileOpenDialogue();
 	//std::string FileSaveDialogue();
 
-	bool DoInstallation();
-
-	std::vector<unsigned char> ReadFile(ByteString filename);
-
-	void AddServerNotification(std::pair<String, ByteString> notification);
-	std::vector<std::pair<String, ByteString> > GetServerNotifications();
+	void AddServerNotification(ServerNotification notification);
+	std::vector<ServerNotification> GetServerNotifications();
 
 	void SetMessageOfTheDay(String message);
 	String GetMessageOfTheDay();
 
-	void Initialise(ByteString proxyString, bool disableNetwork);
+	void Initialize();
 	bool IsFirstRun();
-
-	int MakeDirectory(const char * dirname);
-	bool WriteFile(std::vector<unsigned char> fileData, ByteString filename);
-	bool WriteFile(std::vector<char> fileData, ByteString filename);
-	bool FileExists(ByteString filename);
 
 	void AddListener(ClientListener * listener);
 	void RemoveListener(ClientListener * listener);
 
-	RequestStatus ExecVote(int saveID, int direction);
-	RequestStatus UploadSave(SaveInfo & save);
-
-	SaveFile * GetStamp(ByteString stampID);
+	std::unique_ptr<SaveFile> GetStamp(ByteString stampID);
 	void DeleteStamp(ByteString stampID);
-	ByteString AddStamp(GameSave * saveData);
-	std::vector<ByteString> GetStamps(int start, int count);
+	void RenameStamp(ByteString stampID, ByteString newName);
+	ByteString AddStamp(std::unique_ptr<GameSave> saveData);
 	void RescanStamps();
-	int GetStampsCount();
-	SaveFile * GetFirstStamp();
+	const std::vector<ByteString> &GetStamps() const;
 	void MoveStampToFront(ByteString stampID);
-	void updateStamps();
 
-	RequestStatus AddComment(int saveID, String comment);
+	std::unique_ptr<SaveFile> LoadSaveFile(ByteString filename);
 
-	std::vector<unsigned char> GetSaveData(int saveID, int saveDate);
-
-	LoginStatus Login(ByteString username, ByteString password, User & user);
-	std::vector<SaveInfo*> * SearchSaves(int start, int count, String query, ByteString sort, ByteString category, int & resultCount);
-	std::vector<std::pair<ByteString, int> > * GetTags(int start, int count, String query, int & resultCount);
-
-	SaveInfo * GetSave(int saveID, int saveDate);
-	SaveFile * LoadSaveFile(ByteString filename);
-
-	RequestStatus DeleteSave(int saveID);
-	RequestStatus ReportSave(int saveID, String message);
-	RequestStatus UnpublishSave(int saveID);
-	RequestStatus PublishSave(int saveID);
-	RequestStatus FavouriteSave(int saveID, bool favourite);
-	void SetAuthUser(User user);
-	User GetAuthUser();
-	std::list<ByteString> * RemoveTag(int saveID, ByteString tag); //TODO RequestStatus
-	std::list<ByteString> * AddTag(int saveID, ByteString tag);
-	String GetLastError() {
-		return lastError;
-	}
-	RequestStatus ParseServerReturn(ByteString &result, int status, bool json);
+	void SetAuthUser(std::optional<User> user);
+	const std::optional<User> &GetAuthUser() const;
 	void Tick();
-	bool CheckUpdate(http::Request *updateRequest, bool checkSession);
-	void Shutdown();
+	
+	String DoMigration(ByteString fromDir, ByteString toDir);
 
-	// preferences functions
-	void WritePrefs();
+	bool GetRedirectStd()
+	{
+		return redirectStd;
+	}
 
-	ByteString GetPrefByteString(ByteString prop, ByteString defaultValue);
-	String GetPrefString(ByteString prop, String defaultValue);
-	double GetPrefNumber(ByteString prop, double defaultValue);
-	int GetPrefInteger(ByteString prop, int defaultValue);
-	unsigned int GetPrefUInteger(ByteString prop, unsigned int defaultValue);
-	bool GetPrefBool(ByteString prop, bool defaultValue);
-	std::vector<ByteString> GetPrefByteStringArray(ByteString prop);
-	std::vector<String> GetPrefStringArray(ByteString prop);
-	std::vector<double> GetPrefNumberArray(ByteString prop);
-	std::vector<int> GetPrefIntegerArray(ByteString prop);
-	std::vector<unsigned int> GetPrefUIntegerArray(ByteString prop);
-	std::vector<bool> GetPrefBoolArray(ByteString prop);
+	void SetRedirectStd(bool newRedirectStd)
+	{
+		redirectStd = newRedirectStd;
+	}
 
-	void SetPref(ByteString prop, Json::Value value);
-	void SetPref(ByteString property, std::vector<Json::Value> value);
-	void SetPrefUnicode(ByteString prop, String value);
+	bool GetAutoStartupRequest()
+	{
+		return autoStartupRequest;
+	}
+
+	void SetAutoStartupRequest(bool newAutoStartupRequest)
+	{
+		autoStartupRequest = newAutoStartupRequest;
+	}
+
+	void BeginStartupRequest();
+	StartupRequestStatus GetStartupRequestStatus() const
+	{
+		return startupRequestStatus;
+	}
+	std::optional<ByteString> GetStartupRequestError() const
+	{
+		return startupRequestError;
+	}
 };
-
-#endif // CLIENT_H

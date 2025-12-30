@@ -4,7 +4,7 @@ void Element::Element_SAWD()
 {
 	Identifier = "DEFAULT_PT_SAWD";
 	Name = "SAWD";
-	Colour = PIXPACK(0xF0F0A0);
+	Colour = 0xF0F0A0_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_POWDERS;
 	Enabled = 1;
@@ -22,7 +22,7 @@ void Element::Element_SAWD()
 	Flammable = 10;
 	Explosive = 0;
 	Meltable = 0;
-	Hardness = 30;
+       	Hardness = 29;
 
 	Weight = 18;
 
@@ -40,5 +40,5 @@ void Element::Element_SAWD()
 	HighTemperature = ITH;
 	HighTemperatureTransition = NT;
 
-	//Graphics = NULL; // is this needed?
+	Graphics = nullptr; // is this needed?
 }

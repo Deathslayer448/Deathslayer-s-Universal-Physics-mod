@@ -1,32 +1,30 @@
 #include "FileBrowserActivity.h"
 
-#include <algorithm>
-
-#include "gui/interface/Label.h"
-#include "gui/interface/Textbox.h"
-#include "gui/interface/ScrollPanel.h"
-#include "gui/interface/SaveButton.h"
-#include "gui/interface/ProgressBar.h"
-
-#include "client/Client.h"
-#include "client/SaveFile.h"
 #include "client/GameSave.h"
-
+#include "client/SaveFile.h"
+#include "common/platform/Platform.h"
+#include "graphics/Graphics.h"
 #include "gui/Style.h"
 #include "tasks/Task.h"
 
-#include "gui/dialogues/TextPrompt.h"
 #include "gui/dialogues/ConfirmPrompt.h"
 #include "gui/dialogues/ErrorMessage.h"
+#include "gui/dialogues/TextPrompt.h"
+#include "gui/interface/Label.h"
+#include "gui/interface/ProgressBar.h"
+#include "gui/interface/SaveButton.h"
+#include "gui/interface/ScrollPanel.h"
+#include "gui/interface/Textbox.h"
 
-#include "graphics/Graphics.h"
+#include "Config.h"
+#include <algorithm>
 
 //Currently, reading is done on another thread, we can't render outside the main thread due to some bullshit with OpenGL
 class LoadFilesTask: public Task
 {
 	ByteString directory;
 	ByteString search;
-	std::vector<SaveFile*> saveFiles;
+	std::vector<std::unique_ptr<SaveFile>> saveFiles;
 
 	void before() override
 	{
@@ -40,36 +38,26 @@ class LoadFilesTask: public Task
 
 	bool doWork() override
 	{
-		std::vector<ByteString> files = Client::Ref().DirectorySearch(directory, search, ".cps");
-		std::sort(files.rbegin(), files.rend(), [](ByteString a, ByteString b) { return a.ToLower() < b.ToLower(); });
+		std::vector<ByteString> files = Platform::DirectorySearch(directory, search, { ".cps" });
+		std::sort(files.rbegin(), files.rend(), [](ByteString a, ByteString b) { return a.ToLower() > b.ToLower(); });
 
 		notifyProgress(-1);
 		for(std::vector<ByteString>::iterator iter = files.begin(), end = files.end(); iter != end; ++iter)
 		{
-			SaveFile * saveFile = new SaveFile(*iter);
-			try
-			{
-				std::vector<unsigned char> data = Client::Ref().ReadFile(*iter);
-				GameSave * tempSave = new GameSave(data);
-				saveFile->SetGameSave(tempSave);
-				saveFiles.push_back(saveFile);
+			auto saveFile = std::make_unique<SaveFile>(directory + *iter, true);
 
-				ByteString filename = (*iter).SplitFromEndBy(PATH_SEP).After();
-				filename = filename.SplitFromEndBy('.').Before();
-				saveFile->SetDisplayName(filename.FromUtf8());
-			}
-			catch(std::exception & e)
-			{
-				//:(
-			}
+			ByteString filename = (*iter).SplitFromEndBy(PATH_SEP_CHAR).After();
+			filename = filename.SplitFromEndBy('.').Before();
+			saveFile->SetDisplayName(filename.FromUtf8());
+			saveFiles.push_back(std::move(saveFile));
 		}
 		return true;
 	}
 
 public:
-	std::vector<SaveFile*> GetSaveFiles()
+	std::vector<std::unique_ptr<SaveFile>> TakeSaveFiles()
 	{
-		return saveFiles;
+		return std::move(saveFiles);
 	}
 
 	LoadFilesTask(ByteString directory, ByteString search):
@@ -84,6 +72,7 @@ FileBrowserActivity::FileBrowserActivity(ByteString directory, OnSelected onSele
 	WindowActivity(ui::Point(-1, -1), ui::Point(500, 350)),
 	onSelected(onSelected_),
 	directory(directory),
+	hasQueuedSearch(false),
 	totalFiles(0)
 {
 
@@ -128,43 +117,60 @@ FileBrowserActivity::FileBrowserActivity(ByteString directory, OnSelected onSele
 
 void FileBrowserActivity::DoSearch(ByteString search)
 {
-	if(!loadFiles)
+	if (loadFiles)
+	{
+		hasQueuedSearch = true;
+		queuedSearch = search;
+	}
+	else
 	{
 		loadDirectory(directory, search);
 	}
 }
 
-void FileBrowserActivity::SelectSave(SaveFile * file)
+void FileBrowserActivity::SelectSave(int index)
 {
 	if (onSelected)
-		onSelected(std::unique_ptr<SaveFile>(new SaveFile(*file)));
+	{
+		auto file = std::move(files[index]);
+		files.clear();
+		onSelected(std::move(file));
+	}
 	Exit();
 }
 
-void FileBrowserActivity::DeleteSave(SaveFile * file)
+void FileBrowserActivity::DeleteSave(int index)
 {
-	String deleteMessage = "Are you sure you want to delete " + file->GetDisplayName() + ".cps?";
-	if (ConfirmPrompt::Blocking("Delete Save", deleteMessage))
-	{
-		remove(file->GetName().c_str());
+	String deleteMessage = "Are you sure you want to delete " + files[index]->GetDisplayName() + ".cps?";
+	new ConfirmPrompt("Delete Save", deleteMessage, { [this, index]() {
+		auto &file = files[index];
+		Platform::RemoveFile(file->GetName());
 		loadDirectory(directory, "");
-	}
+	} });
 }
 
-void FileBrowserActivity::RenameSave(SaveFile * file)
+void FileBrowserActivity::RenameSave(int index)
 {
-	ByteString newName = TextPrompt::Blocking("Rename", "Change save name", file->GetDisplayName(), "", 0).ToUtf8();
-	if (newName.length())
-	{
-		newName = directory + PATH_SEP + newName + ".cps";
-		int ret = rename(file->GetName().c_str(), newName.c_str());
-		if (ret)
-			ErrorMessage::Blocking("Error", "Could not rename file");
+	new TextPrompt("Rename", "Change save name", files[index]->GetDisplayName(), "", 0, { [this, index](const String &input) {
+		auto &file = files[index];
+		auto newName = input.ToUtf8();
+		if (newName.length())
+		{
+			newName = ByteString::Build(directory, PATH_SEP_CHAR, newName, ".cps");
+			if (!Platform::RenameFile(file->GetName(), newName, false))
+			{
+				new ErrorMessage("Error", "Could not rename file");
+			}
+			else
+			{
+				loadDirectory(directory, "");
+			}
+		}
 		else
-			loadDirectory(directory, "");
-	}
-	else
-		ErrorMessage::Blocking("Error", "No save name given");
+		{
+			new ErrorMessage("Error", "No save name given");
+		}
+	} });
 }
 
 void FileBrowserActivity::cleanup()
@@ -175,10 +181,6 @@ void FileBrowserActivity::cleanup()
 	}
 	componentsQueue.clear();
 
-	for (auto file : files)
-	{
-		delete file;
-	}
 	files.clear();
 }
 
@@ -206,10 +208,11 @@ void FileBrowserActivity::NotifyDone(Task * task)
 {
 	fileX = 0;
 	fileY = 0;
-	files = ((LoadFilesTask*)task)->GetSaveFiles();
+	files = ((LoadFilesTask*)task)->TakeSaveFiles();
+	createButtons = true;
 	totalFiles = files.size();
 	delete loadFiles;
-	loadFiles = NULL;
+	loadFiles = nullptr;
 	if (!files.size())
 	{
 		progressBar->Visible = false;
@@ -222,6 +225,12 @@ void FileBrowserActivity::NotifyDone(Task * task)
 		delete components[i];
 	}
 	components.clear();
+
+	if (hasQueuedSearch)
+	{
+		hasQueuedSearch = false;
+		loadDirectory(directory, queuedSearch);
+	}
 }
 
 void FileBrowserActivity::OnMouseDown(int x, int y, unsigned button)
@@ -250,42 +259,44 @@ void FileBrowserActivity::NotifyStatus(Task * task)
 
 }
 
-void FileBrowserActivity::OnTick(float dt)
+void FileBrowserActivity::OnTick()
 {
 	if(loadFiles)
 		loadFiles->Poll();
 
-	if(files.size())
+	if (createButtons)
 	{
-		SaveFile * saveFile = files.back();
-		files.pop_back();
-
-		if(fileX == filesX)
+		createButtons = false;
+		for (auto i = 0; i < int(files.size()); ++i)
 		{
-			fileX = 0;
-			fileY++;
-		}
-		ui::SaveButton * saveButton = new ui::SaveButton(
-						ui::Point(
-							buttonXOffset + buttonPadding + fileX*(buttonWidth+buttonPadding*2),
-							buttonYOffset + buttonPadding + fileY*(buttonHeight+buttonPadding*2)
-							),
-						ui::Point(buttonWidth, buttonHeight),
-						saveFile);
-		saveButton->AddContextMenu(1);
-		saveButton->Tick(dt);
-		saveButton->SetActionCallback({
-			[this, saveButton] { SelectSave(saveButton->GetSaveFile()); },
-			[this, saveButton] { RenameSave(saveButton->GetSaveFile()); },
-			[this, saveButton] { DeleteSave(saveButton->GetSaveFile()); }
-		});
+			auto &saveFile = files[i];
+			if(fileX == filesX)
+			{
+				fileX = 0;
+				fileY++;
+			}
+			ui::SaveButton * saveButton = new ui::SaveButton(
+							ui::Point(
+								buttonXOffset + buttonPadding + fileX*(buttonWidth+buttonPadding*2),
+								buttonYOffset + buttonPadding + fileY*(buttonHeight+buttonPadding*2)
+								),
+							ui::Point(buttonWidth, buttonHeight),
+							saveFile.get());
+			saveButton->AddContextMenu(1);
+			saveButton->Tick();
+			saveButton->SetActionCallback({
+				[this, i] { SelectSave(i); },
+				[this, i] { RenameSave(i); },
+				[this, i] { DeleteSave(i); }
+			});
 
-		progressBar->SetStatus("Rendering thumbnails");
-		progressBar->SetProgress(totalFiles ? (totalFiles - files.size()) * 100 / totalFiles : 0);
-		componentsQueue.push_back(saveButton);
-		fileX++;
+			progressBar->SetStatus("Rendering thumbnails");
+			progressBar->SetProgress(totalFiles ? (totalFiles - files.size()) * 100 / totalFiles : 0);
+			componentsQueue.push_back(saveButton);
+			fileX++;
+		}
 	}
-	else if(componentsQueue.size())
+	if(componentsQueue.size())
 	{
 		for(std::vector<ui::Component*>::iterator iter = componentsQueue.begin(), end = componentsQueue.end(); iter != end; ++iter)
 		{
@@ -304,8 +315,8 @@ void FileBrowserActivity::OnDraw()
 	Graphics * g = GetGraphics();
 
 	//Window Background+Outline
-	g->clearrect(Position.X-2, Position.Y-2, Size.X+4, Size.Y+4);
-	g->drawrect(Position.X, Position.Y, Size.X, Size.Y, 255, 255, 255, 255);
+	g->DrawFilledRect(RectSized(Position - Vec2{ 1, 1 }, Size + Vec2{ 2, 2 }), 0x000000_rgb);
+	g->DrawRect(RectSized(Position, Size), 0xFFFFFF_rgb);
 }
 
 FileBrowserActivity::~FileBrowserActivity()

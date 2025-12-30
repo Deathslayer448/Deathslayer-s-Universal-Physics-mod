@@ -6,7 +6,7 @@ void Element::Element_CAUS()
 {
 	Identifier = "DEFAULT_PT_CAUS";
 	Name = "CAUS";
-	Colour = PIXPACK(0x80FFA0);
+	Colour = 0x80FFA0_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_GAS;
 	Enabled = 1;
@@ -49,9 +49,14 @@ void Element::Element_CAUS()
 
 static int update(UPDATE_FUNC_ARGS)
 {
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
+	bool converted = false;
 	for (int rx = -2; rx <= 2; rx++)
+	{
 		for (int ry = -2; ry <= 2; ry++)
-			if (BOUNDS_CHECK && (rx || ry))
+		{
+			if (rx || ry)
 			{
 				int r = pmap[y+ry][x+rx];
 				if (!r)
@@ -62,16 +67,17 @@ static int update(UPDATE_FUNC_ARGS)
 					{
 						sim->part_change_type(ID(r), x+rx, y+ry, PT_RFRG);
 						sim->part_change_type(i, x, y, PT_RFRG);
+						converted = true;
 					}
 				}
 				else if (TYP(r) != PT_ACID && TYP(r) != PT_CAUS && TYP(r) != PT_RFRG && TYP(r) != PT_RFGL)
 				{
-					if ((TYP(r) != PT_CLNE && TYP(r) != PT_PCLN && RNG::Ref().chance(sim->elements[TYP(r)].Hardness, 1000)) && parts[i].life >= 50)
+					if ((TYP(r) != PT_CLNE && TYP(r) != PT_PCLN && ((TYP(r) != PT_FOG && TYP(r) != PT_RIME) || parts[ID(r)].tmp <= 5) && sim->rng.chance(elements[TYP(r)].Hardness, 1000)) && parts[i].life > 50)
 					{
 						// GLAS protects stuff from acid
 						if (sim->parts_avg(i, ID(r),PT_GLAS) != PT_GLAS)
 						{
-							float newtemp = ((60.0f - (float)sim->elements[TYP(r)].Hardness)) * 7.0f;
+							float newtemp = ((60.0f - (float)elements[TYP(r)].Hardness)) * 7.0f;
 							if (newtemp < 0)
 								newtemp = 0;
 							parts[i].temp += newtemp;
@@ -86,5 +92,7 @@ static int update(UPDATE_FUNC_ARGS)
 					}
 				}
 			}
-	return 0;
+		}
+	}
+	return converted;
 }

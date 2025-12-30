@@ -1,23 +1,20 @@
-#ifndef AVATARBUTTON_H_
-#define AVATARBUTTON_H_
-
+#pragma once
 #include "common/String.h"
 
 #include "Component.h"
 #include "graphics/Graphics.h"
-#include "gui/interface/Colour.h"
-#include "client/http/AvatarRequest.h"
-#include "client/http/RequestMonitor.h"
+#include "client/http/ImageRequest.h"
 
 #include <memory>
 #include <functional>
 
 namespace ui
 {
-class AvatarButton : public Component, public http::RequestMonitor<http::AvatarRequest>
+class AvatarButton : public Component
 {
 	std::unique_ptr<VideoBuffer> avatar;
 	ByteString name;
+	int avatarSize;
 	bool tried;
 
 	struct AvatarButtonAction
@@ -26,12 +23,14 @@ class AvatarButton : public Component, public http::RequestMonitor<http::AvatarR
 	};
 	AvatarButtonAction actionCallback;
 
+	std::unique_ptr<http::ImageRequest> imageRequest;
+
 public:
-	AvatarButton(Point position, Point size, ByteString username);
+	AvatarButton(Point position, Point size, ByteString username, int avatarSize = 0);
 	virtual ~AvatarButton() = default;
 
 	void OnMouseClick(int x, int y, unsigned int button) override;
-	void OnMouseUnclick(int x, int y, unsigned int button) override;
+	void OnMouseDown(int x, int y, unsigned int button) override;
 
 	void OnMouseEnter(int x, int y) override;
 	void OnMouseLeave(int x, int y) override;
@@ -39,9 +38,7 @@ public:
 	void OnContextMenuAction(int item) override;
 
 	void Draw(const Point& screenPos) override;
-	void Tick(float dt) override;
-
-	void OnResponse(std::unique_ptr<VideoBuffer> avatar) override;
+	void Tick() override;
 
 	void DoAction();
 
@@ -49,8 +46,6 @@ public:
 	ByteString GetUsername() { return name; }
 	inline void SetActionCallback(AvatarButtonAction const &action) { actionCallback = action; };
 protected:
-	bool isMouseInside, isButtonDown;
+	bool isMouseInside = false, isButtonDown = false;
 };
 }
-#endif /* AVATARBUTTON_H_ */
-

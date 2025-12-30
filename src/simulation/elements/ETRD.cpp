@@ -1,14 +1,14 @@
-#include <algorithm>
 #include "simulation/ElementCommon.h"
+#include "ETRD.h"
+#include <algorithm>
 
-static void initDeltaPos();
 static void changeType(ELEMENT_CHANGETYPE_FUNC_ARGS);
 
 void Element::Element_ETRD()
 {
 	Identifier = "DEFAULT_PT_ETRD";
 	Name = "ETRD";
-	Colour = PIXPACK(0x404040);
+	Colour = 0x404040_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_ELEC;
 	Enabled = 1;
@@ -31,7 +31,7 @@ void Element::Element_ETRD()
 	Weight = 100;
 
 	HeatConduct = 251;
-	Description = "Electrode. Creates a surface that allows Plasma arcs. (Use sparingly)";
+	Description = "Electrode. Creates plasma arcs with electricity. (Use sparingly)";
 
 	Properties = TYPE_SOLID|PROP_CONDUCTS|PROP_LIFE_DEC;
 
@@ -45,8 +45,6 @@ void Element::Element_ETRD()
 	HighTemperatureTransition = NT;
 
 	ChangeType = &changeType;
-
-	initDeltaPos();
 }
 
 static void changeType(ELEMENT_CHANGETYPE_FUNC_ARGS)
@@ -74,23 +72,23 @@ public:
 	int length;
 };
 
-const int maxLength = 12;
-std::vector<ETRD_deltaWithLength> deltaPos;
-
-static void initDeltaPos()
+static const std::vector<ETRD_deltaWithLength> InitDeltaPos()
 {
-	deltaPos.clear();
+	const int maxLength = 12;
+	std::vector<ETRD_deltaWithLength> deltaPos;
 	for (int ry = -maxLength; ry <= maxLength; ry++)
 		for (int rx = -maxLength; rx <= maxLength; rx++)
 		{
 			ui::Point d(rx, ry);
 			if (std::abs(d.X) + std::abs(d.Y) <= maxLength)
-				deltaPos.push_back(ETRD_deltaWithLength(d, std::abs(d.X) + std::abs(d.Y)));
+				deltaPos.push_back(ETRD_deltaWithLength(d, int(std::hypot(d.X, d.Y))));
 		}
 	std::stable_sort(deltaPos.begin(), deltaPos.end(), [](const ETRD_deltaWithLength &a, const ETRD_deltaWithLength &b) {
 		return a.length < b.length;
 	});
+	return deltaPos;
 }
+static const auto deltaPos = InitDeltaPos();
 
 int Element_ETRD_nearestSparkablePart(Simulation *sim, int targetId)
 {
@@ -100,7 +98,11 @@ int Element_ETRD_nearestSparkablePart(Simulation *sim, int targetId)
 		return -1;
 
 	Particle *parts = sim->parts;
-	int foundDistance = XRES + YRES;
+	if (parts[targetId].tmp2 && parts[targetId].tmp > parts[targetId].tmp2) // Invalid range if max is set
+		return -1;
+
+	const int maxDistance = int(std::hypot(XRES, YRES));
+	int foundDistance = parts[targetId].tmp2 ? std::min(parts[targetId].tmp2, maxDistance) : maxDistance; // tmp2 sets max distance
 	int foundI = -1;
 	ui::Point targetPos = ui::Point(int(parts[targetId].x), int(parts[targetId].y));
 
@@ -111,19 +113,22 @@ int Element_ETRD_nearestSparkablePart(Simulation *sim, int targetId)
 		// If the simulation contains lots of particles, check near the target position first since going through all particles will be slow.
 		// Threshold = number of positions checked, *2 because it's likely to access memory all over the place (less cache friendly) and there's extra logic needed
 		// TODO: probably not optimal if excessive stacking is used
-		if (sim->parts_lastActiveIndex > (int)deltaPos.size()*2)
+		if (sim->parts.active > (int)deltaPos.size()*2)
 		{
-			for (std::vector<ETRD_deltaWithLength>::iterator iter = deltaPos.begin(), end = deltaPos.end(); iter != end; ++iter)
+			for (auto &delta : deltaPos)
 			{
-				ETRD_deltaWithLength delta = (*iter);
 				ui::Point checkPos = targetPos + delta.d;
 				int checkDistance = delta.length;
+				if (parts[targetId].tmp >= checkDistance) // tmp sets min distance
+				{
+					continue;
+				}
 				if (foundDistance < checkDistance)
 				{
 					// deltaPos is sorted in order of ascending length, so foundDistance < checkDistance means all later items are further away.
 					break;
 				}
-				if (sim->InBounds(checkPos.X, checkPos.Y) && checkDistance <= foundDistance)
+				if (InBounds(checkPos.X, checkPos.Y) && checkDistance <= foundDistance)
 				{
 					int r = sim->pmap[checkPos.Y][checkPos.X];
 					if (r && TYP(r) == PT_ETRD && !parts[ID(r)].life && ID(r) != targetId && checkDistance < foundDistance)
@@ -137,13 +142,13 @@ int Element_ETRD_nearestSparkablePart(Simulation *sim, int targetId)
 		// If neighbor search didn't find a suitable particle, search all particles
 		if (foundI < 0)
 		{
-			for (int i = 0; i <= sim->parts_lastActiveIndex; i++)
+			for (int i = 0; i < sim->parts.active; i++)
 			{
 				if (parts[i].type == PT_ETRD && !parts[i].life)
 				{
 					ui::Point checkPos = ui::Point(int(parts[i].x)-targetPos.X, int(parts[i].y)-targetPos.Y);
-					int checkDistance = std::abs(checkPos.X) + std::abs(checkPos.Y);
-					if (checkDistance < foundDistance && i != targetId)
+					int checkDistance = int(std::hypot(checkPos.X, checkPos.Y));
+					if (checkDistance < foundDistance && checkDistance > parts[targetId].tmp && i != targetId) // tmp sets min distance
 					{
 						foundDistance = checkDistance;
 						foundI = i;
@@ -156,14 +161,14 @@ int Element_ETRD_nearestSparkablePart(Simulation *sim, int targetId)
 	{
 		// Recalculate countLife0, and search for the closest suitable particle
 		int countLife0 = 0;
-		for (int i = 0; i <= sim->parts_lastActiveIndex; i++)
+		for (int i = 0; i < sim->parts.active; i++)
 		{
 			if (parts[i].type == PT_ETRD && !parts[i].life)
 			{
 				countLife0++;
 				ui::Point checkPos = ui::Point(int(parts[i].x)-targetPos.X, int(parts[i].y)-targetPos.Y);
-				int checkDistance = std::abs(checkPos.X) + std::abs(checkPos.Y);
-				if (checkDistance < foundDistance && i != targetId)
+				int checkDistance = int(std::hypot(checkPos.X, checkPos.Y));
+				if (checkDistance < foundDistance && checkDistance > parts[targetId].tmp && i != targetId) // tmp sets min distance
 				{
 					foundDistance = checkDistance;
 					foundI = i;

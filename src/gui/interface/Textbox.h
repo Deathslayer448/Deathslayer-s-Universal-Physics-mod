@@ -1,6 +1,4 @@
-#ifndef TEXTBOX_H
-#define TEXTBOX_H
-
+#pragma once
 #include "Label.h"
 
 #include <functional>
@@ -10,6 +8,11 @@ namespace ui
 struct TextboxAction
 {
 	std::function<void ()> change;
+};
+
+struct TextboxDefocusAction
+{
+	std::function<void ()> callback;
 };
 
 class Textbox : public Label
@@ -34,6 +37,7 @@ public:
 	void SetHidden(bool hidden);
 	bool GetHidden() { return masked; }
 	void SetActionCallback(TextboxAction action) { actionCallback = action; }
+	void SetDefocusCallback(TextboxDefocusAction action) { defocusCallback = action; }
 
 	void SetLimit(size_t limit);
 	size_t GetLimit();
@@ -47,16 +51,17 @@ public:
 	bool CharacterValid(int character);
 	bool StringValid(String text);
 
-	void Tick(float dt) override;
+	void Tick() override;
 	void OnContextMenuAction(int item) override;
-	void OnMouseClick(int x, int y, unsigned button) override;
+	void OnMouseDown(int x, int y, unsigned button) override;
 	void OnMouseUp(int x, int y, unsigned button) override;
-	void OnMouseMoved(int localx, int localy, int dx, int dy) override;
+	void OnMouseMoved(int localx, int localy) override;
 	void OnKeyPress(int key, int scan, bool repeat, bool shift, bool ctrl, bool alt) override;
 	void OnVKeyPress(int key, int scan, bool repeat, bool shift, bool ctrl, bool alt);
 	void OnKeyRelease(int key, int scan, bool repeat, bool shift, bool ctrl, bool alt) override;
 	void OnTextInput(String text) override;
 	void OnTextEditing(String text) override;
+	void OnDefocus() override;
 	void Draw(const Point& screenPos) override;
 
 protected:
@@ -69,6 +74,7 @@ protected:
 	bool masked, border;
 	int cursor, cursorPositionX, cursorPositionY;
 	TextboxAction actionCallback;
+	TextboxDefocusAction defocusCallback;
 	String backingText;
 	String placeHolder;
 
@@ -93,5 +99,3 @@ protected:
 
 }
 
-
-#endif // TEXTBOX_H

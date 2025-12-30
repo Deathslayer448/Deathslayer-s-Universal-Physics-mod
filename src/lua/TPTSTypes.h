@@ -1,12 +1,10 @@
-#ifndef TPTSTYPES_H_
-#define TPTSTYPES_H_
-#include "Config.h"
-
+#pragma once
 #include "common/String.h"
 #include "gui/interface/Point.h"
+#include <variant>
 
 enum ValueType { TypeNumber, TypeFloat, TypePoint, TypeString, TypeNull, TypeFunction };
-typedef union { int num; float numf; String* str; ui::Point* pt; } ValueValue;
+typedef std::variant<int, float, String, ui::Point> ValueValue;
 
 class GeneralException
 {
@@ -34,7 +32,6 @@ protected:
 	ValueValue value;
 public:
 	AnyType(ValueType type_, ValueValue value_);
-	AnyType(const AnyType & v);
 	operator NumberType();
 	operator FloatType();
 	operator StringType();
@@ -80,7 +77,6 @@ public:
 			return "Unknown";
 		}
 	}
-	~AnyType();
 };
 
 class InvalidConversionException: public GeneralException
@@ -119,5 +115,3 @@ public:
 	PointType(int pointX, int pointY);
 	ui::Point Value();
 };
-
-#endif /* TPTSTYPES_H_ */

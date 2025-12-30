@@ -1,5 +1,4 @@
 #include "simulation/ElementCommon.h"
-#include "hmap.h"
 
 static int graphics(GRAPHICS_FUNC_ARGS);
 static void create(ELEMENT_CREATE_FUNC_ARGS);
@@ -8,7 +7,7 @@ void Element::Element_CFLM()
 {
 	Identifier = "DEFAULT_PT_HFLM";
 	Name = "CFLM";
-	Colour = PIXPACK(0x8080FF);
+	Colour = 0x8080FF_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_EXPLOSIVE;
 	Enabled = 1;
@@ -51,10 +50,10 @@ void Element::Element_CFLM()
 
 static int graphics(GRAPHICS_FUNC_ARGS)
 {
-	int caddress = int(restrict_flt(float(cpart->life / 2), 0, 199)) * 3;
-	*colr = hflm_data[caddress];
-	*colg = hflm_data[caddress+1];
-	*colb = hflm_data[caddress+2];
+	RGB color = Renderer::clfmTableAt(cpart->life / 2);
+	*colr = color.Red;
+	*colg = color.Green;
+	*colb = color.Blue;
 
 	*firea = 255;
 	*firer = *colr;
@@ -69,5 +68,5 @@ static int graphics(GRAPHICS_FUNC_ARGS)
 
 static void create(ELEMENT_CREATE_FUNC_ARGS)
 {
-	sim->parts[i].life = RNG::Ref().between(50, 199);
+	sim->parts[i].life = sim->rng.between(50, 199);
 }

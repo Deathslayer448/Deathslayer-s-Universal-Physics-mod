@@ -7,9 +7,9 @@ void Element::Element_LITH()
 {
 	Identifier = "DEFAULT_PT_LITH";
 	Name = "LITH";
-	Colour = PIXPACK(0xC0C0C0);
+	Colour = 0xB6AABF_rgb;
 	MenuVisible = 1;
-	MenuSection = SC_POWDERS;
+	MenuSection = SC_EXPLOSIVE;
 	Enabled = 1;
 
 	Advection = 0.2f;
@@ -19,13 +19,13 @@ void Element::Element_LITH()
 	Collision = -0.1f;
 	Gravity = 0.2f;
 	Diffusion = 0.00f;
-	HotAir = 0.000f * CFDS;
+	HotAir = 0.000f	* CFDS;
 	Falldown = 1;
 
 	Flammable = 0;
 	Explosive = 0;
 	Meltable = 0;
-	Hardness = 15;
+	Hardness = 14;
 
 	Weight = 17;
 
@@ -48,28 +48,27 @@ void Element::Element_LITH()
 }
 
 /*
+
 tmp2:  carbonation factor
 life:  burn timer above 1000, spark cooldown timer otherwise
 tmp:   hydrogenation factor
 ctype: absorbed energy
+
 For game reasons, baseline LITH has the reactions of both its pure form and
 its hydroxide, and also has basic li-ion battery-like behavior.
 It absorbs CO2 like its hydroxide form, but can only be converted into GLAS
 after having absorbed CO2.
-If LITH comes in contact with water, it will consume 1 WATR, increment tmp,
-and heat itself up by 400K. At 1000K it bursts into flames and sets tmp to 10
-if still in contact with WATR, setting its life to 24 and insta-boiling
-water in its immediate vincity.
+
 */
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	Particle& self = parts[i];
+	Particle &self = parts[i];
 
-	int& hydrogenationFactor = self.tmp;
-	int& burnTimer = self.life;
-	int& carbonationFactor = self.tmp2;
-	int& storedEnergy = self.ctype;
+	int &hydrogenationFactor = self.tmp;
+	int &burnTimer = self.life;
+	int &carbonationFactor = self.tmp2;
+	int &storedEnergy = self.ctype;
 	if (storedEnergy < 0)
 	{
 		storedEnergy = 0;
@@ -81,18 +80,20 @@ static int update(UPDATE_FUNC_ARGS)
 	{
 		for (int ry = -2; ry <= 2; ++ry)
 		{
-			if (BOUNDS_CHECK && (rx || ry))
+			if (rx || ry)
 			{
 				int neighborData = pmap[y + ry][x + rx];
 				if (!neighborData)
 				{
-					if (burnTimer > 1012 && RNG::Ref().chance(1, 10))
+					if (burnTimer > 1012 && sim->rng.chance(1, 10))
 					{
 						sim->create_part(-1, x + rx, y + ry, PT_FIRE);
 					}
 					continue;
 				}
-				Particle& neighbor = parts[ID(neighborData)];
+				Particle &neighbor = parts[ID(neighborData)];
+
+				auto pavg = sim->parts_avg(i, ID(neighborData), PT_INSL);
 
 				switch (TYP(neighborData))
 				{
@@ -113,7 +114,7 @@ static int update(UPDATE_FUNC_ARGS)
 					}
 					if (self.temp > 440.f)
 					{
-						burnTimer = 1024 + (storedEnergy > 24 ? 24 : storedEnergy);
+						burnTimer = 1024 + (storedEnergy > 24 ? 96 : storedEnergy * 4);
 						sim->part_change_type(ID(neighborData), x + rx, y + ry, PT_H2);
 						hydrogenationFactor = 10;
 					}
@@ -135,6 +136,10 @@ static int update(UPDATE_FUNC_ARGS)
 					break;
 
 				case PT_SPRK:
+					if (pavg == PT_INSL || pavg == PT_RSSS)
+					{
+						break;
+					}
 					if (hydrogenationFactor + carbonationFactor >= 5)
 					{
 						continue; // too impure to do battery things.
@@ -146,6 +151,10 @@ static int update(UPDATE_FUNC_ARGS)
 					break;
 
 				case PT_NSCN:
+					if (pavg == PT_INSL || pavg == PT_RSSS)
+					{
+						break;
+					}
 					if (neighbor.life == 0 && storedEnergy > 0 && !burnTimer)
 					{
 						sim->part_change_type(ID(neighborData), x + rx, y + ry, PT_SPRK);
@@ -156,7 +165,7 @@ static int update(UPDATE_FUNC_ARGS)
 					break;
 
 				case PT_FIRE:
-					if (self.temp > 440.f && RNG::Ref().chance(1, 40) && hydrogenationFactor < 6)
+					if (self.temp > 440.f && sim->rng.chance(1, 40) && hydrogenationFactor < 6)
 					{
 						burnTimer = 1013;
 						hydrogenationFactor += 1;
@@ -164,13 +173,14 @@ static int update(UPDATE_FUNC_ARGS)
 					break;
 
 				case PT_O2:
-					if (burnTimer > 1000 && RNG::Ref().chance(1, 10))
+					if (burnTimer > 1000 && sim->rng.chance(1, 10))
 					{
 						sim->part_change_type(i, x, y, PT_PLSM);
 						sim->part_change_type(ID(neighborData), x + rx, y + ry, PT_PLSM);
 						sim->pv[y / CELL][x / CELL] += 4.0;
-					}
-					return 0;
+						return 0;
+					}						
+					break;
 				}
 			}
 		}
@@ -188,18 +198,21 @@ static int update(UPDATE_FUNC_ARGS)
 
 	for (int trade = 0; trade < 9; ++trade)
 	{
-		int rx = RNG::Ref().between(-3, 3);
-		int ry = RNG::Ref().between(-3, 3);
-		if (BOUNDS_CHECK && (rx || ry))
+		int rx = sim->rng.between(-3, 3);
+		int ry = sim->rng.between(-3, 3);
+		if (rx || ry)
 		{
 			int neighborData = pmap[y + ry][x + rx];
 			if (TYP(neighborData) != PT_LITH)
 			{
 				continue;
 			}
-			Particle& neighbor = parts[ID(neighborData)];
+			Particle &neighbor = parts[ID(neighborData)];
 
-			int& neighborStoredEnergy = neighbor.ctype;
+			int &neighborStoredEnergy = neighbor.ctype;
+			// Transfer overcharge explosion status to nearby LITH
+			if (burnTimer < 1000 && storedEnergy > 90 && neighbor.life > 1000)
+				burnTimer = 1024;
 			if (storedEnergy > neighborStoredEnergy)
 			{
 				int transfer = storedEnergy - neighborStoredEnergy;
@@ -210,17 +223,22 @@ static int update(UPDATE_FUNC_ARGS)
 			}
 		}
 	}
-	if (self.temp > 440.f && burnTimer == 1000)
+
+	// Overcharged - begin explosion
+	if (burnTimer < 1000 && storedEnergy >= 100)
+		burnTimer = 1024;
+	if (burnTimer == 1000)
 	{
+		burnTimer = 0;
 		sim->part_change_type(i, x, y, PT_LAVA);
 		if (carbonationFactor < 3)
 		{
-			self.temp = 500.f;
+			self.temp = restrict_flt(500.f + storedEnergy * 10, MIN_TEMP, MAX_TEMP);
 			self.ctype = PT_LITH;
 		}
 		else
 		{
-			self.temp = 2000.f;
+			self.temp = restrict_flt(2000.f + storedEnergy * 10, MIN_TEMP, MAX_TEMP);
 			self.ctype = PT_GLAS;
 		}
 	}
@@ -229,20 +247,22 @@ static int update(UPDATE_FUNC_ARGS)
 
 static int graphics(GRAPHICS_FUNC_ARGS)
 {
+	// Exploding lith
 	if (cpart->life >= 1000)
 	{
-		int colour = 0xFFA040;
-		*colr = PIXR(colour);
-		*colg = PIXG(colour);
-		*colb = PIXB(colour);
+		auto colour = 0xFFA040_rgb;
+		*colr = colour.Red;
+		*colg = colour.Green;
+		*colb = colour.Blue;
 		*pixel_mode |= PMODE_FLARE | PMODE_GLOW;
 	}
-	else if (cpart->ctype && RNG::Ref().chance(cpart->ctype, 100))
+	// Charged lith
+	else if (cpart->ctype > 0)
 	{
-		int colour = 0x50A0FF;
-		*colr = PIXR(colour);
-		*colg = PIXG(colour);
-		*colb = PIXB(colour);
+		int mult = gfctx.rng.between(cpart->ctype / 3, cpart->ctype) / 15;
+		mult = std::min(6, mult);
+		*colr -= 30 * mult;
+		*colb += 20 * mult;
 		*pixel_mode |= PMODE_FLARE | PMODE_GLOW;
 	}
 	return 0;

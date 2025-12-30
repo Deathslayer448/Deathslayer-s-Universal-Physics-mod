@@ -3,7 +3,6 @@
 static int update(UPDATE_FUNC_ARGS);
 static int graphics(GRAPHICS_FUNC_ARGS);
 static void create(ELEMENT_CREATE_FUNC_ARGS);
-static void init_graphics();
 static int trymovetron(Simulation * sim, int x, int y, int dir, int i, int len);
 static bool canmovetron(Simulation * sim, int r, int len);
 static int new_tronhead(Simulation * sim, int x, int y, int i, int direction);
@@ -12,7 +11,7 @@ void Element::Element_TRON()
 {
 	Identifier = "DEFAULT_PT_TRON";
 	Name = "TRON";
-	Colour = PIXPACK(0xA9FF00);
+	Colour = 0xA9FF00_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_SPECIAL;
 	Enabled = 1;
@@ -52,8 +51,6 @@ void Element::Element_TRON()
 	Update = &update;
 	Graphics = &graphics;
 	Create = &create;
-
-	init_graphics();
 }
 
 /* TRON element is meant to resemble a tron bike (or worm) moving around and trying to avoid obstacles itself.
@@ -74,26 +71,30 @@ void Element::Element_TRON()
  * .ctype Contains the colour, lost on save, regenerated using hue tmp (bits 7 - 16)
  */
 
-#define TRON_HEAD 1
-#define TRON_NOGROW 2
-#define TRON_WAIT 4 //it was just created, so WAIT a frame
-#define TRON_NODIE 8
-#define TRON_DEATH 16 //Crashed, now dying
-#define TRON_NORANDOM 65536
-int tron_rx[4] = {-1, 0, 1, 0};
-int tron_ry[4] = { 0,-1, 0, 1};
-unsigned int tron_colours[32];
+constexpr auto TRON_HEAD     = UINT32_C(0x00000001);
+constexpr auto TRON_NOGROW   = UINT32_C(0x00000002);
+constexpr auto TRON_WAIT     = UINT32_C(0x00000004); //it was just created, so WAIT a frame
+constexpr auto TRON_NODIE    = UINT32_C(0x00000008);
+constexpr auto TRON_DEATH    = UINT32_C(0x00000010); //Crashed, now dying
+constexpr auto TRON_NORANDOM = UINT32_C(0x00010000);
+constexpr int tron_rx[4] = {-1, 0, 1, 0};
+constexpr int tron_ry[4] = { 0,-1, 0, 1};
 
-static void init_graphics()
+static const std::array<unsigned int, 32> MakeTronColors()
 {
+	std::array<unsigned int, 32> tron_colours;
 	int i;
 	int r, g, b;
 	for (i=0; i<32; i++)
 	{
+		// funny almost-bug: if (i<<4) > 360(ish), HSV_to_RGB does nothing with r/g/b,
+		// but since the variables are reused across iterations of the loop, they will still have sane values
 		HSV_to_RGB(i<<4,255,255,&r,&g,&b);
 		tron_colours[i] = r<<16 | g<<8 | b;
 	}
+	return tron_colours;
 }
+static const auto tron_colours = MakeTronColors();
 
 static int update(UPDATE_FUNC_ARGS)
 {
@@ -109,7 +110,7 @@ static int update(UPDATE_FUNC_ARGS)
 		int originaldir = direction;
 
 		//random turn
-		int random = RNG::Ref().between(0, 339);
+		int random = sim->rng.between(0, 339);
 		if ((random==1 || random==3) && !(parts[i].tmp & TRON_NORANDOM))
 		{
 			//randomly turn left(3) or right(1)
@@ -133,7 +134,7 @@ static int update(UPDATE_FUNC_ARGS)
 			}
 			else
 			{
-				seconddir = (direction + (RNG::Ref().between(0, 1)*2)+1)% 4;
+				seconddir = (direction + (sim->rng.between(0, 1)*2)+1)% 4;
 				lastdir = (seconddir + 2)%4;
 			}
 			seconddircheck = trymovetron(sim,x,y,seconddir,i,parts[i].tmp2);
@@ -192,8 +193,8 @@ static int graphics(GRAPHICS_FUNC_ARGS)
 
 static void create(ELEMENT_CREATE_FUNC_ARGS)
 {
-	int randhue = RNG::Ref().between(0, 359);
-	int randomdir = RNG::Ref().between(0, 3);
+	int randhue = sim->rng.between(0, 359);
+	int randomdir = sim->rng.between(0, 3);
 	// Set as a head and a direction
 	sim->parts[i].tmp = 1 | (randomdir << 5) | (randhue << 7);
 	// Tail
@@ -234,13 +235,13 @@ static int trymovetron(Simulation * sim, int x, int y, int dir, int i, int len)
 		rx += tron_rx[dir];
 		ry += tron_ry[dir];
 		r = sim->pmap[ry][rx];
-		if (canmovetron(sim, r, k-1) && !sim->bmap[(ry)/CELL][(rx)/CELL] && ry > CELL && rx > CELL && ry < YRES-CELL && rx < XRES-CELL)
+		if (canmovetron(sim, r, k-1) && !sim->bmap[(ry)/CELL][(rx)/CELL] && ry >= CELL && rx >= CELL && ry < YRES-CELL && rx < XRES-CELL)
 		{
 			count++;
 			for (tx = rx - tron_ry[dir] , ty = ry - tron_rx[dir], j=1; abs(tx-rx) < (len-k) && abs(ty-ry) < (len-k); tx-=tron_ry[dir],ty-=tron_rx[dir],j++)
 			{
 				r = sim->pmap[ty][tx];
-				if (canmovetron(sim, r, j+k-1) && !sim->bmap[(ty)/CELL][(tx)/CELL] && ty > CELL && tx > CELL && ty < YRES-CELL && tx < XRES-CELL)
+				if (canmovetron(sim, r, j+k-1) && !sim->bmap[(ty)/CELL][(tx)/CELL] && ty >= CELL && tx >= CELL && ty < YRES-CELL && tx < XRES-CELL)
 				{
 					if (j == (len-k))//there is a safe path, so we can break out
 						return len+1;
@@ -252,7 +253,7 @@ static int trymovetron(Simulation * sim, int x, int y, int dir, int i, int len)
 			for (tx = rx + tron_ry[dir] , ty = ry + tron_rx[dir], j=1; abs(tx-rx) < (len-k) && abs(ty-ry) < (len-k); tx+=tron_ry[dir],ty+=tron_rx[dir],j++)
 			{
 				r = sim->pmap[ty][tx];
-				if (canmovetron(sim, r, j+k-1) && !sim->bmap[(ty)/CELL][(tx)/CELL] && ty > CELL && tx > CELL && ty < YRES-CELL && tx < XRES-CELL)
+				if (canmovetron(sim, r, j+k-1) && !sim->bmap[(ty)/CELL][(tx)/CELL] && ty >= CELL && tx >= CELL && ty < YRES-CELL && tx < XRES-CELL)
 				{
 					if (j == (len-k))
 						return len+1;
@@ -270,9 +271,11 @@ static int trymovetron(Simulation * sim, int x, int y, int dir, int i, int len)
 
 static bool canmovetron(Simulation * sim, int r, int len)
 {
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 	if (!r || (TYP(r) == PT_SWCH && sim->parts[ID(r)].life >= 10) || (TYP(r) == PT_INVIS && sim->parts[ID(r)].tmp2 == 1))
 		return true;
-	if ((((sim->elements[TYP(r)].Properties & PROP_LIFE_KILL_DEC) && sim->parts[ID(r)].life > 0)|| ((sim->elements[TYP(r)].Properties & PROP_LIFE_KILL) && (sim->elements[TYP(r)].Properties & PROP_LIFE_DEC))) && sim->parts[ID(r)].life < len)
+	if ((((elements[TYP(r)].Properties & PROP_LIFE_KILL_DEC) && sim->parts[ID(r)].life > 0)|| ((elements[TYP(r)].Properties & PROP_LIFE_KILL) && (elements[TYP(r)].Properties & PROP_LIFE_DEC))) && sim->parts[ID(r)].life < len)
 		return true;
 	return false;
 }

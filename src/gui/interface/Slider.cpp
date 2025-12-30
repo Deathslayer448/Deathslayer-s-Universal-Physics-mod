@@ -1,6 +1,6 @@
 #include "Slider.h"
-
 #include "graphics/Graphics.h"
+#include "graphics/Gradient.h"
 
 namespace ui {
 
@@ -9,7 +9,6 @@ Slider::Slider(Point position, Point size, int steps):
 		sliderSteps(steps),
 		sliderPosition(0),
 		isMouseDown(false),
-		bgGradient(NULL),
 		col1(0, 0, 0, 0),
 		col2(0, 0, 0, 0)
 {
@@ -41,7 +40,7 @@ void Slider::updatePosition(int position)
 	}
 }
 
-void Slider::OnMouseMoved(int x, int y, int dx, int dy)
+void Slider::OnMouseMoved(int x, int y)
 {
 	if(isMouseDown)
 	{
@@ -49,10 +48,13 @@ void Slider::OnMouseMoved(int x, int y, int dx, int dy)
 	}
 }
 
-void Slider::OnMouseClick(int x, int y, unsigned button)
+void Slider::OnMouseDown(int x, int y, unsigned button)
 {
-	isMouseDown = true;
-	updatePosition(x);
+	if (MouseDownInside)
+	{
+		isMouseDown = true;
+		updatePosition(x - Position.X);
+	}
 }
 
 void Slider::OnMouseUp(int x, int y, unsigned button)
@@ -66,12 +68,12 @@ void Slider::OnMouseUp(int x, int y, unsigned button)
 
 void Slider::SetColour(Colour col1, Colour col2)
 {
-	pixel pix[2] = {(pixel)PIXRGB(col1.Red, col1.Green, col1.Blue), (pixel)PIXRGB(col2.Red, col2.Green, col2.Blue)};
-	float fl[2] = {0.0f, 1.0f};
-	free(bgGradient);
 	this->col1 = col1;
 	this->col2 = col2;
-	bgGradient = (unsigned char*)Graphics::GenerateGradient(pix, fl, 2, Size.X-7);
+	bgGradient = Gradient({
+		{ col1.NoAlpha(), 0.f },
+		{ col2.NoAlpha(), 1.f },
+	}, Size.X-7);
 }
 
 int Slider::GetValue()
@@ -105,20 +107,19 @@ void Slider::SetSteps(int steps)
 void Slider::Draw(const Point& screenPos)
 {
 	Graphics * g = GetGraphics();
-	//g->drawrect(screenPos.X, screenPos.Y, Size.X, Size.Y, 255, 255, 255, 255);
 
-	if(bgGradient)
+	if (bgGradient.size())
 	{
-#ifndef OGLI
 		for (int j = 3; j < Size.Y-7; j++)
-				for (int i = 3; i < Size.X-7; i++)
-					g->blendpixel(screenPos.X+i+2, screenPos.Y+j+2, bgGradient[(i-3)*3], bgGradient[(i-3)*3+1], bgGradient[(i-3)*3+2], 255);
-#else
-		g->gradientrect(screenPos.X+5, screenPos.Y+5, Size.X-10, Size.Y-10, col1.Red, col1.Green, col1.Blue, col1.Alpha, col2.Red, col2.Green, col2.Blue, col2.Alpha);
-#endif
+		{
+			for (int i = 3; i < Size.X-7; i++)
+			{
+				g->DrawPixel(screenPos + Vec2{ i + 2, j + 2 }, bgGradient[i - 3]);
+			}
+		}
 	}
 
-	g->drawrect(screenPos.X+3, screenPos.Y+3, Size.X-6, Size.Y-6, 255, 255, 255, 255);
+	g->DrawRect(RectSized(screenPos + Vec2{ 3, 3 }, Size - Vec2{ 6, 6 }), 0xFFFFFF_rgb);
 
 	auto fPosition = float(sliderPosition);
 	auto fSize = float(Size.X-6);
@@ -128,8 +129,8 @@ void Slider::Draw(const Point& screenPos)
 	auto sliderX = int(fSliderX);
 	sliderX += 3;
 
-	g->fillrect(screenPos.X+sliderX-2, screenPos.Y+1, 4, Size.Y-2, 20, 20, 20, 255);
-	g->drawrect(screenPos.X+sliderX-2, screenPos.Y+1, 4, Size.Y-2, 200, 200, 200, 255);
+	g->DrawFilledRect(RectSized(screenPos + Vec2{ sliderX-2, 1 }, Vec2{ 4, Size.Y-2 }), 0x141414_rgb);
+	g->DrawRect(RectSized(screenPos + Vec2{ sliderX-2, 1 }, Vec2{ 4, Size.Y-2 }), 0xC8C8C8_rgb);
 }
 
 } /* namespace ui */

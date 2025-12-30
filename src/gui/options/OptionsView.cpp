@@ -1,387 +1,641 @@
 #include "OptionsView.h"
-
+#include "Format.h"
 #include "OptionsController.h"
 #include "OptionsModel.h"
-
-#include <cstdio>
-#include <cstring>
-#ifdef WIN
-#include <direct.h>
-#define getcwd _getcwd
-#else
-#include <unistd.h>
-#endif
-#include "SDLCompat.h"
-#include "Platform.h"
-
+#include "common/clipboard/Clipboard.h"
+#include "common/platform/Platform.h"
+#include "graphics/Graphics.h"
+#include "graphics/Renderer.h"
 #include "gui/Style.h"
+#include "simulation/ElementDefs.h"
+#include "simulation/SimulationSettings.h"
+#include "client/Client.h"
+#include "gui/credits/Credits.h"
+#include "gui/dialogues/ConfirmPrompt.h"
+#include "gui/dialogues/InformationMessage.h"
 #include "gui/interface/Button.h"
-#include "gui/interface/Label.h"
+#include "gui/interface/Checkbox.h"
 #include "gui/interface/DropDown.h"
 #include "gui/interface/Engine.h"
-#include "gui/interface/Checkbox.h"
+#include "gui/interface/Label.h"
+#include "gui/interface/Separator.h"
+#include "gui/interface/Textbox.h"
+#include "gui/interface/DirectionSelector.h"
+#include "PowderToySDL.h"
+#include "Config.h"
+#include <cstdio>
+#include <cstring>
+#include <cmath>
+#include <SDL.h>
 
-#include "graphics/Graphics.h"
-
-OptionsView::OptionsView():
-	ui::Window(ui::Point(-1, -1), ui::Point(320, 340)){
-
-	auto autowidth = [this](ui::Component *c) {
-		c->Size.X = Size.X - c->Position.X - 12;
+OptionsView::OptionsView() : ui::Window(ui::Point(-1, -1), ui::Point(320, 340))
+{
+	auto autoWidth = [this](ui::Component *c, int extra) {
+		c->Size.X = Size.X - c->Position.X - 12 - extra;
 	};
 	
-	ui::Label * tempLabel = new ui::Label(ui::Point(4, 1), ui::Point(Size.X-8, 22), "Simulation Options");
-	tempLabel->SetTextColour(style::Colour::InformationTitle);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	autowidth(tempLabel);
-	AddComponent(tempLabel);
-
-	class Separator : public ui::Component
 	{
-		public:
-		Separator(ui::Point position, ui::Point size) : Component(position, size){}
-		virtual ~Separator(){}
+		auto *label = new ui::Label(ui::Point(4, 1), ui::Point(Size.X-8, 22), "Settings");
+		label->SetTextColour(style::Colour::InformationTitle);
+		label->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
+		label->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
+		autoWidth(label, 0);
+		AddComponent(label);
+	}
 
-		void Draw(const ui::Point& screenPos) override
-		{
-			GetGraphics()->drawrect(screenPos.X, screenPos.Y, Size.X, Size.Y, 255, 255, 255, 180);
-		}		
-	};
-	
-	Separator *tmpSeparator = new Separator(ui::Point(0, 22), ui::Point(Size.X, 1));
+	auto *tmpSeparator = new ui::Separator(ui::Point(0, 22), ui::Point(Size.X, 1));
 	AddComponent(tmpSeparator);
 
-	int currentY = 6;
 	scrollPanel = new ui::ScrollPanel(ui::Point(1, 23), ui::Point(Size.X-2, Size.Y-39));
 	
 	AddComponent(scrollPanel);
 
-	heatSimulation = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Heat simulation \bgIntroduced in version 34", "");
-	autowidth(heatSimulation);
-	heatSimulation->SetActionCallback({ [this] { c->SetHeatSimulation(heatSimulation->GetChecked()); } });
-	scrollPanel->AddChild(heatSimulation);
-	currentY+=14;
-	tempLabel = new ui::Label(ui::Point(24, currentY), ui::Point(1, 16), "\bgCan cause odd behaviour when disabled");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
+	int currentY = 8;
+	auto addLabel = [this, &currentY, &autoWidth](int indent, String text) {
+		auto *label = new ui::Label(ui::Point(22 + indent * 15, currentY), ui::Point(1, 16), "");
+		autoWidth(label, 0);
+		label->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
+		label->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
+		label->SetMultiline(true);
+		label->SetText("\bg" + text); // stupid hack because autoWidth just changes Size.X and that doesn't update the text wrapper
+		label->AutoHeight();
+		scrollPanel->AddChild(label);
+		currentY += label->Size.Y - 1;
+		return label;
+	};
+	auto addCheckbox = [this, &currentY, &autoWidth, &addLabel](int indent, String text, String info, std::function<void ()> action) {
+		auto *checkbox = new ui::Checkbox(ui::Point(8 + indent * 15, currentY), ui::Point(1, 16), text, "");
+		autoWidth(checkbox, 0);
+		checkbox->SetActionCallback({ action });
+		currentY += 14;
+		if (info.size())
+		{
+			addLabel(indent, info);
+		}
+		currentY += 4;
+		scrollPanel->AddChild(checkbox);
+		return checkbox;
+	};
+	auto addDropDown = [this, &currentY, &autoWidth](String info, std::vector<std::pair<String, int>> options, std::function<void ()> action) {
+		auto *dropDown = new ui::DropDown(ui::Point(Size.X - 95, currentY), ui::Point(80, 16));
+		scrollPanel->AddChild(dropDown);
+		for (auto &option : options)
+		{
+			dropDown->AddOption(option);
+		}
+		dropDown->SetActionCallback({ action });
+		auto *label = new ui::Label(ui::Point(8, currentY), ui::Point(Size.X - 96, 16), info);
+		label->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
+		label->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
+		scrollPanel->AddChild(label);
+		autoWidth(label, 85);
+		currentY += 20;
+		return dropDown;
+	};
+	auto addSeparator = [this, &currentY]() {
+		currentY += 6;
+		auto *separator = new ui::Separator(ui::Point(0, currentY), ui::Point(Size.X, 1));
+		scrollPanel->AddChild(separator);
+		currentY += 11;
+	};
 
-	currentY+=16;
-	ambientHeatSimulation = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Ambient heat simulation \bgIntroduced in version 50", "");
-	autowidth(ambientHeatSimulation);
-	ambientHeatSimulation->SetActionCallback({ [this] { c->SetAmbientHeatSimulation(ambientHeatSimulation->GetChecked()); } });
-	scrollPanel->AddChild(ambientHeatSimulation);
-	currentY+=14;
-	tempLabel = new ui::Label(ui::Point(24, currentY), ui::Point(1, 16), "\bgCan cause odd / broken behaviour with many saves");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-
-	currentY+=16;
-	newtonianGravity = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Newtonian gravity \bgIntroduced in version 48", "");
-	autowidth(newtonianGravity);
-	newtonianGravity->SetActionCallback({ [this] { c->SetNewtonianGravity(newtonianGravity->GetChecked()); } });
-	scrollPanel->AddChild(newtonianGravity);
-	currentY+=14;
-	tempLabel = new ui::Label(ui::Point(24, currentY), ui::Point(1, 16), "\bgMay cause poor performance on older computers");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-
-
-
-
-	currentY+=16;
-	waterEqualisation = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Water equalisation \bgIntroduced in version 61", "");
-	autowidth(waterEqualisation);
-	waterEqualisation->SetActionCallback({ [this] { c->SetWaterEqualisation(waterEqualisation->GetChecked()); } });
-	scrollPanel->AddChild(waterEqualisation);
-	currentY+=14;
-	tempLabel = new ui::Label(ui::Point(24, currentY), ui::Point(1, 16), "\bgMay cause poor performance with a lot of water");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-
-
-	currentY += 16;
-	NoWeightSwitch = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Turns off particles switching because weight", "");
-	autowidth(NoWeightSwitch);
-	NoWeightSwitch->SetActionCallback({ [this] { c->SetNoWeightSwitch(NoWeightSwitch->GetChecked()); } });
-	scrollPanel->AddChild(NoWeightSwitch);
-	currentY += 14;
-	tempLabel = new ui::Label(ui::Point(24, currentY), ui::Point(1, 16), "\bgMakes game around 10x more realistic");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-
-
-
-	currentY+=19;
-	airMode = new ui::DropDown(ui::Point(Size.X-95, currentY), ui::Point(80, 16));
-	scrollPanel->AddChild(airMode);
-	airMode->AddOption(std::pair<String, int>("On", 0));
-	airMode->AddOption(std::pair<String, int>("Pressure off", 1));
-	airMode->AddOption(std::pair<String, int>("Velocity off", 2));
-	airMode->AddOption(std::pair<String, int>("Off", 3));
-	airMode->AddOption(std::pair<String, int>("No Update", 4));
-	airMode->SetActionCallback({ [this] { c->SetAirMode(airMode->GetOption().second); } });
-
-	tempLabel = new ui::Label(ui::Point(8, currentY), ui::Point(Size.X-96, 16), "Air Simulation Mode");
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-
-	currentY+=20;
-	gravityMode = new ui::DropDown(ui::Point(Size.X-95, currentY), ui::Point(80, 16));
-	scrollPanel->AddChild(gravityMode);
-	gravityMode->AddOption(std::pair<String, int>("Vertical", 0));
-	gravityMode->AddOption(std::pair<String, int>("Off", 1));
-	gravityMode->AddOption(std::pair<String, int>("Radial", 2));
-	gravityMode->SetActionCallback({ [this] { c->SetGravityMode(gravityMode->GetOption().second); } });
-
-	tempLabel = new ui::Label(ui::Point(8, currentY), ui::Point(Size.X-96, 16), "Gravity Simulation Mode");
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-
-	currentY+=20;
-	edgeMode = new ui::DropDown(ui::Point(Size.X-95, currentY), ui::Point(80, 16));
-	scrollPanel->AddChild(edgeMode);
-	edgeMode->AddOption(std::pair<String, int>("Void", 0));
-	edgeMode->AddOption(std::pair<String, int>("Solid", 1));
-	edgeMode->AddOption(std::pair<String, int>("Loop", 2));
-	edgeMode->SetActionCallback({ [this] { c->SetEdgeMode(edgeMode->GetOption().second); } });
-
-	tempLabel = new ui::Label(ui::Point(8, currentY), ui::Point(Size.X-96, 16), "Edge Mode");
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-
-	currentY+=20;
-	tmpSeparator = new Separator(ui::Point(0, currentY), ui::Point(Size.X, 1));
-	scrollPanel->AddChild(tmpSeparator);
-
-	currentY+=4;
-	scale = new ui::DropDown(ui::Point(8, currentY), ui::Point(40, 16));
+	heatSimulation = addCheckbox(0, "Heat simulation \bgIntroduced in version 34", "Can cause odd behaviour when disabled", [this] {
+		c->SetHeatSimulation(heatSimulation->GetChecked());
+	});
+	newtonianGravity = addCheckbox(0, "Newtonian gravity \bgIntroduced in version 48", "May cause poor performance on older computers", [this] {
+		c->SetNewtonianGravity(newtonianGravity->GetChecked());
+	});
+	ambientHeatSimulation = addCheckbox(0, "Ambient heat simulation \bgIntroduced in version 50", "Can cause odd / broken behaviour with many saves", [this] {
+		c->SetAmbientHeatSimulation(ambientHeatSimulation->GetChecked());
+	});
+	waterEqualisation = addCheckbox(0, "Water equalisation \bgIntroduced in version 61", "May cause poor performance with a lot of water", [this] {
+		c->SetWaterEqualisation(waterEqualisation->GetChecked());
+	});
+	airMode = addDropDown("Air simulation mode", {
+		{ "On", AIR_ON },
+		{ "Pressure off", AIR_PRESSUREOFF },
+		{ "Velocity off", AIR_VELOCITYOFF },
+		{ "Off", AIR_OFF },
+		{ "No update", AIR_NOUPDATE },
+	}, [this] {
+		c->SetAirMode(airMode->GetOption().second);
+	});
 	{
-		int current_scale = ui::Engine::Ref().GetScale();
-		int ix_scale = 1;
-		bool current_scale_valid = false;
+		ambientAirTemp = new ui::Textbox(ui::Point(Size.X-95, currentY), ui::Point(60, 16));
+		ambientAirTemp->SetActionCallback({ [this] {
+			UpdateAirTemp(ambientAirTemp->GetText(), false);
+		} });
+		ambientAirTemp->SetDefocusCallback({ [this] {
+			UpdateAirTemp(ambientAirTemp->GetText(), true);
+		}});
+		ambientAirTemp->SetLimit(9);
+		scrollPanel->AddChild(ambientAirTemp);
+		ambientAirTempPreview = new ui::Button(ui::Point(Size.X-31, currentY), ui::Point(16, 16), "", "Preview");
+		scrollPanel->AddChild(ambientAirTempPreview);
+		auto *label = new ui::Label(ui::Point(8, currentY), ui::Point(Size.X-105, 16), "Ambient air temperature");
+		label->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
+		label->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
+		scrollPanel->AddChild(label);
+		currentY += 20;
+	}
+	{ // Vorticity coefficient setting
+		vorticityCoeff = new ui::Textbox(ui::Point(Size.X-95, currentY), ui::Point(80, 16));
+		vorticityCoeff->SetActionCallback({ [this] {
+			UpdateVorticityCoeff(vorticityCoeff->GetText(), false);
+		} });
+		vorticityCoeff->SetDefocusCallback({ [this] {
+			UpdateVorticityCoeff(vorticityCoeff->GetText(), true);
+		}});
+		vorticityCoeff->SetLimit(9);
+		scrollPanel->AddChild(vorticityCoeff);
+		auto *label = new ui::Label(ui::Point(8, currentY), ui::Point(Size.X-105, 16), "Vorticity confinement");
+		label->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
+		label->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
+		scrollPanel->AddChild(label);
+		currentY += 20;
+	}
+	class GravityWindow : public ui::Window
+	{
+		void OnTryExit(ExitMethod method) override
+		{
+			CloseActiveWindow();
+			SelfDestruct();
+		}
+
+		void OnDraw() override
+		{
+			Graphics * g = GetGraphics();
+
+			g->DrawFilledRect(RectSized(Position - Vec2{ 1, 1 }, Size + Vec2{ 2, 2 }), 0x000000_rgb);
+			g->DrawRect(RectSized(Position, Size), 0xC8C8C8_rgb);
+		}
+
+		ui::DirectionSelector * gravityDirection;
+		ui::Label * labelValues;
+
+		OptionsController * c;
+
+	public:
+		GravityWindow(ui::Point position, float scale, int radius, float x, float y, OptionsController * c_):
+			ui::Window(position, ui::Point((radius * 5 / 2) + 20, (radius * 5 / 2) + 75)),
+			gravityDirection(new ui::DirectionSelector(ui::Point(10, 32), scale, radius, radius / 4, 2, 5)),
+			c(c_)
+			{
+				ui::Label * tempLabel = new ui::Label(ui::Point(4, 1), ui::Point(Size.X - 8, 22), "Custom Gravity");
+				tempLabel->SetTextColour(style::Colour::InformationTitle);
+				tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
+				tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
+				AddComponent(tempLabel);
+
+				auto * tempSeparator = new ui::Separator(ui::Point(0, 22), ui::Point(Size.X, 1));
+				AddComponent(tempSeparator);
+
+				labelValues = new ui::Label(ui::Point(0, (radius * 5 / 2) + 37), ui::Point(Size.X, 16), String::Build(Format::Precision(1), "X:", x, " Y:", y, " Total:", std::hypot(x, y)));
+				labelValues->Appearance.HorizontalAlign = ui::Appearance::AlignCentre;
+				labelValues->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
+				AddComponent(labelValues);
+
+				gravityDirection->SetValues(x, y);
+				gravityDirection->SetUpdateCallback([this](float x, float y) {
+					labelValues->SetText(String::Build(Format::Precision(1), "X:", x, " Y:", y, " Total:", std::hypot(x, y)));
+				});
+				gravityDirection->SetSnapPoints(5, 5, 2);
+				AddComponent(gravityDirection);
+
+				ui::Button * okayButton = new ui::Button(ui::Point(0, Size.Y - 17), ui::Point(Size.X, 17), "OK");
+				okayButton->Appearance.HorizontalAlign = ui::Appearance::AlignCentre;
+				okayButton->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
+				okayButton->Appearance.BorderInactive = ui::Colour(200, 200, 200);
+				okayButton->SetActionCallback({ [this] {
+					c->SetCustomGravityX(gravityDirection->GetXValue());
+					c->SetCustomGravityY(gravityDirection->GetYValue());
+					CloseActiveWindow();
+					SelfDestruct();
+				} });
+				AddComponent(okayButton);
+				SetOkayButton(okayButton);
+
+				MakeActiveWindow();
+			}
+	};
+	gravityMode = addDropDown("Gravity simulation mode", {
+		{ "Vertical", GRAV_VERTICAL },
+		{ "Off", GRAV_OFF },
+		{ "Radial", GRAV_RADIAL },
+		{ "Custom", GRAV_CUSTOM },
+	}, [this] {
+		c->SetGravityMode(gravityMode->GetOption().second);
+		if (gravityMode->GetOption().second == 3)
+		{
+			new GravityWindow(ui::Point(-1, -1), 0.05f, 40, customGravityX, customGravityY, c);
+		}
+	});
+	edgeMode = addDropDown("Edge mode", {
+		{ "Void", EDGE_VOID },
+		{ "Solid", EDGE_SOLID },
+		{ "Loop", EDGE_LOOP },
+	}, [this] {
+		c->SetEdgeMode(edgeMode->GetOption().second);
+	});
+	temperatureScale = addDropDown("Temperature scale", {
+		{ "Kelvin", TEMPSCALE_KELVIN },
+		{ "Celsius", TEMPSCALE_CELSIUS },
+		{ "Fahrenheit", TEMPSCALE_FAHRENHEIT },
+	}, [this] {
+		c->SetTemperatureScale(TempScale(temperatureScale->GetOption().second));
+	});
+	if (FORCE_WINDOW_FRAME_OPS != forceWindowFrameOpsHandheld)
+	{
+		addSeparator();
+		std::vector<std::pair<String, int>> options;
+		int currentScale = ui::Engine::Ref().GetScale();
+		int scaleIndex = 1;
+		bool currentScaleValid = false;
 		do
 		{
-			if (current_scale == ix_scale)
-				current_scale_valid = true;
-			scale->AddOption(std::pair<String, int>(String::Build(ix_scale), ix_scale));
-			ix_scale += 1;
+			if (currentScale == scaleIndex)
+			{
+				currentScaleValid = true;
+			}
+			options.push_back({ String::Build(scaleIndex), scaleIndex });
+			scaleIndex += 1;
 		}
-		while (ui::Engine::Ref().GetMaxWidth() >= ui::Engine::Ref().GetWidth() * ix_scale && ui::Engine::Ref().GetMaxHeight() >= ui::Engine::Ref().GetHeight() * ix_scale);
-		if (!current_scale_valid)
-			scale->AddOption(std::pair<String, int>("current", current_scale));
+		while (desktopWidth >= GetGraphics()->Size().X * scaleIndex && desktopHeight >= GetGraphics()->Size().Y * scaleIndex);
+		if (!currentScaleValid)
+		{
+			options.push_back({ "current", currentScale });
+		}
+		scale = addDropDown("Window scale factor for larger screens", options, [this] {
+			c->SetScale(scale->GetOption().second);
+		});
 	}
-	scale->SetActionCallback({ [this] { c->SetScale(scale->GetOption().second); } });
-	scrollPanel->AddChild(scale);
-
-	tempLabel = new ui::Label(ui::Point(scale->Position.X+scale->Size.X+3, currentY), ui::Point(Size.X-40, 16), "\bg- Window scale factor for larger screens");
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-
-	currentY+=20;
-	resizable = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Resizable", "");
-	autowidth(resizable);
-	resizable->SetActionCallback({ [this] { c->SetResizable(resizable->GetChecked()); } });
-	tempLabel = new ui::Label(ui::Point(resizable->Position.X+Graphics::textwidth(resizable->GetText())+20, currentY), ui::Point(1, 16), "\bg- Allow resizing and maximizing window");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-	scrollPanel->AddChild(resizable);
-
-	currentY+=20;
-	fullscreen = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Fullscreen", "");
-	autowidth(fullscreen);
-	fullscreen->SetActionCallback({ [this] { c->SetFullscreen(fullscreen->GetChecked()); } });
-	tempLabel = new ui::Label(ui::Point(fullscreen->Position.X+Graphics::textwidth(fullscreen->GetText())+20, currentY), ui::Point(1, 16), "\bg- Fill the entire screen");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-	scrollPanel->AddChild(fullscreen);
-
-	currentY+=20;
-	altFullscreen = new ui::Checkbox(ui::Point(23, currentY), ui::Point(1, 16), "Change Resolution", "");
-	autowidth(altFullscreen);
-	altFullscreen->SetActionCallback({ [this] { c->SetAltFullscreen(altFullscreen->GetChecked()); } });
-	tempLabel = new ui::Label(ui::Point(altFullscreen->Position.X+Graphics::textwidth(altFullscreen->GetText())+20, currentY), ui::Point(1, 16), "\bg- Set optimal screen resolution");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-	scrollPanel->AddChild(altFullscreen);
-
-	currentY+=20;
-	forceIntegerScaling = new ui::Checkbox(ui::Point(23, currentY), ui::Point(1, 16), "Force Integer Scaling", "");
-	autowidth(forceIntegerScaling);
-	forceIntegerScaling->SetActionCallback({ [this] { c->SetForceIntegerScaling(forceIntegerScaling->GetChecked()); } });
-	tempLabel = new ui::Label(ui::Point(altFullscreen->Position.X+Graphics::textwidth(forceIntegerScaling->GetText())+20, currentY), ui::Point(1, 16), "\bg- Less blurry");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-	scrollPanel->AddChild(forceIntegerScaling);
-
-	currentY+=20;
-	fastquit = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Fast Quit", "");
-	autowidth(fastquit);
-	fastquit->SetActionCallback({ [this] { c->SetFastQuit(fastquit->GetChecked()); } });
-	tempLabel = new ui::Label(ui::Point(fastquit->Position.X+Graphics::textwidth(fastquit->GetText())+20, currentY), ui::Point(1, 16), "\bg- Always exit completely when hitting close");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-	scrollPanel->AddChild(fastquit);
-
-	currentY+=20;
-	showAvatars = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Show Avatars", "");
-	autowidth(showAvatars);
-	showAvatars->SetActionCallback({ [this] { c->SetShowAvatars(showAvatars->GetChecked()); } });
-	tempLabel = new ui::Label(ui::Point(showAvatars->Position.X+Graphics::textwidth(showAvatars->GetText())+20, currentY), ui::Point(1, 16), "\bg- Disable if you have a slow connection");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-	scrollPanel->AddChild(showAvatars);
-
-	currentY += 20;
-	momentumScroll = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Momentum/Old Scrolling", "");
-	autowidth(momentumScroll);
-	momentumScroll->SetActionCallback({ [this] { c->SetMomentumScroll(momentumScroll->GetChecked()); } });
-	tempLabel = new ui::Label(ui::Point(momentumScroll->Position.X + Graphics::textwidth(momentumScroll->GetText()) + 20, currentY), ui::Point(1, 16), "\bg- Accelerating instead of step scroll");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-	scrollPanel->AddChild(momentumScroll);
-
-	currentY += 20;
-	autoDrawLimit = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Auto Draw Rate", "");
-	autowidth(autoDrawLimit);
-	autoDrawLimit->SetActionCallback({ [this] { c->SetAutoDrawLimit(autoDrawLimit->GetChecked()); } });
-	tempLabel = new ui::Label(ui::Point(autoDrawLimit->Position.X + Graphics::textwidth(autoDrawLimit->GetText()) + 20, currentY), ui::Point(1, 16), "\bg- Based on monitor refresh rate at startup");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-	scrollPanel->AddChild(autoDrawLimit);
-
-	currentY+=20;
-	mouseClickRequired = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Sticky Categories", "");
-	autowidth(mouseClickRequired);
-	mouseClickRequired->SetActionCallback({ [this] { c->SetMouseClickrequired(mouseClickRequired->GetChecked()); } });
-	tempLabel = new ui::Label(ui::Point(mouseClickRequired->Position.X+Graphics::textwidth(mouseClickRequired->GetText())+20, currentY), ui::Point(1, 16), "\bg- Switch between categories by clicking");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-	scrollPanel->AddChild(mouseClickRequired);
-
-	currentY+=20;
-	includePressure = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Include Pressure", "");
-	autowidth(includePressure);
-	includePressure->SetActionCallback({ [this] { c->SetIncludePressure(includePressure->GetChecked()); } });
-	tempLabel = new ui::Label(ui::Point(includePressure->Position.X+Graphics::textwidth(includePressure->GetText())+20, currentY), ui::Point(1, 16), "\bg- When saving, copying, stamping, etc.");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-	scrollPanel->AddChild(includePressure);
-
-	currentY+=20;
-	perfectCirclePressure = new ui::Checkbox(ui::Point(8, currentY), ui::Point(1, 16), "Perfect Circle", "");
-	autowidth(perfectCirclePressure);
-	perfectCirclePressure->SetActionCallback({ [this] { c->SetPerfectCircle(perfectCirclePressure->GetChecked()); } });
-	tempLabel = new ui::Label(ui::Point(perfectCirclePressure->Position.X+Graphics::textwidth(perfectCirclePressure->GetText())+20, currentY), ui::Point(1, 16), "\bg- Better circle brush, without incorrect points on edges");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-	scrollPanel->AddChild(perfectCirclePressure);
-
-	//perfectCirclePressure
-
-	currentY+=20;
-	decoSpace = new ui::DropDown(ui::Point(8, currentY), ui::Point(60, 16));
-	decoSpace->SetActionCallback({ [this] { c->SetDecoSpace(decoSpace->GetOption().second); } });
-	scrollPanel->AddChild(decoSpace);
-	decoSpace->AddOption(std::pair<String, int>("sRGB", 0));
-	decoSpace->AddOption(std::pair<String, int>("Linear", 1));
-	decoSpace->AddOption(std::pair<String, int>("Gamma 2.2", 2));
-	decoSpace->AddOption(std::pair<String, int>("Gamma 1.8", 3));
-
-	tempLabel = new ui::Label(ui::Point(decoSpace->Position.X+decoSpace->Size.X+3, currentY), ui::Point(Size.X-40, 16), "\bg- Colour space used by decoration tools");
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
-
-	currentY+=20;
-	ui::Button * dataFolderButton = new ui::Button(ui::Point(8, currentY), ui::Point(90, 16), "Open Data Folder");
-	dataFolderButton->SetActionCallback({ [] {
-		auto *cwd = getcwd(NULL, 0);
-		if (cwd)
+	if (FORCE_WINDOW_FRAME_OPS == forceWindowFrameOpsNone)
+	{
+		resizable = addCheckbox(0, "Resizable \bg- allow resizing and maximizing window", "", [this] {
+			c->SetResizable(resizable->GetChecked());
+		});
+		fullscreen = addCheckbox(0, "Fullscreen \bg- fill the entire screen", "", [this] {
+			c->SetFullscreen(fullscreen->GetChecked());
+		});
+		changeResolution = addCheckbox(1, "Set optimal screen resolution", "", [this] {
+			c->SetChangeResolution(changeResolution->GetChecked());
+		});
+		forceIntegerScaling = addCheckbox(1, "Force integer scaling \bg- less blurry", "", [this] {
+			c->SetForceIntegerScaling(forceIntegerScaling->GetChecked());
+		});
+	}
+	blurryScaling = addCheckbox(0, "Blurry scaling \bg- more blurry, better on very big screens", "", [this] {
+		c->SetBlurryScaling(blurryScaling->GetChecked());
+	});
+	addSeparator();
+	if (ALLOW_QUIT)
+	{
+		fastquit = addCheckbox(0, "Fast quit", "Always exit completely when hitting close", [this] {
+			c->SetFastQuit(fastquit->GetChecked());
+		});
+		globalQuit = addCheckbox(0, "Global quit shortcut", "Ctrl+q works everywhere", [this] {
+			c->SetGlobalQuit(globalQuit->GetChecked());
+		});
+	}
+	showAvatars = addCheckbox(0, "Show avatars", "Disable if you have a slow connection", [this] {
+		c->SetShowAvatars(showAvatars->GetChecked());
+	});
+	momentumScroll = addCheckbox(0, "Momentum (old) scrolling", "Accelerating instead of step scroll", [this] {
+		c->SetMomentumScroll(momentumScroll->GetChecked());
+	});
+	mouseClickRequired = addCheckbox(0, "Sticky categories", "Switch between categories by clicking", [this] {
+		c->SetMouseClickrequired(mouseClickRequired->GetChecked());
+	});
+	includePressure = addCheckbox(0, "Include pressure", "When saving, copying, stamping, etc.", [this] {
+		c->SetIncludePressure(includePressure->GetChecked());
+	});
+	perfectCircle = addCheckbox(0, "Perfect circle brush", "Better circle brush, without incorrect points on edges", [this] {
+		c->SetPerfectCircle(perfectCircle->GetChecked());
+	});
+	graveExitsConsole = addCheckbox(0, "Key under Esc exits console", "Disable if that key is 0 on your keyboard", [this] {
+		c->SetGraveExitsConsole(graveExitsConsole->GetChecked());
+	});
+	if constexpr (PLATFORM_CLIPBOARD)
+	{
+		auto indent = 0;
+		nativeClipoard = addCheckbox(indent, "Use platform clipboard", "Allows copying and pasting across TPT instances", [this] {
+			c->SetNativeClipoard(nativeClipoard->GetChecked());
+		});
+		currentY -= 4; // temporarily undo the currentY += 4 at the end of addCheckbox
+		if (auto extra = Clipboard::Explanation())
 		{
-			Platform::OpenURI(cwd);
+			addLabel(indent, "\bg" + *extra);
 		}
-		else
+		currentY += 4; // and then undo the undo
+	}
+	threadedRendering = addCheckbox(0, "Separate rendering thread", "May increase framerate when fancy effects are in use", [this] {
+		c->SetThreadedRendering(threadedRendering->GetChecked());
+	});
+	decoSpace = addDropDown("Colour space used by decoration tools", {
+		{ "sRGB", DECOSPACE_SRGB },
+		{ "Linear", DECOSPACE_LINEAR },
+		{ "Gamma 2.2", DECOSPACE_GAMMA22 },
+		{ "Gamma 1.8", DECOSPACE_GAMMA18 },
+	}, [this] {
+		c->SetDecoSpace(decoSpace->GetOption().second);
+	});
+
+	currentY += 4;
+	if constexpr (ALLOW_DATA_FOLDER)
+	{
+		auto *dataFolderButton = new ui::Button(ui::Point(10, currentY), ui::Point(90, 16), "Open data folder");
+		dataFolderButton->SetActionCallback({ [] {
+			ByteString cwd = Platform::GetCwd();
+			if (!cwd.empty())
+			{
+				Platform::OpenURI(cwd);
+			}
+			else
+			{
+				std::cerr << "Cannot open data folder: Platform::GetCwd(...) failed" << std::endl;
+			}
+		} });
+		scrollPanel->AddChild(dataFolderButton);
+		if constexpr (SHARED_DATA_FOLDER)
 		{
-			fprintf(stderr, "cannot open data folder: getcwd(...) failed\n");
+			auto *migrationButton = new ui::Button(ui::Point(Size.X - 178, currentY), ui::Point(163, 16), "Migrate to shared data directory");
+			migrationButton->SetActionCallback({ [] {
+				ByteString from = Platform::originalCwd;
+				ByteString to = Platform::sharedCwd;
+				new ConfirmPrompt("Do Migration?", "This will migrate all stamps, saves, and scripts from\n\bt" + from.FromUtf8() + "\bw\nto the shared data directory at\n\bt" + to.FromUtf8() + "\bw\n\n" + "Files that already exist will not be overwritten.", { [from, to]() {
+					String ret = Client::Ref().DoMigration(from, to);
+					new InformationMessage("Migration Complete", ret, false);
+				} });
+			} });
+			scrollPanel->AddChild(migrationButton);
 		}
+		currentY += 26;
+	}
+	String autoStartupRequestNote = "Done once at startup";
+	if (!IGNORE_UPDATES)
+	{
+		autoStartupRequestNote += ", also checks for updates";
+	}
+	autoStartupRequest = addCheckbox(0, "Fetch the message of the day and notifications", autoStartupRequestNote, [this] {
+		auto checked = autoStartupRequest->GetChecked();
+		if (checked)
+		{
+			Client::Ref().BeginStartupRequest();
+		}
+		c->SetAutoStartupRequest(checked);
+	});
+	auto *doStartupRequest = new ui::Button(ui::Point(10, currentY), ui::Point(90, 16), "Fetch them now");
+	doStartupRequest->SetActionCallback({ [] {
+		Client::Ref().BeginStartupRequest();
 	} });
-	scrollPanel->AddChild(dataFolderButton);
+	scrollPanel->AddChild(doStartupRequest);
+	startupRequestStatus = addLabel(5, "");
+	UpdateStartupRequestStatus();
+	currentY += 13;
+	redirectStd = addCheckbox(0, "Save errors and other messages to a file", "Developers may ask for this when trying to fix problems", [this] {
+		c->SetRedirectStd(redirectStd->GetChecked());
+	});
 
-	tempLabel = new ui::Label(ui::Point(dataFolderButton->Position.X+dataFolderButton->Size.X+3, currentY), ui::Point(1, 16), "\bg- Open the data and preferences folder");
-	autowidth(tempLabel);
-	tempLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
-	tempLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
-	scrollPanel->AddChild(tempLabel);
+	{
+		addSeparator();
 
-	ui::Button * tempButton = new ui::Button(ui::Point(0, Size.Y-16), ui::Point(Size.X, 16), "OK");
-	tempButton->SetActionCallback({ [this] { c->Exit(); } });
-	AddComponent(tempButton);
-	SetCancelButton(tempButton);
-	SetOkayButton(tempButton);
-	currentY+=20;
+		auto *creditsButton = new ui::Button(ui::Point(10, currentY), ui::Point(90, 16), "Credits");
+		creditsButton->SetActionCallback({ [] {
+			auto *credits = new Credits();
+			ui::Engine::Ref().ShowWindow(credits);
+		} });
+		scrollPanel->AddChild(creditsButton);
+
+		addLabel(5, " - Find out who contributed to TPT");
+		currentY += 13;
+	}
+
+
+	{
+		ui::Button *ok = new ui::Button(ui::Point(0, Size.Y-16), ui::Point(Size.X, 16), "OK");
+		ok->SetActionCallback({ [this] {
+			c->Exit();
+		} });
+		AddComponent(ok);
+		SetCancelButton(ok);
+		SetOkayButton(ok);
+	}
 	scrollPanel->InnerSize = ui::Point(Size.X, currentY);
+}
+
+void OptionsView::UpdateAmbientAirTempPreview(float airTemp, bool isValid)
+{
+	if (isValid)
+	{
+		ambientAirTempPreview->Appearance.BackgroundInactive = RGB::Unpack(HeatToColour(airTemp, MIN_TEMP, MAX_TEMP)).WithAlpha(0xFF);
+		ambientAirTempPreview->SetText("");
+	}
+	else
+	{
+		ambientAirTempPreview->Appearance.BackgroundInactive = ui::Colour(0, 0, 0);
+		ambientAirTempPreview->SetText("?");
+	}
+	ambientAirTempPreview->Appearance.BackgroundHover = ambientAirTempPreview->Appearance.BackgroundInactive;
+}
+
+void OptionsView::AmbientAirTempToTextBox(float airTemp)
+{
+	StringBuilder sb;
+	sb << Format::Precision(2);
+	format::RenderTemperature(sb, airTemp, TempScale(temperatureScale->GetOption().second));
+	ambientAirTemp->SetText(sb.Build());
+}
+
+void OptionsView::VorticityCoeffToTextBox(float vorticity)
+{
+	StringBuilder sb;
+	sb << Format::Precision(2) << vorticity;
+	vorticityCoeff->SetText(sb.Build());
+}
+
+void OptionsView::UpdateStartupRequestStatus()
+{
+	switch (Client::Ref().GetStartupRequestStatus())
+	{
+	case Client::StartupRequestStatus::notYetDone:
+		startupRequestStatus->SetText("\bg - Not yet fetched");
+		break;
+
+	case Client::StartupRequestStatus::inProgress:
+		startupRequestStatus->SetText("\bg - In progress...");
+		break;
+
+	case Client::StartupRequestStatus::succeeded:
+		startupRequestStatus->SetText(String::Build("\bg - OK, ", Client::Ref().GetServerNotifications().size(), " notifications fetched"));
+		break;
+
+	case Client::StartupRequestStatus::failed:
+		{
+			auto error = Client::Ref().GetStartupRequestError();
+			if (!error)
+			{
+				error = "???";
+			}
+			startupRequestStatus->SetText("\bg - Failed: " + error->FromUtf8());
+		}
+		break;
+	}
+}
+
+void OptionsView::UpdateAirTemp(String temp, bool isDefocus)
+{
+	// Parse air temp and determine validity
+	float airTemp = 0;
+	bool isValid;
+	try
+	{
+		airTemp = format::StringToTemperature(temp, TempScale(temperatureScale->GetOption().second));
+		isValid = true;
+	}
+	catch (const std::exception &ex)
+	{
+		isValid = false;
+	}
+
+	// While defocusing, correct out of range temperatures and empty textboxes
+	if (isDefocus)
+	{
+		if (temp.empty())
+		{
+			isValid = true;
+			airTemp = float(R_TEMP) + 273.15f;
+		}
+		else if (!isValid)
+			return;
+		else if (airTemp < MIN_TEMP)
+			airTemp = MIN_TEMP;
+		else if (airTemp > MAX_TEMP)
+			airTemp = MAX_TEMP;
+
+		AmbientAirTempToTextBox(airTemp);
+	}
+	// Out of range temperatures are invalid, preview should go away
+	else if (isValid && (airTemp < MIN_TEMP || airTemp > MAX_TEMP))
+		isValid = false;
+
+	// If valid, set temp
+	if (isValid)
+		c->SetAmbientAirTemperature(airTemp);
+
+	UpdateAmbientAirTempPreview(airTemp, isValid);
+}
+
+void OptionsView::UpdateVorticityCoeff(String vort, bool isDefocus)
+{
+	// Parse vorticity and determine validity
+	float vorticity = 0;
+	bool isValid;
+	try
+	{
+		vorticity = vort.ToNumber<float>();
+		isValid = true;
+	}
+	catch (const std::exception &ex)
+	{
+		isValid = false;
+	}
+
+	// While defocusing, correct out of range vorticity and empty textboxes
+	if (isDefocus)
+	{
+		if (vort.empty())
+		{
+			isValid = true;
+			vorticity = 0.0f;
+		}
+		else if (!isValid)
+			return;
+		else if (vorticity < 0.0f)
+			vorticity = 0.0f;
+		else if (vorticity > 1.0f)
+			vorticity = 1.0f;
+
+		VorticityCoeffToTextBox(vorticity);
+	}
+	// Out of range vorticities are invalid, preview should go away
+	else if (isValid && (vorticity < 0.0f || vorticity > 1.0f))
+		isValid = false;
+
+	// If valid, set vorticity
+	if (isValid)
+		c->SetVorticityCoeff(vorticity);
 }
 
 void OptionsView::NotifySettingsChanged(OptionsModel * sender)
 {
+	temperatureScale->SetOption(sender->GetTemperatureScale()); // has to happen before AmbientAirTempToTextBox is called
 	heatSimulation->SetChecked(sender->GetHeatSimulation());
 	ambientHeatSimulation->SetChecked(sender->GetAmbientHeatSimulation());
 	newtonianGravity->SetChecked(sender->GetNewtonianGravity());
 	waterEqualisation->SetChecked(sender->GetWaterEqualisation());
-	NoWeightSwitch->SetChecked(sender->GetNoWeightSwitching());
 	airMode->SetOption(sender->GetAirMode());
+	// Initialize air temp and preview only when the options menu is opened, and not when user is actively editing the textbox
+	if (!ambientAirTemp->IsFocused())
+	{
+		float airTemp = sender->GetAmbientAirTemperature();
+		UpdateAmbientAirTempPreview(airTemp, true);
+		AmbientAirTempToTextBox(airTemp);
+	}
+	// Same for vorticity
+	if (!vorticityCoeff->IsFocused())
+	{
+		VorticityCoeffToTextBox(sender->GetVorticityCoeff());
+	}
 	gravityMode->SetOption(sender->GetGravityMode());
+	customGravityX = sender->GetCustomGravityX();
+	customGravityY = sender->GetCustomGravityY();
 	decoSpace->SetOption(sender->GetDecoSpace());
 	edgeMode->SetOption(sender->GetEdgeMode());
-	scale->SetOption(sender->GetScale());
-	resizable->SetChecked(sender->GetResizable());
-	fullscreen->SetChecked(sender->GetFullscreen());
-	altFullscreen->SetChecked(sender->GetAltFullscreen());
-	forceIntegerScaling->SetChecked(sender->GetForceIntegerScaling());
-	fastquit->SetChecked(sender->GetFastQuit());
+	if (scale)
+	{
+		scale->SetOption(sender->GetScale());
+	}
+	if (resizable)
+	{
+		resizable->SetChecked(sender->GetResizable());
+	}
+	if (fullscreen)
+	{
+		fullscreen->SetChecked(sender->GetFullscreen());
+	}
+	if (changeResolution)
+	{
+		changeResolution->SetChecked(sender->GetChangeResolution());
+	}
+	if (forceIntegerScaling)
+	{
+		forceIntegerScaling->SetChecked(sender->GetForceIntegerScaling());
+	}
+	if (blurryScaling)
+	{
+		blurryScaling->SetChecked(sender->GetBlurryScaling());
+	}
+	if (fastquit)
+	{
+		fastquit->SetChecked(sender->GetFastQuit());
+	}
+	if (globalQuit)
+	{
+		globalQuit->SetChecked(sender->GetGlobalQuit());
+	}
+	if (nativeClipoard)
+	{
+		nativeClipoard->SetChecked(sender->GetNativeClipoard());
+	}
 	showAvatars->SetChecked(sender->GetShowAvatars());
 	mouseClickRequired->SetChecked(sender->GetMouseClickRequired());
 	includePressure->SetChecked(sender->GetIncludePressure());
-	perfectCirclePressure->SetChecked(sender->GetPerfectCircle());
+	perfectCircle->SetChecked(sender->GetPerfectCircle());
+	graveExitsConsole->SetChecked(sender->GetGraveExitsConsole());
+	threadedRendering->SetChecked(sender->GetThreadedRendering());
 	momentumScroll->SetChecked(sender->GetMomentumScroll());
-	autoDrawLimit->SetChecked(sender->GetAutoDrawLimit());
+	redirectStd->SetChecked(sender->GetRedirectStd());
+	autoStartupRequest->SetChecked(sender->GetAutoStartupRequest());
 }
 
 void OptionsView::AttachController(OptionsController * c_)
@@ -389,18 +643,19 @@ void OptionsView::AttachController(OptionsController * c_)
 	c = c_;
 }
 
+void OptionsView::OnTick()
+{
+	UpdateStartupRequestStatus();
+}
+
 void OptionsView::OnDraw()
 {
 	Graphics * g = GetGraphics();
-	g->clearrect(Position.X-2, Position.Y-2, Size.X+3, Size.Y+3);
-	g->drawrect(Position.X, Position.Y, Size.X, Size.Y, 255, 255, 255, 255);
+	g->DrawFilledRect(RectSized(Position - Vec2{ 1, 1 }, Size + Vec2{ 2, 2 }), 0x000000_rgb);
+	g->DrawRect(RectSized(Position, Size), 0xFFFFFF_rgb);
 }
 
 void OptionsView::OnTryExit(ExitMethod method)
 {
 	c->Exit();
-}
-
-
-OptionsView::~OptionsView() {
 }

@@ -1,14 +1,8 @@
 #pragma once
-#include <vector>
-
 #include "graphics/Pixel.h"
 #include "gui/interface/Point.h"
 #include "gui/interface/Component.h"
-
-#ifdef OGLI
-#include "graphics/OpenGLHeaders.h"
-#endif
-
+#include <vector>
 
 class Graphics;
 namespace ui
@@ -21,17 +15,13 @@ namespace ui
 	 * See sys::Component
 	 */
 
-class Component;
+	class Component;
+
 	class Panel : public Component
 	{
 	public:
 		friend class Component;
 
-#ifdef OGLI
-		GLuint myVid, myVidTex;
-#else
-		pixel * myVid;
-#endif
 		ui::Point InnerSize;
 		ui::Point ViewportPosition;
 
@@ -57,18 +47,16 @@ class Component;
 		//Get child of this component by index.
 		Component* GetChild(unsigned idx);
 
-		void Tick(float dt) override;
+		void Tick() override;
 		void Draw(const Point& screenPos) override;
 
 		void OnMouseHover(int localx, int localy) override;
-		void OnMouseMoved(int localx, int localy, int dx, int dy) override;
-		void OnMouseMovedInside(int localx, int localy, int dx, int dy) override;
+		void OnMouseMoved(int localx, int localy) override;
 		void OnMouseEnter(int localx, int localy) override;
 		void OnMouseLeave(int localx, int localy) override;
 		void OnMouseDown(int x, int y, unsigned button) override;
 		void OnMouseUp(int x, int y, unsigned button) override;
 		void OnMouseClick(int localx, int localy, unsigned button) override;
-		void OnMouseUnclick(int localx, int localy, unsigned button) override;
 		void OnMouseWheel(int localx, int localy, int d) override;
 		void OnMouseWheelInside(int localx, int localy, int d) override;
 		void OnKeyPress(int key, int scan, bool repeat, bool shift, bool ctrl, bool alt) override;
@@ -77,10 +65,9 @@ class Component;
 	protected:
 		// child components
 		std::vector<ui::Component*> children;
-		bool mouseInside;
 
 		// Overridable. Called by XComponent::Tick()
-		virtual void XTick(float dt);
+		virtual void XTick();
 
 		// Overridable. Called by XComponent::Draw()
 		virtual void XDraw(const Point& screenPos);
@@ -90,10 +77,7 @@ class Component;
 		virtual void XOnMouseHover(int localx, int localy);
 
 		// Overridable. Called by XComponent::OnMouseMoved()
-		virtual void XOnMouseMoved(int localx, int localy, int dx, int dy);
-
-		// Overridable. Called by XComponent::OnMouseMovedInside()
-		virtual void XOnMouseMovedInside(int localx, int localy, int dx, int dy);
+		virtual void XOnMouseMoved(int localx, int localy);
 
 		// Overridable. Called by XComponent::OnMouseEnter()
 		virtual void XOnMouseEnter(int localx, int localy);
@@ -110,9 +94,6 @@ class Component;
 		// Overridable. Called by XComponent::OnMouseClick()
 		virtual void XOnMouseClick(int localx, int localy, unsigned button);
 
-		// Overridable. Called by XComponent::OnMouseUnclick()
-		virtual void XOnMouseUnclick(int localx, int localy, unsigned button);
-
 		// Overridable. Called by XComponent::OnMouseWheel()
 		virtual void XOnMouseWheel(int localx, int localy, int d);
 
@@ -124,6 +105,8 @@ class Component;
 
 		// Overridable. Called by XComponent::OnKeyRelease()
 		virtual void XOnKeyRelease(int key, int scan, bool repeat, bool shift, bool ctrl, bool alt);
+		
+		void PropagateMouseMove();
 	};
 
 }

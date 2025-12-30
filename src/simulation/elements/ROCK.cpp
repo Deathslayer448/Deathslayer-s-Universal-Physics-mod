@@ -7,7 +7,7 @@ void Element::Element_ROCK()
 {
 	Identifier = "DEFAULT_PT_ROCK";
 	Name = "ROCK";
-	Colour = PIXPACK(0x727272);
+	Colour = 0x727272_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_SOLIDS;
 	Enabled = 1;
@@ -25,12 +25,12 @@ void Element::Element_ROCK()
 	Flammable = 0;
 	Explosive = 0;
 	Meltable = 5;
-	Hardness = 70;
+	Hardness = 1;
 
 	Weight = 100;
 
 	HeatConduct = 200;
-	Description = "Rock. Solid material, CNCT can stack on top of it.";
+	Description = "Solid, melts into various elements.";
 
 	Properties = TYPE_SOLID | PROP_HOT_GLOW;
 
@@ -69,5 +69,5 @@ static int graphics(GRAPHICS_FUNC_ARGS)
 
 static void create(ELEMENT_CREATE_FUNC_ARGS)
 {
-	sim->parts[i].tmp2 = RNG::Ref().between(0, 10);
+	sim->parts[i].tmp2 = sim->rng.between(0, 10);
 }

@@ -1,6 +1,5 @@
 #pragma once
-#include "Config.h"
-
+#include <algorithm>
 #include <stdexcept>
 #include <sstream>
 #include <vector>
@@ -8,8 +7,6 @@
 #include <limits>
 #include <locale>
 #include <ios>
-
-#include "tpt-minmax.h"
 
 /*
 	There are two "string" classes: ByteString and String. They have nearly
@@ -247,7 +244,7 @@ public:
 	inline bool Contains(ByteString const &other) const { return super::find(other) != npos; }
 
 	inline bool BeginsWith(ByteString const &other) const { return !super::compare(0, other.size(), other); }
-	inline bool EndsWith(ByteString const &other) const { return !super::compare(size() - other.size(), other.size(), other); }
+	inline bool EndsWith(ByteString const &other) const { return size() >= other.size() && !super::compare(size() - other.size(), other.size(), other); }
 
 	using Split = SplitBase<ByteString>;
 	inline Split SplitBy(value_type ch, size_t pos = 0) const { return Split(*this, pos, super::find(ch, pos), 1, false); }
@@ -420,7 +417,7 @@ public:
 	inline bool Contains(String const &other) const { return super::find(other) != npos; }
 
 	inline bool BeginsWith(String const &other) const { return !super::compare(0, other.size(), other); }
-	inline bool EndsWith(String const &other) const { return !super::compare(size() - other.size(), other.size(), other); }
+	inline bool EndsWith(String const &other) const { return size() >= other.size() && !super::compare(size() - other.size(), other.size(), other); }
 
 	using Split = SplitBase<String>;
 	inline Split SplitBy(value_type ch, size_t pos = 0) const { return Split(*this, pos, super::find(ch, pos), 1, false); }

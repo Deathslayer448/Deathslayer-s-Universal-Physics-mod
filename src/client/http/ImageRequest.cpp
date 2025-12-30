@@ -1,46 +1,27 @@
 #include "ImageRequest.h"
-
-#include "common/Singleton.h"
-#include "graphics/Graphics.h"
-#include "Config.h"
+#include "graphics/VideoBuffer.h"
+#include "client/Client.h"
+#include <iostream>
 
 namespace http
 {
-	ImageRequest::ImageRequest(ByteString url, int width, int height) :
-		Request(url),
-		Width(width),
-		Height(height)
-	{
-	}
-
-	ImageRequest::~ImageRequest()
+	ImageRequest::ImageRequest(ByteString url, Vec2<int> newRequestedSize) : Request(url), requestedSize(newRequestedSize)
 	{
 	}
 
 	std::unique_ptr<VideoBuffer> ImageRequest::Finish()
 	{
-		int width = Width;
-		int height = Height;
-		ByteString data = Request::Finish(nullptr);
-		// Note that at this point it's not safe to use any member of the
-		// ImageRequest object as Request::Finish signals RequestManager
-		// to delete it.
-		std::unique_ptr<VideoBuffer> vb;
-		if (data.size())
+		auto [ status, data ] = Request::Finish();
+		ParseResponse(data, status, responseData);
+		auto vb = VideoBuffer::FromPNG(data);
+		if (vb)
 		{
-			int imgw, imgh;
-			pixel *imageData = Graphics::ptif_unpack(&data[0], data.size(), &imgw, &imgh);
-			if (imageData)
-			{
-				vb = std::unique_ptr<VideoBuffer>(new VideoBuffer(imageData, imgw, imgh));
-				free(imageData);
-			}
-			else
-			{
-				vb = std::unique_ptr<VideoBuffer>(new VideoBuffer(32, 32));
-				vb->SetCharacter(14, 14, 'x', 255, 255, 255, 255);
-			}
-			vb->Resize(width, height, true);
+			vb->Resize(requestedSize, true);
+		}
+		else
+		{
+			vb = std::make_unique<VideoBuffer>(Vec2(15, 16));
+			vb->BlendChar(Vec2(2, 4), 0xE06E, 0xFFFFFF_rgb .WithAlpha(0xFF));
 		}
 		return vb;
 	}

@@ -7,7 +7,7 @@ void Element::Element_PUMP()
 {
 	Identifier = "DEFAULT_PT_PUMP";
 	Name = "PUMP";
-	Colour = PIXPACK(0x0A0A3B);
+	Colour = 0x0A0A3B_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_POWERED;
 	Enabled = 1;
@@ -25,7 +25,7 @@ void Element::Element_PUMP()
 	Flammable = 0;
 	Explosive = 0;
 	Meltable = 0;
-	Hardness = 10;
+	Hardness = 9;
 
 	Weight = 100;
 
@@ -52,7 +52,6 @@ void Element::Element_PUMP()
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	int r, rx, ry;
 	if (parts[i].life != 10)
 	{
 		if (parts[i].life>0)
@@ -60,13 +59,14 @@ static int update(UPDATE_FUNC_ARGS)
 	}
 	else
 	{
-		if (parts[i].temp >= 256.0f+273.15f)
-			parts[i].temp = 256.0f+273.15f;
-		if (parts[i].temp <= -256.0f+273.15f)
-			parts[i].temp = -256.0f+273.15f;
+		if (parts[i].temp >= MAX_PRESSURE+273.15f)
+			parts[i].temp = MAX_PRESSURE+273.15f;
+		if (parts[i].temp <= MIN_PRESSURE+273.15f)
+			parts[i].temp = MIN_PRESSURE+273.15f;
 
-		for (rx = -1; rx <= 1; rx++)
-			for (ry = -1; ry <= 1; ry++)
+		for (auto rx = -1; rx <= 1; rx++)
+		{
+			for (auto ry = -1; ry <= 1; ry++)
 			{
 				if (parts[i].tmp != 1)
 				{
@@ -79,18 +79,21 @@ static int update(UPDATE_FUNC_ARGS)
 					if (TYP(r) == PT_FILT)
 					{
 						int newPressure = parts[ID(r)].ctype - 0x10000000;
-						if (newPressure >= 0 && newPressure <= 512)
+						if (newPressure >= 0 && newPressure <= MAX_PRESSURE - MIN_PRESSURE)
 						{
-							sim->pv[(y + ry) / CELL][(x + rx) / CELL] = float(newPressure - 256);
+							sim->pv[(y + ry) / CELL][(x + rx) / CELL] = float(newPressure) + MIN_PRESSURE;
 						}
 					}
 				}
 			}
-		for (rx = -2; rx <= 2; rx++)
-			for (ry = -2; ry <= 2; ry++)
-				if (BOUNDS_CHECK && (rx || ry))
+		}
+		for (auto rx = -2; rx <= 2; rx++)
+		{
+			for (auto ry = -2; ry <= 2; ry++)
+			{
+				if (rx || ry)
 				{
-					r = pmap[y+ry][x+rx];
+					auto r = pmap[y+ry][x+rx];
 					if (!r)
 						continue;
 					if (TYP(r) == PT_PUMP)
@@ -101,6 +104,8 @@ static int update(UPDATE_FUNC_ARGS)
 							parts[ID(r)].life = 10;
 					}
 				}
+			}
+		}
 	}
 	return 0;
 }

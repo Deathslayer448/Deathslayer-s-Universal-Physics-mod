@@ -1,5 +1,3 @@
-#include "Config.h"
-#ifdef LUACONSOLE
 /*
 ** Lua BitOp -- a bit operations library for Lua 5.1/5.2.
 ** http://bitop.luajit.org/
@@ -99,7 +97,9 @@ static int bit_bnot(lua_State *L) { BRET(~barg(L, 1)) }
 
 #define BIT_OP(func, opr) \
   static int func(lua_State *L) { int i; UBits b = barg(L, 1); \
-    for (i = lua_gettop(L); i > 1; i--) b opr barg(L, i); BRET(b) }
+    for (i = lua_gettop(L); i > 1; i--) b opr barg(L, i); \
+    BRET(b) \
+  }
 BIT_OP(bit_band, &=)
 BIT_OP(bit_bor, |=)
 BIT_OP(bit_bxor, ^=)
@@ -152,7 +152,7 @@ static const struct luaL_Reg bit_funcs[] = {
   { "ror",	bit_ror },
   { "bswap",	bit_bswap },
   { "tohex",	bit_tohex },
-  { NULL, NULL }
+  { nullptr, nullptr }
 };
 
 /* Signed right-shifts are implementation-defined per C89/C99.
@@ -187,4 +187,3 @@ int luaopen_bit(lua_State *L)
 //#endif
   return 1;
 }
-#endif

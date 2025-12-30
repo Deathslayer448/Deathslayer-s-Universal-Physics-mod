@@ -8,7 +8,7 @@ void Element::Element_CRMC()
 {
 	Identifier = "DEFAULT_PT_CRMC";
 	Name = "CRMC";
-	Colour = PIXPACK(0xD6D1D4);
+	Colour = 0xD6D1D4_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_SOLIDS;
 	Enabled = 1;
@@ -26,7 +26,7 @@ void Element::Element_CRMC()
 	Flammable = 0;
 	Explosive = 0;
 	Meltable = 0;
-	Hardness = 5;
+	Hardness = 0;
 
 	Weight = 100;
 
@@ -51,8 +51,10 @@ void Element::Element_CRMC()
 
 static int update(UPDATE_FUNC_ARGS)
 {
+	float origTemp = parts[i].temp;
 	if (sim->pv[y/CELL][x/CELL] < -30.0f)
 		sim->create_part(i, x, y, PT_CLST);
+	parts[i].temp = origTemp;
 	return 0;
 }
 
@@ -67,5 +69,5 @@ static int graphics(GRAPHICS_FUNC_ARGS)
 
 static void create(ELEMENT_CREATE_FUNC_ARGS)
 {
-	sim->parts[i].tmp2 = RNG::Ref().between(0, 4);
+	sim->parts[i].tmp2 = sim->rng.between(0, 4);
 }

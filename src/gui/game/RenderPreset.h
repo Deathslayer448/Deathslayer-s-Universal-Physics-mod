@@ -1,19 +1,14 @@
-#ifndef RENDER_PRESET_H
-#define RENDER_PRESET_H
-class RenderPreset
-{
-public:
-	String Name;
-	std::vector<unsigned int> RenderModes;
-	std::vector<unsigned int> DisplayModes;
-	unsigned int ColourMode;
+#pragma once
+#include "common/String.h"
+#include "graphics/RendererSettings.h"
+#include <cstdint>
 
-	RenderPreset(): Name(""), ColourMode(0) {}
-	RenderPreset(String name, std::vector<unsigned int> renderModes, std::vector<unsigned int> displayModes, unsigned int colourMode):
-		Name(name),
-		RenderModes(renderModes),
-		DisplayModes(displayModes),
-		ColourMode(colourMode)
-	{}
+struct RenderPreset
+{
+	String Name;
+	uint32_t renderMode;
+	uint32_t displayMode;
+	uint32_t colorMode;
+	HdispLimit wantHdispLimitMin = HdispLimitExplicit{ MIN_TEMP };
+	HdispLimit wantHdispLimitMax = HdispLimitExplicit{ MAX_TEMP };
 };
-#endif

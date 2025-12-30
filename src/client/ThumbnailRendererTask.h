@@ -1,7 +1,7 @@
-#ifndef THUMBNAILRENDERER_H
-#define THUMBNAILRENDERER_H
-
+#pragma once
+#include "common/Vec2.h"
 #include "tasks/AbandonableTask.h"
+#include "graphics/RendererSettings.h"
 
 #include <memory>
 
@@ -9,20 +9,20 @@ class GameSave;
 class VideoBuffer;
 class ThumbnailRendererTask : public AbandonableTask
 {
-	std::unique_ptr<GameSave> Save;
-	int Width, Height;
-	bool Decorations;
-	bool Fire;
-	bool AutoRescale;
+	std::unique_ptr<GameSave> save;
+	Vec2<int> size;
+	RendererSettings::DecorationLevel decorationLevel;
+	bool fire;
 	std::unique_ptr<VideoBuffer> thumbnail;
 
+	static int queueSize;
+
 public:
-	ThumbnailRendererTask(GameSave *save, int width, int height, bool autoRescale = false, bool decorations = true, bool fire = true);
+	ThumbnailRendererTask(GameSave const &, Vec2<int> size, RendererSettings::DecorationLevel newDecorationLevel, bool fire);
 	virtual ~ThumbnailRendererTask();
 
 	virtual bool doWork() override;
 	std::unique_ptr<VideoBuffer> Finish();
+
+	static int QueueSize();
 };
-
-#endif // THUMBNAILRENDERER_H
-

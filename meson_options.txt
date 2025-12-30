@@ -6,6 +6,12 @@ option(
 	description: 'Build statically using libraries present on the system (\'system\') or using prebuilt libraries official builds use (\'prebuilt\')'
 )
 option(
+	'lto',
+	type: 'boolean',
+	value: false,
+	description: 'Link-time optimization, mostly a wrapper around the b_lto built-in option'
+)
+option(
 	'beta',
 	type: 'boolean',
 	value: false,
@@ -18,10 +24,17 @@ option(
 	description: 'Don\'t show notifications about available updates'
 )
 option(
-	'install_check',
+	'can_install',
+	type: 'combo',
+	choices: [ 'no', 'yes', 'yes_check', 'auto' ],
+	value: 'auto',
+	description: 'Disable (\'no\') or enable (\'yes\') setting up file and URL associations, or even offer to do it at startup (\'yes_check\')'
+)
+option(
+	'shared_data_folder',
 	type: 'boolean',
-	value: false,
-	description: 'Do install check on startup'
+	value: true,
+	description: 'Handle the shared data folder, e.g. automatically chdir over to it and offering migration to it'
 )
 option(
 	'http',
@@ -30,23 +43,10 @@ option(
 	description: 'Enable HTTP via libcurl'
 )
 option(
-	'gravfft',
-	type: 'boolean',
-	value: true,
-	description: 'Enable FFT gravity via libfftw3'
-)
-option(
 	'snapshot',
 	type: 'boolean',
 	value: false,
 	description: 'Snapshot build'
-)
-option(
-	'snapshot_id',
-	type: 'integer',
-	min: 0,
-	value: 199,
-	description: 'Snapshot ID, only relevant if \'snapshot\' is true'
 )
 option(
 	'mod_id',
@@ -58,41 +58,16 @@ option(
 option(
 	'lua',
 	type: 'combo',
-	choices: [ 'none', 'lua5.1', 'lua5.2', 'luajit' ],
-	value: 'luajit',
+	choices: [ 'none', 'lua5.1', 'lua5.2', 'luajit', 'auto' ],
+	value: 'auto',
 	description: 'Lua library to use'
-)
-option(
-	'ssl',
-	type: 'combo',
-	choices: [ 'openssl' ],
-	value: 'openssl',
-	description: 'SSL library to use'
 )
 option(
 	'x86_sse',
 	type: 'combo',
-	choices: [ 'none', 'sse', 'sse2', 'sse3', 'auto' ],
+	choices: [ 'none', 'sse', 'sse2', 'sse3', 'sse4.1', 'sse4.2', 'avx', 'avx2', 'avx512', 'auto' ],
 	value: 'auto',
 	description: 'Enable SSE (available only on x86)'
-)
-option(
-	'native',
-	type: 'boolean',
-	value: false,
-	description: 'Build with optimizations specific to the local machine, may not run on other machines, overrides \'x86_sse\''
-)
-option(
-	'ogli',
-	type: 'boolean',
-	value: false,
-	description: 'Enable OpenGL interface rendering (currently defunct)'
-)
-option(
-	'oglr',
-	type: 'boolean',
-	value: false,
-	description: 'Enable OpenGL particle rendering (currently defunct)'
 )
 option(
 	'build_powder',
@@ -128,11 +103,199 @@ option(
 	'update_server',
 	type: 'string',
 	value: '',
-	description: 'Update server, only used by snapshots and mods, see \'snapshot_id\' and \'mod_id\''
+	description: 'Update server, only used by snapshots and mods, see \'snapshot\' and \'mod_id\''
 )
 option(
-	'workaround_gcc_no_pie',
+	'workaround_noncpp_lua',
+	type: 'boolean',
+	value: false,
+	description: 'Allow linking against a non-C++ system Lua'
+)
+option(
+	'workaround_elusive_bzip2',
 	type: 'boolean',
 	value: true,
-	description: 'Pass -no-pie to gcc manually to work around meson\'s -Db_pie=false doing nothing'
+	description: 'Find bzip2 via the compiler and its built-in library directories, rather than via pkg-config or similar'
+)
+option(
+	'workaround_elusive_bzip2_lib_name',
+	type: 'string',
+	value: 'bz2',
+	description: 'bzip2 library name, see \'workaround_elusive_bzip2\''
+)
+option(
+	'workaround_elusive_bzip2_lib_dir',
+	type: 'string',
+	value: '/usr/lib/x86_64-linux-gnu',
+	description: 'bzip2 library directory, see \'workaround_elusive_bzip2\''
+)
+option(
+	'workaround_elusive_bzip2_include_name',
+	type: 'string',
+	value: 'bzlib.h',
+	description: 'bzip2 header name, see \'workaround_elusive_bzip2\''
+)
+option(
+	'workaround_elusive_bzip2_include_dir',
+	type: 'string',
+	value: '/usr/include',
+	description: 'bzip2 header directory, see \'workaround_elusive_bzip2\''
+)
+option(
+	'workaround_elusive_bzip2_static',
+	type: 'boolean',
+	value: false,
+	description: 'bzip2 static setting, see \'workaround_elusive_bzip2\''
+)
+option(
+	'tpt_libs_vtag',
+	type: 'string',
+	value: '',
+	description: 'tpt-libs vtag override, only used for tpt-libs development'
+)
+option(
+	'package_mode',
+	type: 'string',
+	value: 'default',
+	description: 'Package mode override, only used by official builds, see prepare.py'
+)
+option(
+	'android_keystore',
+	type: 'string',
+	value: '',
+	description: 'Path to Java keystore for signing an APK, only used for Android development'
+)
+option(
+	'android_keyalias',
+	type: 'string',
+	value: 'androidkey',
+	description: 'Signing key alias for signing an APK, only used for Android development'
+)
+option(
+	'app_name',
+	type: 'string',
+	value: 'The Powder Toy',
+	description: 'App name, used for desktop integration and the window title, change if you work on a mod'
+)
+option(
+	'app_comment',
+	type: 'string',
+	value: 'Physics sandbox game',
+	description: 'App comment, used for desktop integration, change if you work on a mod'
+)
+option(
+	'app_exe',
+	type: 'string',
+	value: 'powder',
+	description: 'App executable name, used for desktop integration, change if you work on a mod'
+)
+option(
+	'app_id',
+	type: 'string',
+	value: 'uk.co.powdertoy.tpt',
+	description: 'App ID, a D-Bus well-known name, used for desktop integration, change if you work on a mod'
+)
+option(
+	'app_data',
+	type: 'string',
+	value: 'The Powder Toy',
+	description: 'App data directory name, do not change even if you work on a mod, only if you know what you are doing'
+)
+option(
+	'app_vendor',
+	type: 'string',
+	value: 'powdertoy',
+	description: 'App vendor prefix, used for desktop integration, do not change even if you work on a mod, only if you know what you are doing'
+)
+option(
+	'enforce_https',
+	type: 'boolean',
+	value: true,
+	description: 'Enforce encrypted HTTP traffic, may be disabled for debugging'
+)
+option(
+	'secure_ciphers_only',
+	type: 'boolean',
+	value: false,
+	description: 'Use only secure ciphers for encrypted HTTP traffic, please review cipher list before enabling'
+)
+option(
+	'prepare',
+	type: 'boolean',
+	value: false,
+	description: 'Used by ghactions workflows, not useful otherwise'
+)
+option(
+	'override_display_version',
+	type: 'string',
+	value: '',
+	description: 'Used by ghactions workflows, not useful otherwise'
+)
+option(
+	'render_icons_with_inkscape',
+	type: 'feature',
+	value: 'disabled',
+	description: 'Render icons with Inkscape (inkscape binary needs to be in PATH)'
+)
+option(
+	'resolve_vcs_tag',
+	type: 'combo',
+	choices: [ 'no', 'static_release_only', 'yes' ],
+	value: 'static_release_only',
+	description: 'Enable VCS tag resolution, introduces an always-stale custom target'
+)
+option(
+	'manifest_copyright',
+	type: 'string',
+	value: 'Copyright © 2008-2011 Stanislaw K Skowrenek, Copyright © 2011-2023 Simon Robertshaw, Copyright © 2016-2023 jacob1',
+	description: 'Copyright string, don\'t take too seriously, subject to change'
+)
+option(
+	'manifest_macos_min_ver',
+	type: 'string',
+	value: '',
+	description: 'MacOS minimum allowed platform version string, used by ghactions workflows, not useful otherwise'
+)
+option(
+	'manifest_date',
+	type: 'string',
+	value: '',
+	description: 'Build date string, used by ghactions workflows, not useful otherwise'
+)
+option(
+	'platform_clipboard',
+	type: 'boolean',
+	value: true,
+	description: 'Enable platform clipboard, allows copying simulation data between different windows'
+)
+option(
+	'use_bluescreen',
+	type: 'combo',
+	choices: [ 'no', 'yes', 'auto' ],
+	value: 'auto',
+	description: 'Show blue error screen upon unhandled signals and exceptions'
+)
+option(
+	'windows_icons',
+	type: 'boolean',
+	value: true,
+	description: 'Add icon resources to the executable on Windows'
+)
+option(
+	'windows_utf8cp',
+	type: 'boolean',
+	value: true,
+	description: 'Ask Windows nicely for UTF-8 as the codepage'
+)
+option(
+	'export_lua_symbols',
+	type: 'boolean',
+	value: false,
+	description: 'Export Lua symbols to enable loading of Lua shared modules'
+)
+option(
+	'clang_tidy',
+	type: 'boolean',
+	value: false,
+	description: 'Run clang-tidy to lint programming issues'
 )

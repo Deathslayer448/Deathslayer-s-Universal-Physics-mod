@@ -4,7 +4,7 @@ void Element::Element_PSTE()
 {
 	Identifier = "DEFAULT_PT_PSTE";
 	Name = "PSTE";
-	Colour = PIXPACK(0xAA99AA);
+	Colour = 0xAA99AA_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_LIQUID;
 	Enabled = 1;
@@ -22,7 +22,7 @@ void Element::Element_PSTE()
 	Flammable = 0;
 	Explosive = 0;
 	Meltable = 0;
-	Hardness = 20;
+	Hardness = 18;
 
 	Weight = 31;
 

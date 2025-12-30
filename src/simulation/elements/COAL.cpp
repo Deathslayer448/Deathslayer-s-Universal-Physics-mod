@@ -1,13 +1,11 @@
 #include "simulation/ElementCommon.h"
-
-int Element_COAL_update(UPDATE_FUNC_ARGS);
-int Element_COAL_graphics(GRAPHICS_FUNC_ARGS);
+#include "COAL.h"
 
 void Element::Element_COAL()
 {
 	Identifier = "DEFAULT_PT_COAL";
 	Name = "COAL";
-	Colour = PIXPACK(0x222222);
+	Colour = 0x222222_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_SOLIDS;
 	Enabled = 1;
@@ -22,10 +20,10 @@ void Element::Element_COAL()
 	HotAir = 0.0f	* CFDS;
 	Falldown = 0;
 
-	Flammable = 1;
+	Flammable = 0;
 	Explosive = 0;
 	Meltable = 0;
-	Hardness = 20;
+	Hardness = 18;
 	PhotonReflectWavelengths = 0x00000000;
 
 	Weight = 100;
@@ -53,28 +51,24 @@ void Element::Element_COAL()
 
 int Element_COAL_update(UPDATE_FUNC_ARGS)
 {
-	//if (!sim->betterburning_enable)
-//	{
-		if (parts[i].life <= 0) {
-			sim->create_part(i, x, y, PT_FIRE);
+	if (parts[i].life<=0) {
+		sim->create_part(i, x, y, PT_FIRE);
+		return 1;
+	} else if (parts[i].life < 100) {
+		parts[i].life--;
+		sim->create_part(-1, x + sim->rng.between(-1, 1), y + sim->rng.between(-1, 1), PT_FIRE);
+	}
+	if (parts[i].type == PT_COAL)
+	{
+		if ((sim->pv[y/CELL][x/CELL] > 4.3f)&&parts[i].tmp>40)
+			parts[i].tmp=39;
+		else if (parts[i].tmp<40&&parts[i].tmp>0)
+			parts[i].tmp--;
+		else if (parts[i].tmp<=0) {
+			sim->part_change_type(i, x, y, PT_BCOL);
 			return 1;
 		}
-		else if (parts[i].life < 100) {
-			parts[i].life--;
-			sim->create_part(-1, x + RNG::Ref().between(-1, 1), y + RNG::Ref().between(-1, 1), PT_FIRE);
-		}
-		if (parts[i].type == PT_COAL)
-		{
-			if ((sim->pv[y / CELL][x / CELL] > 4.3f) && parts[i].tmp > 40)
-				parts[i].tmp = 39;
-			else if (parts[i].tmp < 40 && parts[i].tmp>0)
-				parts[i].tmp--;
-			else if (parts[i].tmp <= 0) {
-				sim->part_change_type(i, x, y, PT_BCOL);
-				return 1;
-			}
-		}
-//	}
+	}
 	if(parts[i].temp > parts[i].tmp2)
 		parts[i].tmp2 = int(parts[i].temp);
 	return 0;
@@ -101,8 +95,8 @@ int Element_COAL_graphics(GRAPHICS_FUNC_ARGS)
 		auto q = int((cpart->temp > 595.15f) ? 200.0f : cpart->temp - 395.15f);
 
 		*colr += int(sin(FREQUENCY*q) * 226);
-		*colg += int(sin(FREQUENCY*q*4.55 + 3.14) * 34);
-		*colb += int(sin(FREQUENCY*q*2.22 + 3.14) * 64);
+		*colg += int(sin(FREQUENCY*q*4.55 + TPT_PI_DBL) * 34);
+		*colb += int(sin(FREQUENCY*q*2.22 + TPT_PI_DBL) * 64);
 	}
 	return 0;
 }

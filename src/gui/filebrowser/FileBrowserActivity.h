@@ -26,10 +26,13 @@ class FileBrowserActivity: public TaskListener, public WindowActivity
 	OnSelected onSelected;
 	ui::ScrollPanel * itemList;
 	ui::Label * infoText;
-	std::vector<SaveFile*> files;
+	std::vector<std::unique_ptr<SaveFile>> files;
+	bool createButtons = false;
 	std::vector<ui::Component*> components;
 	std::vector<ui::Component*> componentsQueue;
 	ByteString directory;
+	bool hasQueuedSearch;
+	ByteString queuedSearch;
 
 	ui::ProgressBar * progressBar;
 
@@ -45,13 +48,13 @@ public:
 	virtual ~FileBrowserActivity();
 	
 	void OnDraw() override;
-	void OnTick(float dt) override;
+	void OnTick() override;
 	void OnTryExit(ExitMethod method) override;
 	void OnMouseDown(int x, int y, unsigned button) override;
 	void loadDirectory(ByteString directory, ByteString search);
-	void SelectSave(SaveFile * file);
-	void DeleteSave(SaveFile * file);
-	void RenameSave(SaveFile * file);
+	void SelectSave(int index);
+	void DeleteSave(int index);
+	void RenameSave(int index);
 	void DoSearch(ByteString search);
 
 	void NotifyDone(Task * task) override;

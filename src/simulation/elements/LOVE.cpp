@@ -4,9 +4,9 @@ void Element::Element_LOVE()
 {
 	Identifier = "DEFAULT_PT_LOVE";
 	Name = "LOVE";
-	Colour = PIXPACK(0xFF30FF);
-	MenuVisible = 1;
-	MenuSection = SC_CRACKER2;
+	Colour = 0xFF30FF_rgb;
+	MenuVisible = 0;
+	MenuSection = SC_SPECIAL;
 	Enabled = 1;
 
 	Advection = 0.0f;
@@ -42,7 +42,7 @@ void Element::Element_LOVE()
 	HighTemperatureTransition = NT;
 }
 
-int Element_LOVE_RuleTable[9][9] =
+extern const int Element_LOVE_RuleTable[9][9] =
 {
 	{0,0,1,1,0,0,0,0,0},
 	{0,1,0,0,1,1,0,0,0},
@@ -54,5 +54,3 @@ int Element_LOVE_RuleTable[9][9] =
 	{0,1,0,0,1,1,0,0,0},
 	{0,0,1,1,0,0,0,0,0},
 };
-
-int Element_LOVE_love[XRES/9][YRES/9];

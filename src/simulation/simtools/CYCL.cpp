@@ -3,18 +3,18 @@
 
 #include <cmath>
 
-static int perform(Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength);
+static int perform(SimTool *tool, Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength);
 
 void SimTool::Tool_CYCL()
 {
 	Identifier = "DEFAULT_TOOL_CYCL";
 	Name = "CYCL";
-	Colour = PIXPACK(0x132f5b);
+	Colour = 0x132f5b_rgb;
 	Description = "Cyclone, produces swirling air currents";
 	Perform = &perform;
 }
 
-static int perform(Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength)
+static int perform(SimTool *tool, Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength)
 {
 	/*
 		Air velocity calculation.
@@ -26,8 +26,8 @@ static int perform(Simulation * sim, Particle * cpart, int x, int y, int brushX,
 		if(brushX == x && brushY == y)
 			return 1;
 
-		float *vx = &sim->air->vx[y / CELL][x / CELL];
-		float *vy = &sim->air->vy[y / CELL][x / CELL];
+		float *vx = &sim->vx[y / CELL][x / CELL];
+		float *vy = &sim->vy[y / CELL][x / CELL];
 
 		auto dvx = float(brushX - x);
 		auto dvy = float(brushY - y);
@@ -37,14 +37,14 @@ static int perform(Simulation * sim, Particle * cpart, int x, int y, int brushX,
 		*vy -= (strength / 16) * dvx*invsqr;
 
 		// Clamp velocities
-		if (*vx > 256.0f)
-			*vx = 256.0f;
-		else if (*vx < -256.0f)
-			*vx = -256.0f;
-		if (*vy > 256.0f)
-			*vy = 256.0f;
-		else if (*vy < -256.0f)
-			*vy = -256.0f;
+		if (*vx > MAX_PRESSURE)
+			*vx = MAX_PRESSURE;
+		else if (*vx < MIN_PRESSURE)
+			*vx = MIN_PRESSURE;
+		if (*vy > MAX_PRESSURE)
+			*vy = MAX_PRESSURE;
+		else if (*vy < MIN_PRESSURE)
+			*vy = MIN_PRESSURE;
 
 	}
 

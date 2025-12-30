@@ -1,13 +1,8 @@
-#include "Config.h"
-#ifdef LUACONSOLE
-
 #include "LuaScriptInterface.h"
-
 #include "LuaLabel.h"
-
 #include "gui/interface/Label.h"
 
-const char LuaLabel::className[] = "Label";
+const char LuaLabel::className[] = "label";
 
 #define method(class, name) {#name, &class::name}
 Luna<LuaLabel>::RegType LuaLabel::methods[] = {
@@ -15,34 +10,34 @@ Luna<LuaLabel>::RegType LuaLabel::methods[] = {
 	method(LuaLabel, position),
 	method(LuaLabel, size),
 	method(LuaLabel, visible),
-	{0, 0}
+	{nullptr, nullptr}
 };
 
-LuaLabel::LuaLabel(lua_State * l) :
-	LuaComponent(l)
+LuaLabel::LuaLabel(lua_State *L) :
+	LuaComponent(L)
 {
-	this->l = l;
-	int posX = luaL_optinteger(l, 1, 0);
-	int posY = luaL_optinteger(l, 2, 0);
-	int sizeX = luaL_optinteger(l, 3, 10);
-	int sizeY = luaL_optinteger(l, 4, 10);
-	String text = ByteString(luaL_optstring(l, 5, "")).FromUtf8();
+	this->L = L;
+	int posX = luaL_optinteger(L, 1, 0);
+	int posY = luaL_optinteger(L, 2, 0);
+	int sizeX = luaL_optinteger(L, 3, 10);
+	int sizeY = luaL_optinteger(L, 4, 10);
+	String text = tpt_lua_optString(L, 5, "");
 
 	label = new ui::Label(ui::Point(posX, posY), ui::Point(sizeX, sizeY), text);
 	component = label;
 }
 
-int LuaLabel::text(lua_State * l)
+int LuaLabel::text(lua_State *L)
 {
-	int args = lua_gettop(l);
+	int args = lua_gettop(L);
 	if(args)
 	{
-		label->SetText(ByteString(lua_tostring(l, 1)).FromUtf8());
+		label->SetText(tpt_lua_checkString(L, 1));
 		return 0;
 	}
 	else
 	{
-		lua_pushstring(l, label->GetText().ToUtf8().c_str());
+		tpt_lua_pushString(L, label->GetText());
 		return 1;
 	}
 }
@@ -50,4 +45,3 @@ int LuaLabel::text(lua_State * l)
 LuaLabel::~LuaLabel()
 {
 }
-#endif

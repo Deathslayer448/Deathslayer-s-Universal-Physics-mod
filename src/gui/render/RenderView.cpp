@@ -1,28 +1,28 @@
 #include "RenderView.h"
-
 #include "simulation/ElementGraphics.h"
-
+#include "simulation/SimulationData.h"
+#include "simulation/Simulation.h"
 #include "graphics/Graphics.h"
 #include "graphics/Renderer.h"
-
+#include "graphics/VideoBuffer.h"
 #include "RenderController.h"
 #include "RenderModel.h"
-
 #include "gui/interface/Checkbox.h"
 #include "gui/interface/Button.h"
+#include "gui/game/GameController.h"
+#include "gui/game/GameView.h"
 
 class ModeCheckbox : public ui::Checkbox
 {
 public:
 	using ui::Checkbox::Checkbox;
-	unsigned int mode;
+	uint32_t mode;
 };
 
 RenderView::RenderView():
 	ui::Window(ui::Point(0, 0), ui::Point(XRES, WINDOWH)),
-	ren(NULL),
+	ren(nullptr),
 	toolTip(""),
-	toolTipPresence(0),
 	isToolTipFadingIn(false)
 {
 	auto addPresetButton = [this](int index, Icon icon, ui::Point offset, String tooltip) {
@@ -42,18 +42,15 @@ RenderView::RenderView():
 	addPresetButton( 9, IconGradient  , ui::Point(-193,  6), "Heat gradient display mode preset");
 	addPresetButton( 0, IconAltAir    , ui::Point(-193, 24), "Alternative Velocity display mode preset");
 	addPresetButton(10, IconLife      , ui::Point(-232,  6), "Life display mode preset");
-	addPresetButton(11, IconWarp	  , ui::Point(-232, 24), "Tmp3/health display mode preset");
 
 	auto addRenderModeCheckbox = [this](unsigned int mode, Icon icon, ui::Point offset, String tooltip) {
 		auto *renderModeCheckbox = new ModeCheckbox(ui::Point(0, YRES) + offset, ui::Point(30, 16), "", tooltip);
 		renderModes.push_back(renderModeCheckbox);
 		renderModeCheckbox->mode = mode;
 		renderModeCheckbox->SetIcon(icon);
-		renderModeCheckbox->SetActionCallback({ [this, renderModeCheckbox] {
-			if (renderModeCheckbox->GetChecked())
-				c->SetRenderMode(renderModeCheckbox->mode);
-			else
-				c->UnsetRenderMode(renderModeCheckbox->mode);
+		renderModeCheckbox->SetActionCallback({ [this] {
+			auto renderMode = CalculateRenderMode();
+			c->SetRenderMode(renderMode);
 		} });
 		AddComponent(renderModeCheckbox);
 	};
@@ -71,10 +68,21 @@ RenderView::RenderView():
 		displayModeCheckbox->mode = mode;
 		displayModeCheckbox->SetIcon(icon);
 		displayModeCheckbox->SetActionCallback({ [this, displayModeCheckbox] {
+			auto displayMode = c->GetDisplayMode();
+			// Air display modes are mutually exclusive
+			if (displayModeCheckbox->mode & DISPLAY_AIR)
+			{
+				displayMode &= ~DISPLAY_AIR;
+			}
 			if (displayModeCheckbox->GetChecked())
-				c->SetDisplayMode(displayModeCheckbox->mode);
+			{
+				displayMode |= displayModeCheckbox->mode;
+			}
 			else
-				c->UnsetDisplayMode(displayModeCheckbox->mode);
+			{
+				displayMode &= ~displayModeCheckbox->mode;
+			}
+			c->SetDisplayMode(displayMode);
 		} });
 		AddComponent(displayModeCheckbox);
 	};
@@ -83,17 +91,12 @@ RenderView::RenderView():
 	addDisplayModeCheckbox(DISPLAY_AIRP, IconPressure  , ui::Point(135, 22), "Displays pressure, red is positive and blue is negative");
 	addDisplayModeCheckbox(DISPLAY_AIRV, IconVelocity  , ui::Point(167,  4), "Displays velocity and positive pressure: up/down adds blue, right/left adds red, still pressure adds green");
 	addDisplayModeCheckbox(DISPLAY_AIRH, IconHeat      , ui::Point(167, 22), "Displays the temperature of the air like heat display does");
-	line2 = 200;
-	addDisplayModeCheckbox(DISPLAY_WARP, IconWarp      , ui::Point(205, 22), "Gravity lensing, Newtonian Gravity bends light with this on");
-#ifdef OGLR
-# define TOOLTIP "Some type of OpenGL effect ... maybe"
-#else
-# define TOOLTIP "Enables moving solids, stickmen guns, and premium(tm) graphics"
-#endif
-	addDisplayModeCheckbox(DISPLAY_EFFE, IconEffect    , ui::Point(205,  4), TOOLTIP);
-#undef TOOLTIP
-	addDisplayModeCheckbox(DISPLAY_PERS, IconPersistant, ui::Point(237,  4), "Element paths persist on the screen for a while");
-	line3 = 270;
+	addDisplayModeCheckbox(DISPLAY_AIRW, IconVort      , ui::Point(199,  4), "Displays vorticity, red is clockwise and blue is anticlockwise");
+	line2 = 232;
+	addDisplayModeCheckbox(DISPLAY_WARP, IconWarp      , ui::Point(237, 22), "Gravity lensing, Newtonian Gravity bends light with this on");
+	addDisplayModeCheckbox(DISPLAY_EFFE, IconEffect    , ui::Point(237,  4), "Enables moving solids, stickmen guns, and premium(tm) graphics");
+	addDisplayModeCheckbox(DISPLAY_PERS, IconPersistant, ui::Point(269,  4), "Element paths persist on the screen for a while");
+	line3 = 302;
 
 	auto addColourModeCheckbox = [this](unsigned int mode, Icon icon, ui::Point offset, String tooltip) {
 		auto *colourModeCheckbox = new ModeCheckbox(ui::Point(0, YRES) + offset, ui::Point(30, 16), "", tooltip);
@@ -101,19 +104,37 @@ RenderView::RenderView():
 		colourModeCheckbox->mode = mode;
 		colourModeCheckbox->SetIcon(icon);
 		colourModeCheckbox->SetActionCallback({ [this, colourModeCheckbox] {
-			if(colourModeCheckbox->GetChecked())
-				c->SetColourMode(colourModeCheckbox->mode);
+			auto colorMode = c->GetColorMode();
+			// exception: looks like an independent set of settings but behaves more like an index
+			if (colourModeCheckbox->GetChecked())
+			{
+				colorMode = colourModeCheckbox->mode;
+			}
 			else
-				c->SetColourMode(0);
+			{
+				colorMode = 0;
+			}
+			c->SetColorMode(colorMode);
 		} });
 		AddComponent(colourModeCheckbox);
 	};
-	addColourModeCheckbox(COLOUR_HEAT, IconHeat    , ui::Point(275,  4), "Displays temperatures of the elements, dark blue is coldest, pink is hottest");
-	addColourModeCheckbox(COLOUR_LIFE, IconLife    , ui::Point(275, 22), "Displays the life value of elements in greyscale gradients");
-	addColourModeCheckbox(COLOUR_HEAL, IconWarp, ui::Point(339, 22), "Displays the tmp3 value of elements in greyscale gradients, mainly for checking health of living organisms");
-	addColourModeCheckbox(COLOUR_GRAD, IconGradient, ui::Point(307, 22), "Changes colors of elements slightly to show heat diffusing through them");
-	addColourModeCheckbox(COLOUR_BASC, IconBasic   , ui::Point(307,  4), "No special effects at all for anything, overrides all other options and deco");
-	line4 = 340;
+	addColourModeCheckbox(COLOUR_HEAT, IconHeat    , ui::Point(307,  4), "Displays temperatures of the elements, dark blue is coldest, pink is hottest");
+	addColourModeCheckbox(COLOUR_LIFE, IconLife    , ui::Point(307, 22), "Displays the life value of elements in greyscale gradients");
+	addColourModeCheckbox(COLOUR_GRAD, IconGradient, ui::Point(339, 22), "Changes colors of elements slightly to show heat diffusing through them");
+	addColourModeCheckbox(COLOUR_BASC, IconBasic   , ui::Point(339,  4), "No special effects at all for anything, overrides all other options and deco");
+	line4 = 372;
+}
+
+uint32_t RenderView::CalculateRenderMode()
+{
+	uint32_t renderMode = 0;
+	for (auto &checkbox : renderModes)
+	{
+		if (checkbox->GetChecked())
+			renderMode |= checkbox->mode;
+	}
+
+	return renderMode;
 }
 
 void RenderView::OnMouseDown(int x, int y, unsigned button)
@@ -130,6 +151,12 @@ void RenderView::OnTryExit(ExitMethod method)
 void RenderView::NotifyRendererChanged(RenderModel * sender)
 {
 	ren = sender->GetRenderer();
+	rendererSettings = sender->GetRendererSettings();
+}
+
+void RenderView::NotifySimulationChanged(RenderModel * sender)
+{
+	sim = sender->GetSimulation();
 }
 
 void RenderView::NotifyRenderChanged(RenderModel * sender)
@@ -155,50 +182,47 @@ void RenderView::NotifyColourChanged(RenderModel * sender)
 {
 	for (size_t i = 0; i < colourModes.size(); i++)
 	{
-		auto colourMode = colourModes[i]->mode;
-		colourModes[i]->SetChecked(colourMode == sender->GetColourMode());
+		auto colorMode = colourModes[i]->mode;
+		colourModes[i]->SetChecked(colorMode == sender->GetColorMode());
 	}
 }
 
 void RenderView::OnDraw()
 {
 	Graphics * g = GetGraphics();
-	g->clearrect(-1, -1, WINDOWW+1, WINDOWH+1);
-	if(ren)
+	g->DrawFilledRect(WINDOW.OriginRect(), 0x000000_rgb);
+	auto *view = GameController::Ref().GetView();
+	view->PauseRendererThread();
+	ren->ApplySettings(*rendererSettings);
+	view->RenderSimulation(*sim, true);
+	view->AfterSimDraw(*sim);
+	for (auto y = 0; y < YRES; ++y)
 	{
-		ren->clearScreen(1.0f);
-		ren->RenderBegin();
-		ren->RenderEnd();
+		auto &video = ren->GetVideo();
+		std::copy_n(video.data() + video.Size().X * y, video.Size().X, g->Data() + g->Size().X * y);
 	}
-	g->draw_line(0, YRES, XRES-1, YRES, 200, 200, 200, 255);
-	g->draw_line(line1, YRES, line1, WINDOWH, 200, 200, 200, 255);
-	g->draw_line(line2, YRES, line2, WINDOWH, 200, 200, 200, 255);
-	g->draw_line(line3, YRES, line3, WINDOWH, 200, 200, 200, 255);
-	g->draw_line(line4, YRES, line4, WINDOWH, 200, 200, 200, 255);
-	g->draw_line(XRES, 0, XRES, WINDOWH, 255, 255, 255, 255);
+	g->DrawLine({ 0, YRES }, { XRES-1, YRES }, 0xC8C8C8_rgb);
+	g->DrawLine({ line1, YRES }, { line1, WINDOWH }, 0xC8C8C8_rgb);
+	g->DrawLine({ line2, YRES }, { line2, WINDOWH }, 0xC8C8C8_rgb);
+	g->DrawLine({ line3, YRES }, { line3, WINDOWH }, 0xC8C8C8_rgb);
+	g->DrawLine({ line4, YRES }, { line4, WINDOWH }, 0xC8C8C8_rgb);
+	g->DrawLine({ XRES, 0 }, { XRES, WINDOWH }, 0xFFFFFF_rgb);
 	if(toolTipPresence && toolTip.length())
 	{
-		g->drawtext(6, Size.Y-MENUSIZE-12, toolTip, 255, 255, 255, toolTipPresence>51?255:toolTipPresence*5);
+		g->BlendText({ 6, Size.Y-MENUSIZE-12 }, toolTip, 0xFFFFFF_rgb .WithAlpha(toolTipPresence>51?255:toolTipPresence*5));
 	}
 }
 
-void RenderView::OnTick(float dt)
+void RenderView::OnTick()
 {
 	if (isToolTipFadingIn)
 	{
 		isToolTipFadingIn = false;
-		if(toolTipPresence < 120)
-		{
-			toolTipPresence += int(dt*2)>1?int(dt*2):2;
-			if(toolTipPresence > 120)
-				toolTipPresence = 120;
-		}
+		toolTipPresence.SetTarget(120);
 	}
-	if(toolTipPresence>0)
+	else
 	{
-		toolTipPresence -= int(dt)>0?int(dt):1;
-		if(toolTipPresence<0)
-			toolTipPresence = 0;
+		toolTipPresence.SetTarget(0);
 	}
 }
 
@@ -206,8 +230,8 @@ void RenderView::OnKeyPress(int key, int scan, bool repeat, bool shift, bool ctr
 {
 	if (repeat)
 		return;
-	if (shift && (key == '1' || key == '2'))
-		c->LoadRenderPreset(key+10);
+	if (shift && key == '1')
+		c->LoadRenderPreset(10);
 	else if(key >= '0' && key <= '9')
 	{
 		c->LoadRenderPreset(key-'0');

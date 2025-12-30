@@ -4,7 +4,7 @@ void Element::Element_CNCT()
 {
 	Identifier = "DEFAULT_PT_CNCT";
 	Name = "CNCT";
-	Colour = PIXPACK(0xC0C0C0);
+	Colour = 0xC0C0C0_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_POWDERS;
 	Enabled = 1;
@@ -27,7 +27,7 @@ void Element::Element_CNCT()
 	Weight = 55;
 
 	HeatConduct = 100;
-	Description = "Concrete, stronger than stone.";
+	Description = "Concrete. Can stack on itself or ROCK, collapses with pressure.";
 
 	Properties = TYPE_PART|PROP_HOT_GLOW;
 

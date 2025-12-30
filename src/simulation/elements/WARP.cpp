@@ -8,7 +8,7 @@ void Element::Element_WARP()
 {
 	Identifier = "DEFAULT_PT_WARP";
 	Name = "WARP";
-	Colour = PIXPACK(0x101010);
+	Colour = 0x101010_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_NUCLEAR;
 	Enabled = 1;
@@ -51,34 +51,33 @@ void Element::Element_WARP()
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	int trade, r, rx, ry;
-	if (parts[i].tmp2>2000)
+	if (parts[i].tmp2 > 2000)
 	{
 		parts[i].temp = 10000;
-		sim->pv[y/CELL][x/CELL] += (parts[i].tmp2/5000) * CFDS;
-		if (RNG::Ref().chance(1, 50))
+		sim->pv[y/CELL][x/CELL] = restrict_flt(sim->pv[y/CELL][x/CELL] + (parts[i].tmp2 / 5000) * CFDS, MIN_PRESSURE, MAX_PRESSURE);
+		if (sim->rng.chance(1, 50))
 			sim->create_part(-3, x, y, PT_ELEC);
 	}
-	for ( trade = 0; trade<5; trade ++)
+	for (int trade = 0; trade < 5; trade ++)
 	{
-		rx = RNG::Ref().between(-1, 1);
-		ry = RNG::Ref().between(-1, 1);
-		if (BOUNDS_CHECK && (rx || ry))
+		int rx = sim->rng.between(-1, 1);
+		int ry = sim->rng.between(-1, 1);
+		if (rx || ry)
 		{
-			r = pmap[y+ry][x+rx];
+			int r = pmap[y + ry][x + rx];
 			if (!r)
 				continue;
-			if (TYP(r)!=PT_WARP&&TYP(r)!=PT_STKM&&TYP(r)!=PT_STKM2&&TYP(r)!=PT_DMND&&TYP(r)!=PT_CLNE&&TYP(r)!=PT_BCLN&&TYP(r)!=PT_PCLN)
+			if (TYP(r) != PT_WARP && TYP(r) != PT_STKM && TYP(r) != PT_STKM2 && TYP(r) != PT_DMND && TYP(r) != PT_CLNE && TYP(r) != PT_BCLN && TYP(r) != PT_PCLN)
 			{
 				parts[i].x = parts[ID(r)].x;
 				parts[i].y = parts[ID(r)].y;
 				parts[ID(r)].x = float(x);
 				parts[ID(r)].y = float(y);
-				parts[ID(r)].vx = RNG::Ref().chance(-2, 1) + 0.5f;
-				parts[ID(r)].vy = float(RNG::Ref().between(-2, 1));
+				parts[ID(r)].vx = sim->rng.between(-2, 1) + 0.5f;
+				parts[ID(r)].vy = float(sim->rng.between(-2, 1));
 				parts[i].life += 4;
 				pmap[y][x] = r;
-				pmap[y+ry][x+rx] = PMAP(i, parts[i].type);
+				pmap[y + ry][x + rx] = PMAP(i, parts[i].type);
 				trade = 5;
 			}
 		}
@@ -89,11 +88,11 @@ static int update(UPDATE_FUNC_ARGS)
 static int graphics(GRAPHICS_FUNC_ARGS)
 {
 	*colr = *colg = *colb = *cola = 0;
-	*pixel_mode &= ~PMODE;
+	*pixel_mode |= NO_DECO;
 	return 0;
 }
 
 static void create(ELEMENT_CREATE_FUNC_ARGS)
 {
-	sim->parts[i].life = RNG::Ref().between(70, 164);
+	sim->parts[i].life = sim->rng.between(70, 164);
 }

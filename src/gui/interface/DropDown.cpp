@@ -15,7 +15,8 @@ class DropDownWindow : public ui::Window
 
 public:
 	DropDownWindow(DropDown * dropDown):
-		Window(dropDown->GetScreenPos() + ui::Point(-1, -1 - dropDown->optionIndex * 16), ui::Point(dropDown->Size.X+2, 1+dropDown->options.size()*16)),
+		Window(dropDown->GetScreenPos() + ui::Point(-1, -1 - (dropDown->optionIndex*16 < dropDown->GetScreenPos().Y ? dropDown->optionIndex*16 : 0)),
+						  ui::Point(dropDown->Size.X+2, 2+dropDown->options.size()*16)),
 		dropDown(dropDown),
 		appearance(dropDown->Appearance)
 	{
@@ -39,7 +40,7 @@ public:
 	void OnDraw() override
 	{
 		Graphics * g = GetGraphics();
-		g->clearrect(Position.X, Position.Y, Size.X, Size.Y);
+		g->DrawFilledRect(RectSized(Position, Size), 0x000000_rgb);
 	}
 	void setOption(String option)
 	{
@@ -98,10 +99,10 @@ void DropDown::Draw(const Point& screenPos)
 		backgroundColour = Appearance.BackgroundInactive;
 	}
 
-	g->fillrect(Position.X-1, Position.Y-1, Size.X+2, Size.Y+2, backgroundColour.Red, backgroundColour.Green, backgroundColour.Blue, backgroundColour.Alpha);
-	g->drawrect(Position.X, Position.Y, Size.X, Size.Y, borderColour.Red, borderColour.Green, borderColour.Blue, borderColour.Alpha);
+	g->BlendFilledRect(RectSized(Position - Vec2{ 1, 1 }, Size + Vec2{ 2, 2 }), backgroundColour);
+	g->BlendRect(RectSized(Position, Size), borderColour);
 	if(optionIndex!=-1)
-		g->drawtext(Position.X+textPosition.X, Position.Y+textPosition.Y, options[optionIndex].first, textColour.Red, textColour.Green, textColour.Blue, textColour.Alpha);
+		g->BlendText(Position + textPosition, options[optionIndex].first, textColour);
 }
 
 void DropDown::OnMouseEnter(int x, int y)
@@ -157,21 +158,6 @@ void DropDown::AddOption(std::pair<String, int> option)
 			return;
 	}
 	options.push_back(option);
-}
-
-void DropDown::RemoveOption(String option)
-{
-start:
-	for (size_t i = 0; i < options.size(); i++)
-	{
-		if (options[i].first == option)
-		{
-			if ((int)i == optionIndex)
-				optionIndex = -1;
-			options.erase(options.begin()+i);
-			goto start;
-		}
-	}
 }
 
 void DropDown::SetOptions(std::vector<std::pair<String, int> > options)

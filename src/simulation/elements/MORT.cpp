@@ -6,9 +6,9 @@ void Element::Element_MORT()
 {
 	Identifier = "DEFAULT_PT_MORT";
 	Name = "MORT";
-	Colour = PIXPACK(0xE0E0E0);
-	MenuVisible = 1;
-	MenuSection = SC_CRACKER2;
+	Colour = 0xE0E0E0_rgb;
+	MenuVisible = 0;
+	MenuSection = SC_SPECIAL;
 	Enabled = 1;
 
 	Advection = 0.0f;

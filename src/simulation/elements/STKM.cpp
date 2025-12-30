@@ -1,20 +1,16 @@
 #include "simulation/ElementCommon.h"
+#include "STKM.h"
 
 static int update(UPDATE_FUNC_ARGS);
-int Element_STKM_graphics(GRAPHICS_FUNC_ARGS);
 static void create(ELEMENT_CREATE_FUNC_ARGS);
 static bool createAllowed(ELEMENT_CREATE_ALLOWED_FUNC_ARGS);
 static void changeType(ELEMENT_CHANGETYPE_FUNC_ARGS);
-void Element_STKM_init_legs(Simulation * sim, playerst *playerp, int i);
-int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS);
-void Element_STKM_set_element(Simulation *sim, playerst *playerp, int element);
-void Element_STKM_interact(Simulation *sim, playerst *playerp, int i, int x, int y);
 
 void Element::Element_STKM()
 {
 	Identifier = "DEFAULT_PT_STKM";
 	Name = "STKM";
-	Colour = PIXPACK(0xFFE0A0);
+	Colour = 0xFFE0A0_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_SPECIAL;
 	Enabled = 1;
@@ -42,6 +38,7 @@ void Element::Element_STKM()
 	Description = "Stickman. Don't kill him! Control with the arrow keys.";
 
 	Properties = PROP_NOCTYPEDRAW;
+	CarriesTypeIn = 1U << FIELD_CTYPE;
 
 	LowPressure = IPL;
 	LowPressureTransition = NT;
@@ -97,10 +94,24 @@ static void changeType(ELEMENT_CHANGETYPE_FUNC_ARGS)
 		sim->player.spwn = 0;
 }
 
-#define INBOND(x, y) ((x)>=0 && (y)>=0 && (x)<XRES && (y)<YRES)
+void die(Simulation *sim, playerst *playerp, int i)
+{
+	int x = (int)(sim->parts[i].x + 0.5f);
+	int y = (int)(sim->parts[i].y + 0.5f);
+	for (int r = -2; r <= 1; r++)
+	{
+		sim->create_part(-1, x + r, y - 2, playerp->elem);
+		sim->create_part(-1, x + r + 1, y + 2, playerp->elem);
+		sim->create_part(-1, x - 2, y + r + 1, playerp->elem);
+		sim->create_part(-1, x + 2, y + r, playerp->elem);
+	}
+	sim->kill_part(i);  //Kill him
+}
 
 int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 {
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 	int r, rx, ry;
 	int t = parts[i].type;
 	float pp, d;
@@ -112,7 +123,7 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 	float rocketBootsHeadEffectV = 0.3f;// stronger acceleration vertically, to counteract gravity
 	float rocketBootsFeetEffectV = 0.45f;
 
-	if (!playerp->fan && parts[i].ctype && sim->IsElementOrNone(parts[i].ctype))
+	if (!playerp->fan && parts[i].ctype && sd.IsElementOrNone(parts[i].ctype))
 		Element_STKM_set_element(sim, playerp, parts[i].ctype);
 	playerp->frames++;
 
@@ -125,14 +136,7 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 	//Death
 	if (parts[i].life<1 || (sim->pv[y/CELL][x/CELL]>=4.5f && !playerp->fan) ) //If his HP is less than 0 or there is very big wind...
 	{
-		for (r=-2; r<=1; r++)
-		{
-			sim->create_part(-1, x+r, y-2, playerp->elem);
-			sim->create_part(-1, x+r+1, y+2, playerp->elem);
-			sim->create_part(-1, x-2, y+r+1, playerp->elem);
-			sim->create_part(-1, x+2, y+r, playerp->elem);
-		}
-		sim->kill_part(i);  //Kill him
+		die(sim, playerp, i);
 		return 1;
 	}
 
@@ -141,13 +145,13 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 	switch (sim->gravityMode)
 	{
 		default:
-		case 0:
+		case GRAV_VERTICAL:
 			gvy = 1;
 			break;
-		case 1:
+		case GRAV_OFF:
 			gvy = gvx = 0.0f;
 			break;
-		case 2:
+		case GRAV_RADIAL:
 			{
 				float gravd;
 				gravd = 0.01f - hypotf((parts[i].x - XCNTR), (parts[i].y - YCNTR));
@@ -155,32 +159,36 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 				gvy = ((float)(parts[i].y - YCNTR) / gravd);
 			}
 			break;
+		case GRAV_CUSTOM:
+			gvx = sim->customGravityX;
+			gvy = sim->customGravityY;
+			break;
 	}
 
-	gvx += sim->gravx[((int)parts[i].y/CELL)*(XRES/CELL)+((int)parts[i].x/CELL)];
-	gvy += sim->gravy[((int)parts[i].y/CELL)*(XRES/CELL)+((int)parts[i].x/CELL)];
+	gvx += sim->gravOut.forceX[Vec2{ int(parts[i].x), int(parts[i].y) } / CELL];
+	gvy += sim->gravOut.forceY[Vec2{ int(parts[i].x), int(parts[i].y) } / CELL];
 
-	float rbx = gvx;
-	float rby = gvy;
+	float mvx = gvx;
+	float mvy = gvy;
 	bool rbLowGrav = false;
-	float tmp = fabsf(rbx) > fabsf(rby)?fabsf(rbx):fabsf(rby);
+	float tmp = fabsf(mvx) > fabsf(mvy)?fabsf(mvx):fabsf(mvy);
 	if (tmp < 0.001f)
 	{
 		rbLowGrav = true;
-		rbx = -parts[i].vx;
-		rby = -parts[i].vy;
-		tmp = fabsf(rbx) > fabsf(rby)?fabsf(rbx):fabsf(rby);
+		mvx = -parts[i].vx;
+		mvy = -parts[i].vy;
+		tmp = fabsf(mvx) > fabsf(mvy)?fabsf(mvx):fabsf(mvy);
 	}
 	if (tmp < 0.001f)
 	{
-		rbx = 0;
-		rby = 1.0f;
+		mvx = 0;
+		mvy = 1.0f;
 		tmp = 1.0f;
 	}
 	else
-		tmp = 1.0f/sqrtf(rbx*rbx+rby*rby);
-	rbx *= tmp;// scale to a unit vector
-	rby *= tmp;
+		tmp = 1.0f/sqrtf(mvx*mvx+mvy*mvy);
+	mvx *= tmp;// scale to a unit vector
+	mvy *= tmp;
 	if (rbLowGrav)
 	{
 		rocketBootsHeadEffectV = rocketBootsHeadEffect;
@@ -243,34 +251,34 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 		bool moved = false;
 		if (dl>dr)
 		{
-			if (INBOND(playerp->legs[4], playerp->legs[5]) && !sim->eval_move(t, int(playerp->legs[4]), int(playerp->legs[5]), NULL))
+			if (InBounds(int(playerp->legs[4]), int(playerp->legs[5])) && !sim->eval_move(t, int(playerp->legs[4]), int(playerp->legs[5]), nullptr))
 			{
-				playerp->accs[2] = -3*gvy-3*gvx;
-				playerp->accs[3] = 3*gvx-3*gvy;
-				playerp->accs[0] = -gvy;
-				playerp->accs[1] = gvx;
+				playerp->accs[2] = -3*mvy-3*mvx;
+				playerp->accs[3] = 3*mvx-3*mvy;
+				playerp->accs[0] = -mvy;
+				playerp->accs[1] = mvx;
 				moved = true;
 			}
 		}
 		else
 		{
-			if (INBOND(playerp->legs[12], playerp->legs[13]) && !sim->eval_move(t, int(playerp->legs[12]), int(playerp->legs[13]), NULL))
+			if (InBounds(int(playerp->legs[12]), int(playerp->legs[13])) && !sim->eval_move(t, int(playerp->legs[12]), int(playerp->legs[13]), nullptr))
 			{
-				playerp->accs[6] = -3*gvy-3*gvx;
-				playerp->accs[7] = 3*gvx-3*gvy;
-				playerp->accs[0] = -gvy;
-				playerp->accs[1] = gvx;
+				playerp->accs[6] = -3*mvy-3*mvx;
+				playerp->accs[7] = 3*mvx-3*mvy;
+				playerp->accs[0] = -mvy;
+				playerp->accs[1] = mvx;
 				moved = true;
 			}
 		}
 		if (!moved && playerp->rocketBoots)
 		{
-			parts[i].vx -= rocketBootsHeadEffect*rby;
-			parts[i].vy += rocketBootsHeadEffect*rbx;
-			playerp->accs[2] -= rocketBootsFeetEffect*rby;
-			playerp->accs[6] -= rocketBootsFeetEffect*rby;
-			playerp->accs[3] += rocketBootsFeetEffect*rbx;
-			playerp->accs[7] += rocketBootsFeetEffect*rbx;
+			parts[i].vx -= rocketBootsHeadEffect*mvy;
+			parts[i].vy += rocketBootsHeadEffect*mvx;
+			playerp->accs[2] -= rocketBootsFeetEffect*mvy;
+			playerp->accs[6] -= rocketBootsFeetEffect*mvy;
+			playerp->accs[3] += rocketBootsFeetEffect*mvx;
+			playerp->accs[7] += rocketBootsFeetEffect*mvx;
 			for (int leg=0; leg<2; leg++)
 			{
 				if (leg==1 && (((int)(playerp->comm)&0x02) == 0x02))
@@ -279,8 +287,8 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 				int np = sim->create_part(-1, footX, footY, PT_PLSM);
 				if (np>=0)
 				{
-					parts[np].vx = parts[i].vx+rby*25;
-					parts[np].vy = parts[i].vy-rbx*25;
+					parts[np].vx = parts[i].vx+mvy*25;
+					parts[np].vy = parts[i].vy-mvx*25;
 					parts[np].life += 30;
 				}
 			}
@@ -293,34 +301,34 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 		bool moved = false;
 		if (dl<dr)
 		{
-			if (INBOND(playerp->legs[4], playerp->legs[5]) && !sim->eval_move(t, int(playerp->legs[4]), int(playerp->legs[5]), NULL))
+			if (InBounds(int(playerp->legs[4]), int(playerp->legs[5])) && !sim->eval_move(t, int(playerp->legs[4]), int(playerp->legs[5]), nullptr))
 			{
-				playerp->accs[2] = 3*gvy-3*gvx;
-				playerp->accs[3] = -3*gvx-3*gvy;
-				playerp->accs[0] = gvy;
-				playerp->accs[1] = -gvx;
+				playerp->accs[2] = 3*mvy-3*mvx;
+				playerp->accs[3] = -3*mvx-3*mvy;
+				playerp->accs[0] = mvy;
+				playerp->accs[1] = -mvx;
 				moved = true;
 			}
 		}
 		else
 		{
-			if (INBOND(playerp->legs[12], playerp->legs[13]) && !sim->eval_move(t, int(playerp->legs[12]), int(playerp->legs[13]), NULL))
+			if (InBounds(int(playerp->legs[12]), int(playerp->legs[13])) && !sim->eval_move(t, int(playerp->legs[12]), int(playerp->legs[13]), nullptr))
 			{
-				playerp->accs[6] = 3*gvy-3*gvx;
-				playerp->accs[7] = -3*gvx-3*gvy;
-				playerp->accs[0] = gvy;
-				playerp->accs[1] = -gvx;
+				playerp->accs[6] = 3*mvy-3*mvx;
+				playerp->accs[7] = -3*mvx-3*mvy;
+				playerp->accs[0] = mvy;
+				playerp->accs[1] = -mvx;
 				moved = true;
 			}
 		}
 		if (!moved && playerp->rocketBoots)
 		{
-			parts[i].vx += rocketBootsHeadEffect*rby;
-			parts[i].vy -= rocketBootsHeadEffect*rbx;
-			playerp->accs[2] += rocketBootsFeetEffect*rby;
-			playerp->accs[6] += rocketBootsFeetEffect*rby;
-			playerp->accs[3] -= rocketBootsFeetEffect*rbx;
-			playerp->accs[7] -= rocketBootsFeetEffect*rbx;
+			parts[i].vx += rocketBootsHeadEffect*mvy;
+			parts[i].vy -= rocketBootsHeadEffect*mvx;
+			playerp->accs[2] += rocketBootsFeetEffect*mvy;
+			playerp->accs[6] += rocketBootsFeetEffect*mvy;
+			playerp->accs[3] -= rocketBootsFeetEffect*mvx;
+			playerp->accs[7] -= rocketBootsFeetEffect*mvx;
 			for (int leg=0; leg<2; leg++)
 			{
 				if (leg==0 && (((int)(playerp->comm)&0x01) == 0x01))
@@ -329,8 +337,8 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 				int np = sim->create_part(-1, footX, footY, PT_PLSM);
 				if (np>=0)
 				{
-					parts[np].vx = parts[i].vx-rby*25;
-					parts[np].vy = parts[i].vy+rbx*25;
+					parts[np].vx = parts[i].vx-mvy*25;
+					parts[np].vy = parts[i].vy+mvx*25;
 					parts[np].life += 30;
 				}
 			}
@@ -352,41 +360,41 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 	{
 		if (playerp->rocketBoots)
 		{
-			parts[i].vx -= rocketBootsHeadEffectV*rbx;
-			parts[i].vy -= rocketBootsHeadEffectV*rby;
-			playerp->accs[2] -= rocketBootsFeetEffectV*rbx;
-			playerp->accs[6] -= rocketBootsFeetEffectV*rbx;
-			playerp->accs[3] -= rocketBootsFeetEffectV*rby;
-			playerp->accs[7] -= rocketBootsFeetEffectV*rby;
+			parts[i].vx -= rocketBootsHeadEffectV*mvx;
+			parts[i].vy -= rocketBootsHeadEffectV*mvy;
+			playerp->accs[2] -= rocketBootsFeetEffectV*mvx;
+			playerp->accs[6] -= rocketBootsFeetEffectV*mvx;
+			playerp->accs[3] -= rocketBootsFeetEffectV*mvy;
+			playerp->accs[7] -= rocketBootsFeetEffectV*mvy;
 			for (int leg=0; leg<2; leg++)
 			{
 				int footX = int(playerp->legs[leg*8+4]), footY = int(playerp->legs[leg*8+5]);
 				int np = sim->create_part(-1, footX, footY+1, PT_PLSM);
 				if (np>=0)
 				{
-					parts[np].vx = parts[i].vx+rbx*30;
-					parts[np].vy = parts[i].vy+rby*30;
+					parts[np].vx = parts[i].vx+mvx*30;
+					parts[np].vy = parts[i].vy+mvy*30;
 					parts[np].life += 10;
 				}
 			}
 		}
-		else if ((INBOND(playerp->legs[4], playerp->legs[5]) && !sim->eval_move(t, int(playerp->legs[4]), int(playerp->legs[5]), NULL)) ||
-				 (INBOND(playerp->legs[12], playerp->legs[13]) && !sim->eval_move(t, int(playerp->legs[12]), int(playerp->legs[13]), NULL)))
+		else if ((InBounds(int(playerp->legs[4]), int(playerp->legs[5])) && !sim->eval_move(t, int(playerp->legs[4]), int(playerp->legs[5]), nullptr)) ||
+				 (InBounds(int(playerp->legs[12]), int(playerp->legs[13])) && !sim->eval_move(t, int(playerp->legs[12]), int(playerp->legs[13]), nullptr)))
 		{
-			parts[i].vx -= 4*gvx;
-			parts[i].vy -= 4*gvy;
-			playerp->accs[2] -= gvx;
-			playerp->accs[6] -= gvx;
-			playerp->accs[3] -= gvy;
-			playerp->accs[7] -= gvy;
+			parts[i].vx -= 4*mvx;
+			parts[i].vy -= 4*mvy;
+			playerp->accs[2] -= mvx;
+			playerp->accs[6] -= mvx;
+			playerp->accs[3] -= mvy;
+			playerp->accs[7] -= mvy;
 		}
 	}
 
 	//Charge detector wall if foot inside
-	if (INBOND((int)(playerp->legs[4]+0.5)/CELL, (int)(playerp->legs[5]+0.5)/CELL) &&
+	if (InBounds(int(playerp->legs[4]+0.5)/CELL, int(playerp->legs[5]+0.5)/CELL) &&
 	       sim->bmap[(int)(playerp->legs[5]+0.5)/CELL][(int)(playerp->legs[4]+0.5)/CELL]==WL_DETECT)
 		sim->set_emap((int)playerp->legs[4]/CELL, (int)playerp->legs[5]/CELL);
-	if (INBOND((int)(playerp->legs[12]+0.5)/CELL, (int)(playerp->legs[13]+0.5)/CELL) &&
+	if (InBounds(int(playerp->legs[12]+0.5)/CELL, int(playerp->legs[13]+0.5)/CELL) &&
 	        sim->bmap[(int)(playerp->legs[13]+0.5)/CELL][(int)(playerp->legs[12]+0.5)/CELL]==WL_DETECT)
 		sim->set_emap((int)(playerp->legs[12]+0.5)/CELL, (int)(playerp->legs[13]+0.5)/CELL);
 
@@ -437,9 +445,9 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 	//Spawn
 	if (((int)(playerp->comm)&0x08) == 0x08)
 	{
-		ry -= 2 * RNG::Ref().between(0, 1) + 1;
+		ry -= 2 * sim->rng.between(0, 1) + 1;
 		r = pmap[ry][rx];
-		if (sim->elements[TYP(r)].Properties&TYPE_SOLID)
+		if (elements[TYP(r)].Properties&TYPE_SOLID)
 		{
 			sim->create_part(-1, rx, ry, PT_SPRK);
 			playerp->frames = 0;
@@ -473,7 +481,7 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 			{
 				if (playerp->elem == PT_PHOT)
 				{
-					int random = abs((RNG::Ref().between(-1, 1)))*3;
+					int random = abs((sim->rng.between(-1, 1)))*3;
 					if (random==0)
 					{
 						sim->kill_part(np);
@@ -492,9 +500,9 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 					int angle;
 					int power = 100;
 					if (gvx!=0 || gvy!=0)
-						angle = int(atan2(gvx, gvy)*180.0f/M_PI);
+						angle = int(atan2(mvx, mvy)*180.0f/TPT_PI_FLT);
 					else
-						angle = RNG::Ref().between(0, 359);
+						angle = sim->rng.between(0, 359);
 					if (((int)playerp->pcomm)&0x01)
 						angle += 180;
 					if (angle>360)
@@ -502,15 +510,15 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 					if (angle<0)
 						angle+=360;
 					parts[np].tmp = angle;
-					parts[np].life = RNG::Ref().between(0, 1+power/15) + power/7;
+					parts[np].life = sim->rng.between(0, 1+power/15) + power/7;
 					parts[np].temp = parts[np].life*power/2.5;
 					parts[np].tmp2 = 1;
 				}
 				else if (!playerp->fan)
 				{
-					parts[np].vx -= -gvy*(5*((((int)playerp->pcomm)&0x02) == 0x02) - 5*(((int)(playerp->pcomm)&0x01) == 0x01));
-					parts[np].vy -= gvx*(5*((((int)playerp->pcomm)&0x02) == 0x02) - 5*(((int)(playerp->pcomm)&0x01) == 0x01));
-					parts[i].vx -= (sim->elements[(int)playerp->elem].Weight*parts[np].vx)/1000;
+					parts[np].vx -= -mvy*(5*((((int)playerp->pcomm)&0x02) == 0x02) - 5*(((int)(playerp->pcomm)&0x01) == 0x01));
+					parts[np].vy -= mvx*(5*((((int)playerp->pcomm)&0x02) == 0x02) - 5*(((int)(playerp->pcomm)&0x01) == 0x01));
+					parts[i].vx -= (elements[(int)playerp->elem].Weight*parts[np].vx)/1000;
 				}
 				playerp->frames = 0;
 			}
@@ -543,27 +551,27 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 	playerp->legs[8] += (playerp->legs[8]-parts[i].x)*d;
 	playerp->legs[9] += (playerp->legs[9]-parts[i].y)*d;
 
-	if (INBOND(playerp->legs[4], playerp->legs[5]) && !sim->eval_move(t, int(playerp->legs[4]), int(playerp->legs[5]), NULL))
+	if (InBounds(int(playerp->legs[4]), int(playerp->legs[5])) && !sim->eval_move(t, int(playerp->legs[4]), int(playerp->legs[5]), nullptr))
 	{
 		playerp->legs[4] = playerp->legs[6];
 		playerp->legs[5] = playerp->legs[7];
 	}
 
-	if (INBOND(playerp->legs[12], playerp->legs[13]) && !sim->eval_move(t, int(playerp->legs[12]), int(playerp->legs[13]), NULL))
+	if (InBounds(int(playerp->legs[12]), int(playerp->legs[13])) && !sim->eval_move(t, int(playerp->legs[12]), int(playerp->legs[13]), nullptr))
 	{
 		playerp->legs[12] = playerp->legs[14];
 		playerp->legs[13] = playerp->legs[15];
 	}
 
 	//This makes stick man "pop" from obstacles
-	if (INBOND(playerp->legs[4], playerp->legs[5]) && !sim->eval_move(t, int(playerp->legs[4]), int(playerp->legs[5]), NULL))
+	if (InBounds(int(playerp->legs[4]), int(playerp->legs[5])) && !sim->eval_move(t, int(playerp->legs[4]), int(playerp->legs[5]), nullptr))
 	{
 		float t;
 		t = playerp->legs[4]; playerp->legs[4] = playerp->legs[6]; playerp->legs[6] = t;
 		t = playerp->legs[5]; playerp->legs[5] = playerp->legs[7]; playerp->legs[7] = t;
 	}
 
-	if (INBOND(playerp->legs[12], playerp->legs[13]) && !sim->eval_move(t, int(playerp->legs[12]), int(playerp->legs[13]), NULL))
+	if (InBounds(int(playerp->legs[12]), int(playerp->legs[13])) && !sim->eval_move(t, int(playerp->legs[12]), int(playerp->legs[13]), nullptr))
 	{
 		float t;
 		t = playerp->legs[12]; playerp->legs[12] = playerp->legs[14]; playerp->legs[14] = t;
@@ -617,36 +625,49 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 
 void Element_STKM_interact(Simulation *sim, playerst *playerp, int i, int x, int y)
 {
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 	int r;
 	if (x<0 || y<0 || x>=XRES || y>=YRES || !sim->parts[i].type)
 		return;
 	r = sim->pmap[y][x];
 	if (r)
 	{
+		int damage = 0;
 		if (TYP(r)==PT_SPRK && playerp->elem!=PT_LIGH) //If on charge
 		{
-			sim->parts[i].life -= RNG::Ref().between(32, 51);
+			damage += sim->rng.between(32, 51);
 		}
 
-		if (sim->elements[TYP(r)].HeatConduct && (TYP(r)!=PT_HSWC||sim->parts[ID(r)].life==10) && ((playerp->elem!=PT_LIGH && sim->parts[ID(r)].temp>=323) || sim->parts[ID(r)].temp<=243) && (!playerp->rocketBoots || TYP(r)!=PT_PLSM))
+		if (!sd.IsHeatInsulator(sim->parts[ID(r)]) && ((playerp->elem!=PT_LIGH && sim->parts[ID(r)].temp>=323) || sim->parts[ID(r)].temp<=243) && (!playerp->rocketBoots || TYP(r)!=PT_PLSM))
 		{
-			sim->parts[i].life -= 2;
+			damage += 2;
 			playerp->accs[3] -= 1;
 		}
 
-		if (sim->elements[TYP(r)].Properties&PROP_DEADLY)
+		if (elements[TYP(r)].Properties&PROP_DEADLY)
 			switch (TYP(r))
 			{
 				case PT_ACID:
-					sim->parts[i].life -= 5;
+					damage += 5;
 					break;
 				default:
-					sim->parts[i].life -= 1;
+					damage++;
 					break;
 			}
 
-		if (sim->elements[TYP(r)].Properties&PROP_RADIOACTIVE)
-			sim->parts[i].life -= 1;
+		if (elements[TYP(r)].Properties&PROP_RADIOACTIVE)
+			damage++;
+
+		if (damage)
+		{
+			if (damage > sim->parts[i].life)
+			{
+				die(sim, playerp, i);
+				return;
+			}
+			sim->parts[i].life -= damage;
+		}
 
 		if (TYP(r)==PT_PRTI && sim->parts[i].type)
 		{
@@ -720,10 +741,12 @@ void Element_STKM_init_legs(Simulation * sim, playerst *playerp, int i)
 
 void Element_STKM_set_element(Simulation *sim, playerst *playerp, int element)
 {
-	if (sim->elements[element].Falldown != 0
-	    || sim->elements[element].Properties&TYPE_GAS
-	    || sim->elements[element].Properties&TYPE_LIQUID
-	    || sim->elements[element].Properties&TYPE_ENERGY
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
+	if (elements[element].Falldown != 0
+	    || elements[element].Properties&TYPE_GAS
+	    || elements[element].Properties&TYPE_LIQUID
+	    || elements[element].Properties&TYPE_ENERGY
 	    || element == PT_LOLZ || element == PT_LOVE)
 	{
 		if (!playerp->rocketBoots || element != PT_PLSM)

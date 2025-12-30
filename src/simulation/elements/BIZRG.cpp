@@ -1,15 +1,13 @@
 #include "simulation/ElementCommon.h"
-
-int Element_BIZR_update(UPDATE_FUNC_ARGS);
-int Element_BIZR_graphics(GRAPHICS_FUNC_ARGS);
+#include "BIZR.h"
 
 void Element::Element_BIZRG()
 {
 	Identifier = "DEFAULT_PT_BIZRG";
 	Name = "BIZG";
-	Colour = PIXPACK(0x00FFBB);
-	MenuVisible = 1;
-	MenuSection = SC_CRACKER2;
+	Colour = 0x00FFBB_rgb;
+	MenuVisible = 0;
+	MenuSection = SC_GAS;
 	Enabled = 1;
 
 	Advection = 1.0f;

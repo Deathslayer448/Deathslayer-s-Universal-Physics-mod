@@ -1,8 +1,5 @@
 #include "Favorite.h"
-
-#include "json/json.h"
-#include "client/Client.h"
-
+#include "prefs/GlobalPrefs.h"
 #include <algorithm>
 
 Favorite::Favorite():
@@ -42,10 +39,10 @@ void Favorite::RemoveFavorite(ByteString identifier)
 
 void Favorite::SaveFavoritesToPrefs()
 {
-	Client::Ref().SetPref("Favorites", std::vector<Json::Value>(favoritesList.begin(), favoritesList.end()));
+	GlobalPrefs::Ref().Set("Favorites", favoritesList);
 }
 
 void Favorite::LoadFavoritesFromPrefs()
 {
-	favoritesList = Client::Ref().GetPrefByteStringArray("Favorites");
+	favoritesList = GlobalPrefs::Ref().Get("Favorites", std::vector<ByteString>{});
 }

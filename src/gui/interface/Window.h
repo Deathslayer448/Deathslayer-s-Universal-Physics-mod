@@ -1,9 +1,8 @@
-#ifndef WINDOW_H
-#define WINDOW_H
-
+#pragma once
 #include "common/String.h"
-#include <vector>
 #include "gui/interface/Point.h"
+#include "FpsLimit.h"
+#include <vector>
 
 class Graphics;
 namespace ui
@@ -25,6 +24,7 @@ namespace ui
 	class Window
 	{
 	public:
+		bool contributesToFps = false;
 		Point Position;
 		Point Size;
 
@@ -56,7 +56,8 @@ namespace ui
 
 		virtual void DoInitialized();
 		virtual void DoExit();
-		virtual void DoTick(float dt);
+		virtual void DoTick();
+		virtual void DoSimTick();
 		virtual void DoDraw();
 		virtual void DoFocus();
 		virtual void DoBlur();
@@ -84,8 +85,18 @@ namespace ui
 		enum ExitMethod { MouseOutside, Escape, ExitButton };
 
 		void MakeActiveWindow();
-		bool CloseActiveWindow();
+		void CloseActiveWindow();
 		Graphics * GetGraphics();
+		void SetFps(float newFps);
+		float GetFps() const
+		{
+			return fps;
+		}
+		void SetFpsLimit(FpsLimit newFpsLimit);
+		FpsLimit GetFpsLimit() const
+		{
+			return fpsLimit;
+		}
 
 	protected:
 		ui::Button * okayButton;
@@ -93,7 +104,8 @@ namespace ui
 
 		virtual void OnInitialized() {}
 		virtual void OnExit() {}
-		virtual void OnTick(float dt) {}
+		virtual void OnTick() {}
+		virtual void OnSimTick() {}
 		virtual void OnDraw() {}
 		virtual void OnFocus() {}
 		virtual void OnBlur() {}
@@ -115,15 +127,14 @@ namespace ui
 		Component *hoverComponent;
 		ChromeStyle chrome;
 
-#ifdef DEBUG
 		bool debugMode;
-#endif
 		//These controls allow a component to call the destruction of the Window inside an event (called by the Window)
 		void finalise();
 		bool halt;
 		bool destruct;
 		bool stop;
 
+		float fps;
+		FpsLimit fpsLimit = FpsLimitFollowDraw{};
 	};
 }
-#endif // WINDOW_H

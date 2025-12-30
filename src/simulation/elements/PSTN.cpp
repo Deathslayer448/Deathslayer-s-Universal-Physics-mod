@@ -1,5 +1,5 @@
-#include "common/tpt-minmax.h"
 #include "simulation/ElementCommon.h"
+#include <algorithm>
 
 struct StackData;
 static int update(UPDATE_FUNC_ARGS);
@@ -12,7 +12,7 @@ void Element::Element_PSTN()
 {
 	Identifier = "DEFAULT_PT_PSTN";
 	Name = "PSTN";
-	Colour = PIXPACK(0xAA9999);
+	Colour = 0xAA9999_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_FORCE;
 	Enabled = 1;
@@ -36,9 +36,10 @@ void Element::Element_PSTN()
 
 	DefaultProperties.temp = 10.0f + 273.15f;
 	HeatConduct = 0;
-	Description = "Piston, extends and pushes particles.";
+	Description = "Piston, pushes particles. PSCN extends, NSCN retracts";
 
 	Properties = TYPE_SOLID;
+	CarriesTypeIn = 1U << FIELD_CTYPE;
 
 	DefaultProperties.tmpcity[0] = 0x1F;
 	DefaultProperties.tmpcity[1] = 0xFF;
@@ -70,8 +71,6 @@ struct StackData
 	}
 };
 
-int tempParts[XRES];
-
 constexpr int PISTON_INACTIVE   = 0x00;
 constexpr int PISTON_RETRACT    = 0x01;
 constexpr int PISTON_EXTEND     = 0x02;
@@ -86,14 +85,16 @@ static int update(UPDATE_FUNC_ARGS)
 	int maxSize = parts[i].tmp ? parts[i].tmp : parts[i].tmpcity[0];//DEFAULT_LIMIT;
 	int armLimit = parts[i].tmp2 ? parts[i].tmp2 : parts[i].tmpcity[1];//DEFAULT_ARM_LIMIT;
  	int state = 0;
-	int r, nxx, nyy, nxi, nyi, rx, ry;
 	int directionX = 0, directionY = 0;
-	if (state == PISTON_INACTIVE) {
-		for (rx=-2; rx<3; rx++)
-			for (ry=-2; ry<3; ry++)
-				if (BOUNDS_CHECK && (rx || ry) && (!rx || !ry))
+	if (state == PISTON_INACTIVE)
+	{
+		for (auto rx = -2; rx <= 2; rx++)
+		{
+			for (auto ry = -2; ry <= 2; ry++)
+			{
+				if ((rx || ry) && (!rx || !ry))
 				{
-					r = pmap[y+ry][x+rx];
+					auto r = pmap[y+ry][x+rx];
 					if (!r)
 						continue;
 					if (TYP(r)==PT_SPRK && parts[ID(r)].life==3) {
@@ -103,13 +104,18 @@ static int update(UPDATE_FUNC_ARGS)
 							state = PISTON_RETRACT;
 					}
 				}
+			}
+		}
 	}
-	if(state == PISTON_EXTEND || state == PISTON_RETRACT) {
-		for (rx=-1; rx<2; rx++)
-			for (ry=-1; ry<2; ry++)
-				if (BOUNDS_CHECK && (rx || ry) && (!rx || !ry))
+	if (state == PISTON_EXTEND || state == PISTON_RETRACT)
+	{
+		for (auto rx = -1; rx <= 1; rx++)
+		{
+			for (auto ry = -1; ry <= 1; ry++)
+			{
+				if ((rx || ry) && (!rx || !ry))
 				{
-					r = pmap[y+ry][x+rx];
+					auto r = pmap[y+ry][x+rx];
 					if (!r)
 						continue;
 					if (TYP(r) == PT_PSTN && !parts[ID(r)].life)
@@ -122,7 +128,9 @@ static int update(UPDATE_FUNC_ARGS)
 						int armCount = 0;
 						directionX = rx;
 						directionY = ry;
-						for (nxx = 0, nyy = 0, nxi = directionX, nyi = directionY; ; nyy += nyi, nxx += nxi) {
+						auto nxi = directionX, nyi = directionY;
+						for (auto nxx = 0, nyy = 0; ; nyy += nyi, nxx += nxi)
+						{
 							if (!(x+nxx<XRES && y+nyy<YRES && x+nxx >= 0 && y+nyy >= 0)) {
 								break;
 							}
@@ -193,7 +201,8 @@ static int update(UPDATE_FUNC_ARGS)
 							return 0;
 					}
 				}
-
+			}
+		}
 	}
 	return 0;
 }
@@ -214,14 +223,14 @@ static StackData CanMoveStack(Simulation * sim, int stackX, int stackY, int dire
 		if (!r)
 		{
 			spaces++;
-			tempParts[currentPos++] = -1;
+			sim->Element_PSTN_tempParts[currentPos++] = -1;
 			if (spaces >= amount)
 				break;
 		}
 		else
 		{
 			if (currentPos - spaces < maxSize && (!retract || (TYP(r) == PT_FRME && posX == stackX && posY == stackY)))
-				tempParts[currentPos++] = ID(r);
+				sim->Element_PSTN_tempParts[currentPos++] = ID(r);
 			else
 				return StackData(currentPos - spaces, spaces);
 		}
@@ -299,13 +308,13 @@ static int MoveStack(Simulation * sim, int stackX, int stackY, int directionX, i
 				break;
 			} else {
 				foundParts = true;
-				tempParts[currentPos++] = ID(r);
+				sim->Element_PSTN_tempParts[currentPos++] = ID(r);
 			}
 		}
 		if(foundParts) {
 			//Move particles
 			for(int j = 0; j < currentPos; j++) {
-				int jP = tempParts[j];
+				int jP = sim->Element_PSTN_tempParts[j];
 				int srcX = (int)(sim->parts[jP].x + 0.5f), srcY = (int)(sim->parts[jP].y + 0.5f);
 				int destX = srcX-directionX*amount, destY = srcY-directionY*amount;
 				sim->pmap[srcY][srcX] = 0;
@@ -322,7 +331,7 @@ static int MoveStack(Simulation * sim, int stackX, int stackY, int directionX, i
 			//Move particles
 			int possibleMovement = 0;
 			for(int j = currentPos-1; j >= 0; j--) {
-				int jP = tempParts[j];
+				int jP = sim->Element_PSTN_tempParts[j];
 				if(jP < 0) {
 					possibleMovement++;
 					continue;

@@ -6,7 +6,7 @@ void Element::Element_CO2()
 {
 	Identifier = "DEFAULT_PT_CO2";
 	Name = "CO2";
-	Colour = PIXPACK(0x666666);
+	Colour = 0x666666_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_GAS;
 	Enabled = 1;
@@ -17,7 +17,7 @@ void Element::Element_CO2()
 	Loss = 0.30f;
 	Collision = -0.1f;
 	Gravity = 0.1f;
-	Diffusion = 5.0f;
+	Diffusion = 1.0f;
 	HotAir = 0.000f	* CFDS;
 	Falldown = 1;
 
@@ -28,7 +28,7 @@ void Element::Element_CO2()
 
 	Weight = 1;
 
-	HeatConduct = 28;
+	HeatConduct = 88;
 	Description = "Carbon Dioxide. Heavy gas, drifts downwards. Carbonates water and turns to dry ice when cold.";
 
 	Properties = TYPE_GAS;
@@ -47,15 +47,16 @@ void Element::Element_CO2()
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	int r, rx, ry;
-	for (rx=-1; rx<2; rx++)
-		for (ry=-1; ry<2; ry++)
-			if (BOUNDS_CHECK && (rx || ry))
+	for (auto rx = -1; rx <= 1; rx++)
+	{
+		for (auto ry = -1; ry <= 1; ry++)
+		{
+			if (rx || ry)
 			{
-				r = pmap[y+ry][x+rx];
+				auto r = pmap[y+ry][x+rx];
 				if (!r)
 				{
-					if (parts[i].ctype==5 && RNG::Ref().chance(1, 2000))
+					if (parts[i].ctype==5 && sim->rng.chance(1, 2000))
 					{
 						if (sim->create_part(-1, x+rx, y+ry, PT_WATR)>=0)
 							parts[i].ctype = 0;
@@ -65,13 +66,13 @@ static int update(UPDATE_FUNC_ARGS)
 				if (TYP(r)==PT_FIRE)
 				{
 					sim->kill_part(ID(r));
-					if (RNG::Ref().chance(1, 30))
+					if (sim->rng.chance(1, 30))
 					{
 						sim->kill_part(i);
 						return 1;
 					}
 				}
-				else if ((TYP(r)==PT_WATR || TYP(r)==PT_DSTW) && RNG::Ref().chance(1, 50))
+				else if ((TYP(r)==PT_WATR || TYP(r)==PT_DSTW) && sim->rng.chance(1, 50))
 				{
 					sim->part_change_type(ID(r), x+rx, y+ry, PT_CBNW);
 					if (parts[i].ctype==5) //conserve number of water particles - ctype=5 means this CO2 hasn't released the water particle from BUBW yet
@@ -86,22 +87,24 @@ static int update(UPDATE_FUNC_ARGS)
 					}
 				}
 			}
+		}
+	}
 	if (parts[i].temp > 9773.15 && sim->pv[y/CELL][x/CELL] > 200.0f)
 	{
-		if (RNG::Ref().chance(1, 5))
+		if (sim->rng.chance(1, 5))
 		{
 			int j;
 			sim->create_part(i,x,y,PT_O2);
 			j = sim->create_part(-3,x,y,PT_NEUT);
 			if (j != -1)
-				parts[j].temp = NORMAL_MAX_TEMP;
-			if (RNG::Ref().chance(1, 50))
+				parts[j].temp = MAX_TEMP;
+			if (sim->rng.chance(1, 50))
 			{
 				j = sim->create_part(-3,x,y,PT_ELEC);
 				if (j != -1)
-					parts[j].temp = NORMAL_MAX_TEMP;
+					parts[j].temp = MAX_TEMP;
 			}
-			parts[i].temp = NORMAL_MAX_TEMP;
+			parts[i].temp = MAX_TEMP;
 			sim->pv[y/CELL][x/CELL] += 100;
 		}
 	}

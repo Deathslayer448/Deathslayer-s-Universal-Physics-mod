@@ -1,8 +1,6 @@
-#ifndef STAMPSVIEW_H_
-#define STAMPSVIEW_H_
-
-#include <vector>
+#pragma once
 #include "gui/interface/Window.h"
+#include <vector>
 
 namespace ui
 {
@@ -24,6 +22,7 @@ class LocalBrowserView: public ui::Window {
 	ui::Label * pageCountLabel;
 	ui::Textbox * pageTextbox;
 	ui::Button * removeSelected;
+	ui::Button *renameSelected;
 
 	void textChanged();
 	bool changed;
@@ -32,7 +31,7 @@ class LocalBrowserView: public ui::Window {
 public:
 	LocalBrowserView();
 	//virtual void OnDraw();
-	void OnTick(float dt) override;
+	void OnTick() override;
 	void AttachController(LocalBrowserController * c_) { c = c_; }
 	void NotifyPageChanged(LocalBrowserModel * sender);
 	void NotifySavesListChanged(LocalBrowserModel * sender);
@@ -42,5 +41,3 @@ public:
 	void OnKeyRelease(int key, int scan, bool repeat, bool shift, bool ctrl, bool alt) override;
 	virtual ~LocalBrowserView();
 };
-
-#endif /* STAMPSVIEW_H_ */

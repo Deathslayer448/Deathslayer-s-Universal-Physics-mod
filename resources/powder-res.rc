@@ -1,4 +1,0 @@
-#include "resource.h"
-
-IDI_ICON ICON DISCARDABLE "icon.ico"
-IDI_DOC_ICON ICON DISCARDABLE "document.ico"

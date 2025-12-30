@@ -6,7 +6,7 @@ void Element::Element_VSNS()
 {
 	Identifier = "DEFAULT_PT_VSNS";
 	Name = "VSNS";
-	Colour = PIXPACK(0x7C9C00);
+	Colour = 0x7C9C00_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_SENSOR;
 	Enabled = 1;
@@ -50,22 +50,27 @@ void Element::Element_VSNS()
 
 static int update(UPDATE_FUNC_ARGS)
 {
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 	int rd = parts[i].tmp2;
 	if (rd > 25) parts[i].tmp2 = rd = 25;
 	if (parts[i].life)
 	{
 		parts[i].life = 0;
 		for (int rx = -2; rx <= 2; rx++)
+		{
 			for (int ry = -2; ry <= 2; ry++)
-				if (BOUNDS_CHECK && (rx || ry))
+			{
+				if (rx || ry)
 				{
 					int r = pmap[y + ry][x + rx];
 					if (!r)
 						continue;
 					int rt = TYP(r);
-					if (sim->parts_avg(i, ID(r), PT_INSL) != PT_INSL)
+					auto pavg = sim->parts_avg(i, ID(r), PT_INSL);
+					if (pavg != PT_INSL && pavg != PT_RSSS)
 					{
-						if ((sim->elements[rt].Properties &PROP_CONDUCTS) && !(rt == PT_WATR || rt == PT_SLTW || rt == PT_NTCT || rt == PT_PTCT || rt == PT_INWR) && parts[ID(r)].life == 0)
+						if ((elements[rt].Properties &PROP_CONDUCTS) && !(rt == PT_WATR || rt == PT_SLTW || rt == PT_NTCT || rt == PT_PTCT || rt == PT_INWR) && parts[ID(r)].life == 0)
 						{
 							parts[ID(r)].life = 4;
 							parts[ID(r)].ctype = rt;
@@ -73,6 +78,8 @@ static int update(UPDATE_FUNC_ARGS)
 						}
 					}
 				}
+			}
+		}
 	}
 	bool doSerialization = false;
 	bool doDeserialization = false;
@@ -94,7 +101,7 @@ static int update(UPDATE_FUNC_ARGS)
 				{
 				case 1:
 					// serialization
-					if (TYP(r) != PT_VSNS && TYP(r) != PT_FILT && !(sim->elements[TYP(r)].Properties & TYPE_SOLID))
+					if (TYP(r) != PT_VSNS && TYP(r) != PT_FILT && !(elements[TYP(r)].Properties & TYPE_SOLID))
 					{
 						doSerialization = true;
 						Vs = Vm;
@@ -105,7 +112,7 @@ static int update(UPDATE_FUNC_ARGS)
 					if (TYP(r) == PT_FILT)
 					{
 						int vel = parts[ID(r)].ctype - 0x10000000;
-						if (vel >= 0 && vel < SIM_MAXVELOCITY)
+						if (vel >= 0 && vel < MAX_VELOCITY)
 						{
 							doDeserialization = true;
 							Vs = float(vel);
@@ -114,20 +121,22 @@ static int update(UPDATE_FUNC_ARGS)
 					break;
 				case 2:
 					// Invert mode
-					if (!(sim->elements[TYP(r)].Properties & TYPE_SOLID) && Vm <= parts[i].temp - 273.15)
+					if (!(elements[TYP(r)].Properties & TYPE_SOLID) && Vm <= parts[i].temp - 273.15)
 						parts[i].life = 1;
 					break;
 				default:
 					// Normal mode
-					if (!(sim->elements[TYP(r)].Properties & TYPE_SOLID) && Vm > parts[i].temp - 273.15)
+					if (!(elements[TYP(r)].Properties & TYPE_SOLID) && Vm > parts[i].temp - 273.15)
 						parts[i].life = 1;
 					break;
 				}
 			}
 
 	for (int rx = -1; rx <= 1; rx++)
+	{
 		for (int ry = -1; ry <= 1; ry++)
-			if (BOUNDS_CHECK && (rx || ry))
+		{
+			if (rx || ry)
 			{
 				int r = pmap[y + ry][x + rx];
 				if (!r)
@@ -152,7 +161,7 @@ static int update(UPDATE_FUNC_ARGS)
 				//Deserialization.
 				if (doDeserialization)
 				{
-					if (TYP(r) != PT_FILT && !(sim->elements[TYP(r)].Properties & TYPE_SOLID))
+					if (TYP(r) != PT_FILT && !(elements[TYP(r)].Properties & TYPE_SOLID))
 					{
 						float Vx = parts[ID(r)].vx;
 						float Vy = parts[ID(r)].vy;
@@ -166,6 +175,8 @@ static int update(UPDATE_FUNC_ARGS)
 					}
 				}
 			}
+		}
+	}
 
 	return 0;
 }

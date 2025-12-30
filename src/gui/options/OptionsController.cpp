@@ -47,9 +47,29 @@ void OptionsController::SetGravityMode(int gravityMode)
 	model->SetGravityMode(gravityMode);
 }
 
+void OptionsController::SetCustomGravityX(float x)
+{
+	model->SetCustomGravityX(x);
+}
+
+void OptionsController::SetCustomGravityY(float y)
+{
+	model->SetCustomGravityY(y);
+}
+
 void OptionsController::SetAirMode(int airMode)
 {
 	model->SetAirMode(airMode);
+}
+
+void OptionsController::SetAmbientAirTemperature(float ambientAirTemp)
+{
+	model->SetAmbientAirTemperature(ambientAirTemp);
+}
+
+void OptionsController::SetVorticityCoeff(float vorticityCoeff)
+{
+	model->SetVorticityCoeff(vorticityCoeff);
 }
 
 void OptionsController::SetEdgeMode(int edgeMode)
@@ -57,19 +77,34 @@ void OptionsController::SetEdgeMode(int edgeMode)
 	model->SetEdgeMode(edgeMode);
 }
 
+void OptionsController::SetTemperatureScale(TempScale temperatureScale)
+{
+	model->SetTemperatureScale(temperatureScale);
+}
+
+void OptionsController::SetThreadedRendering(bool newThreadedRendering)
+{
+	model->SetThreadedRendering(newThreadedRendering);
+}
+
 void OptionsController::SetFullscreen(bool fullscreen)
 {
 	model->SetFullscreen(fullscreen);
 }
 
-void OptionsController::SetAltFullscreen(bool altFullscreen)
+void OptionsController::SetChangeResolution(bool newChangeResolution)
 {
-	model->SetAltFullscreen(altFullscreen);
+	model->SetChangeResolution(newChangeResolution);
 }
 
 void OptionsController::SetForceIntegerScaling(bool forceIntegerScaling)
 {
 	model->SetForceIntegerScaling(forceIntegerScaling);
+}
+
+void OptionsController::SetBlurryScaling(bool newBlurryScaling)
+{
+	model->SetBlurryScaling(newBlurryScaling);
 }
 
 void OptionsController::SetShowAvatars(bool showAvatars)
@@ -82,6 +117,16 @@ void OptionsController::SetScale(int scale)
 	model->SetScale(scale);
 }
 
+void OptionsController::SetGraveExitsConsole(bool graveExitsConsole)
+{
+	model->SetGraveExitsConsole(graveExitsConsole);
+}
+
+void OptionsController::SetNativeClipoard(bool nativeClipoard)
+{
+	model->SetNativeClipoard(nativeClipoard);
+}
+
 void OptionsController::SetResizable(bool resizable)
 {
 	model->SetResizable(resizable);
@@ -90,6 +135,11 @@ void OptionsController::SetResizable(bool resizable)
 void OptionsController::SetFastQuit(bool fastquit)
 {
 	model->SetFastQuit(fastquit);
+}
+
+void OptionsController::SetGlobalQuit(bool newGlobalQuit)
+{
+	model->SetGlobalQuit(newGlobalQuit);
 }
 
 void OptionsController::SetDecoSpace(int decoSpace)
@@ -122,9 +172,14 @@ void OptionsController::SetMomentumScroll(bool momentumScroll)
 	model->SetMomentumScroll(momentumScroll);
 }
 
-void OptionsController::SetAutoDrawLimit(bool autoDrawLimit)
+void OptionsController::SetRedirectStd(bool newRedirectStd)
 {
-	model->SetAutoDrawLimit(autoDrawLimit);
+	model->SetRedirectStd(newRedirectStd);
+}
+
+void OptionsController::SetAutoStartupRequest(bool newAutoStartupRequest)
+{
+	model->SetAutoStartupRequest(newAutoStartupRequest);
 }
 
 void OptionsController::Exit()
@@ -139,8 +194,8 @@ void OptionsController::Exit()
 
 OptionsController::~OptionsController()
 {
-	view->CloseActiveWindow();
 	delete model;
+	view->CloseActiveWindow();
 	delete view;
 }
 

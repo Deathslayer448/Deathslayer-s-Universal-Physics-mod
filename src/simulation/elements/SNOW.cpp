@@ -6,7 +6,7 @@ void Element::Element_SNOW()
 {
 	Identifier = "DEFAULT_PT_SNOW";
 	Name = "SNOW";
-	Colour = PIXPACK(0xC0E0FF);
+	Colour = 0xC0E0FF_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_POWDERS;
 	Enabled = 1;
@@ -34,6 +34,7 @@ void Element::Element_SNOW()
 	Description = "Light particles. Created when ICE breaks under pressure.";
 
 	Properties = TYPE_PART|PROP_NEUTPASS;
+	CarriesTypeIn = 1U << FIELD_CTYPE;
 
 	LowPressure = IPL;
 	LowPressureTransition = NT;
@@ -49,23 +50,26 @@ void Element::Element_SNOW()
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	int r, rx, ry;
 	if (parts[i].ctype==PT_FRZW)//get colder if it is from FRZW
 	{
 		parts[i].temp = restrict_flt(parts[i].temp-1.0f, MIN_TEMP, MAX_TEMP);
 	}
-	for (rx=-1; rx<2; rx++)
-		for (ry=-1; ry<2; ry++)
-			if (BOUNDS_CHECK && (rx || ry))
+	for (auto rx = -1; rx <= 1; rx++)
+	{
+		for (auto ry = -1; ry <= 1; ry++)
+		{
+			if (rx || ry)
 			{
-				r = pmap[y+ry][x+rx];
+				auto r = pmap[y+ry][x+rx];
 				if (!r)
 					continue;
-				if ((TYP(r)==PT_SALT) && RNG::Ref().chance(1, 333))
+				if ((TYP(r)==PT_SALT || TYP(r)==PT_SLTW) && sim->rng.chance(1, 333))
 				{
 					sim->part_change_type(i,x,y,PT_SLTW);
 					sim->part_change_type(ID(r),x+rx,y+ry,PT_SLTW);
 				}
 			}
+		}
+	}
 	return 0;
 }

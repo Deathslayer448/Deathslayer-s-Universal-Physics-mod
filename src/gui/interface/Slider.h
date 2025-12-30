@@ -1,9 +1,7 @@
-#ifndef SLIDER_H_
-#define SLIDER_H_
-
+#pragma once
 #include "Component.h"
 #include "Colour.h"
-
+#include "graphics/Pixel.h"
 #include <functional>
 
 namespace ui {
@@ -12,7 +10,7 @@ class Slider : public ui::Component
 	int sliderSteps;
 	int sliderPosition;
 	bool isMouseDown;
-	unsigned char * bgGradient;
+	std::vector<RGB> bgGradient;
 
 	struct SliderAction
 	{
@@ -26,8 +24,8 @@ public:
 	Slider(Point position, Point size, int steps);
 	virtual ~Slider() = default;
 
-	void OnMouseMoved(int x, int y, int dx, int dy) override;
-	void OnMouseClick(int x, int y, unsigned button) override;
+	void OnMouseMoved(int x, int y) override;
+	void OnMouseDown(int x, int y, unsigned button) override;
 	void OnMouseUp(int x, int y, unsigned button) override;
 	void Draw(const Point& screenPos) override;
 	void SetColour(Colour col1, Colour col2);
@@ -39,4 +37,3 @@ public:
 };
 
 } /* namespace ui */
-#endif /* SLIDER_H_ */

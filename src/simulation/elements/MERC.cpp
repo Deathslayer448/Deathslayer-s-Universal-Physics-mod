@@ -6,7 +6,7 @@ void Element::Element_MERC()
 {
 	Identifier = "DEFAULT_PT_MERC";
 	Name = "MERC";
-	Colour = PIXPACK(0x736B6D);
+	Colour = 0x736B6D_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_LIQUID;
 	Enabled = 1;
@@ -24,7 +24,7 @@ void Element::Element_MERC()
 	Flammable = 0;
 	Explosive = 0;
 	Meltable = 0;
-	Hardness = 20;
+	Hardness = 18;
 
 	Weight = 91;
 
@@ -49,14 +49,13 @@ void Element::Element_MERC()
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	int r, rx, ry, trade, np;
 	// Max number of particles that can be condensed into one
 	const int absorbScale = 10000;
 	// Obscure division by 0 fix
 	if (parts[i].temp + 1 == 0)
 		parts[i].temp = 0;
 	int maxtmp = int(absorbScale/(parts[i].temp + 1))-1;
-	if (RNG::Ref().chance(absorbScale%(int(parts[i].temp)+1), int(parts[i].temp)+1))
+	if (sim->rng.chance(absorbScale%(int(parts[i].temp)+1), int(parts[i].temp)+1))
 		maxtmp ++;
 
 	if (parts[i].tmp < 0)
@@ -68,28 +67,18 @@ static int update(UPDATE_FUNC_ARGS)
 		parts[i].tmp = absorbScale;
 	}
 
-
-		for (rx=-1; rx<2; rx++)
-			for (ry=-1; ry<2; ry++)
-				if (BOUNDS_CHECK && (rx || ry))
+	if (parts[i].tmp < maxtmp)
+	{
+		for (auto rx = -1; rx <= 1; rx++)
+		{
+			for (auto ry = -1; ry <= 1; ry++)
+			{
+				if (rx || ry)
 				{
-					r = pmap[y+ry][x+rx];
-					if (!r)
-					{
-						if (parts[i].tmp > maxtmp && parts[i].tmp >= 1)
-						{
-							np = sim->create_part(-1, x + rx, y + ry, PT_MERC);
-							if (np < 0) continue;
-							parts[i].tmp--;
-							parts[np].temp = parts[i].temp;
-							parts[np].tmp = 0;
-							parts[np].dcolour = parts[i].dcolour;
-
-						}
+					auto r = pmap[y+ry][x+rx];
+					if (!r || (parts[i].tmp >=maxtmp))
 						continue;
-					}
-					int rt = TYP(r);
-					if (rt==PT_MERC && parts[i].tmp < maxtmp && RNG::Ref().chance(1, 3))
+					if (TYP(r)==PT_MERC&& sim->rng.chance(1, 3))
 					{
 						if ((parts[i].tmp + parts[ID(r)].tmp + 1) <= maxtmp)
 						{
@@ -97,27 +86,44 @@ static int update(UPDATE_FUNC_ARGS)
 							sim->kill_part(ID(r));
 						}
 					}
-					if (sim->elements[rt].Properties & PROP_ANIMAL && RNG::Ref().chance(1, 5000)) {
-
-						//sim->better_do_swap(i, x, y, ID(r), parts[ID(r)].x, parts[ID(r)].y);
-						parts[i].x = parts[ID(r)].x;
-						parts[i].y = parts[ID(r)].y;
-						pmap[y + ry][x + rx] = PMAP(i, parts[i].type);
-						return 1;
+				}
+			}
+		}
+	}
+	else
+	{
+		for (auto rx = -1; rx <= 1; rx++)
+		{
+			for (auto ry = -1; ry <= 1; ry++)
+			{
+				if (rx || ry)
+				{
+					auto r = pmap[y+ry][x+rx];
+					if (parts[i].tmp<=maxtmp)
+						continue;
+					if ((!r)&&parts[i].tmp>=1)//if nothing then create MERC
+					{
+						auto np = sim->create_part(-1,x+rx,y+ry,PT_MERC);
+						if (np<0) continue;
+						parts[i].tmp--;
+						parts[np].temp = parts[i].temp;
+						parts[np].tmp = 0;
+						parts[np].dcolour = parts[i].dcolour;
 					}
 				}
-	
-	for ( trade = 0; trade<4; trade ++)
+			}
+		}
+	}
+	for (auto trade = 0; trade<4; trade ++)
 	{
-		rx = RNG::Ref().between(-2, 2);
-		ry = RNG::Ref().between(-2, 2);
-		if (BOUNDS_CHECK && (rx || ry))
+		auto rx = sim->rng.between(-2, 2);
+		auto ry = sim->rng.between(-2, 2);
+		if (rx || ry)
 		{
-			r = pmap[y+ry][x+rx];
+			auto r = pmap[y+ry][x+rx];
 			if (!r)
 				continue;
-			int rt = TYP(r);
-			if (rt==PT_MERC && parts[i].tmp > parts[ID(r)].tmp && parts[i].tmp > 0)//diffusion
+			if (TYP(r)==PT_MERC&&(parts[i].tmp>parts[ID(r)].tmp)&&parts[i].tmp>0)//diffusion
 			{
 				int temp = parts[i].tmp - parts[ID(r)].tmp;
 				if (temp ==1)

@@ -7,191 +7,161 @@ on:
     tags:
       - 'v*.*'
       - 'snapshot-*'
+      - 'tptlibsdev-*'
   pull_request:
     branches:
       - '*'
 
 jobs:
-  release:
-    runs-on: ubuntu-latest
+  prepare:
+    runs-on: ubuntu-24.04
+    outputs:
+      do_release: ${{ steps.prepare.outputs.do_release }}
+      build_matrix: ${{ steps.prepare.outputs.build_matrix }}
+      publish_matrix: ${{ steps.prepare.outputs.publish_matrix }}
+      release_type: ${{ steps.prepare.outputs.release_type }}
+      release_name: ${{ steps.prepare.outputs.release_name }}
+      mod_id: ${{ steps.prepare.outputs.mod_id }}
+      app_name: ${{ steps.prepare.outputs.app_name }}
+      app_comment: ${{ steps.prepare.outputs.app_comment }}
+      app_exe: ${{ steps.prepare.outputs.app_exe }}
+      app_id: ${{ steps.prepare.outputs.app_id }}
+      app_data: ${{ steps.prepare.outputs.app_data }}
+      app_vendor: ${{ steps.prepare.outputs.app_vendor }}
+      do_publish: ${{ steps.prepare.outputs.do_publish }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
         with:
-          python-version: '3.8'
-      - id: get_type
-        run: python3 ./.github/get-type.py ${{ github.ref }}
-      - id: create_release
-        if: steps.get_type.outputs.TYPE != 'dev'
-        uses: actions/create-release@v1
+          python-version: '3.10'
+      - run: python -m pip install meson ninja
+      - id: prepare
+        run: python ./.github/prepare.py
+        env:
+          PUBLISH_HOSTPORT: ${{ vars.STARCATCHER_PUBLISH_HOSTPORT }}
+          GITHUB_REF: ${{ github.ref }}
+      - if: steps.prepare.outputs.do_publish == 'yes'
+        run: bash -c './.github/starcatcher-publish.sh'
+        env:
+          PUBLISH_HOSTPORT: ${{ vars.STARCATCHER_PUBLISH_HOSTPORT }}
+          PUBLISH_USERNAME: ${{ vars.STARCATCHER_PUBLISH_USERNAME }}
+          PUBLISH_PASSWORD: ${{ secrets.STARCATCHER_PUBLISH_PASSWORD }}
+          PUBLISH_ACCESSCHECK: yes
+      - if: steps.prepare.outputs.do_release == 'yes'
+        id: create_release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          tag_name: ${{ github.ref }}
-          release_name: ${{ steps.get_type.outputs.NAME }}
-          draft: true
-          prerelease: false
-      - run: echo "${{ steps.create_release.outputs.upload_url }}" > release_url.txt
-      - uses: actions/upload-artifact@v1
-        with:
-          name: release_url
-          path: release_url.txt
+          RELEASE_NAME: ${{ steps.prepare.outputs.release_name }}
+        run: bash -c './.github/create-release.sh'
   build:
-    runs-on: ${{ matrix.os }}
-    needs: [release]
+    runs-on: ${{ matrix.runs_on }}
+    name: ${{ matrix.job_name }}
+    needs: [prepare]
     strategy:
-      matrix:
-#               | lin-x86_64 | mac-x86_64 | win-x86_64 |  lin-i686  |  mac-i686  |  win-i686  |
-# --------------+------------+------------+------------+------------+------------+------------+
-# gcc-static    |            |            |     NO     |     NO     |     NO     |     NO     |
-# msvc-static   |     NO     |     NO     |            |     NO     |     NO     |            |
-# mingw-static  |     NO     |     NO     |     NO     |     NO     |     NO     |   NO [1]   |
-# gcc-dynamic   |            |            |     NO     |     NO     |     NO     |     NO     |
-# msvc-dynamic  |     NO     |     NO     |            |     NO     |     NO     |            |
-# mingw-dynamic |     NO     |     NO     |     NO     |     NO     |     NO     |     NO     |
-#
-# [1] I don't currently care enough about mingw to figure out how to do this.
-# Please keep this matrix in sync with the other one in this file, see the ### blocks.
-#########################################################
-############# BEGIN BLOCK FOR COPYING BELOW #############
-#########################################################
-        platform_short: [lin, mac, win]
-        toolset_short: [gcc, msvc, mingw]
-        machine_short: [x86_64, i686]
-        static_dynamic: [static, dynamic]
-        exclude:
-          - toolset_short: mingw
-          - machine_short: i686
-            platform_short: lin
-          - machine_short: i686
-            platform_short: mac
-          - toolset_short: msvc
-            platform_short: lin
-          - toolset_short: msvc
-            platform_short: mac
-          - toolset_short: gcc
-            platform_short: win
-#########################################################
-############## END BLOCK FOR COPYING BELOW ##############
-#########################################################
-        include:
-          - platform_short: lin
-            os: ubuntu-latest
-            suffix: ''
-          - platform_short: mac
-            os: macos-latest
-            suffix: ''
-          - platform_short: win
-            os: windows-latest
-            suffix: '.exe'
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.build_matrix) }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
     steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+      - if: matrix.runs_on == 'ubuntu-22.04-arm' # TODO: undo; see https://github.com/orgs/community/discussions/148648#discussioncomment-11858098
+        run: for var in HOME PATH XDG_CONFIG_HOME; do sed -Ee "s/^/${var}=/" -e 's/(runner)admin/\1/g' <<< "${!var}"; done | tee -a "$GITHUB_ENV"
+      - if: matrix.force_msys2_bash == 'yes'
+        uses: msys2/setup-msys2@v2
         with:
-          python-version: '3.8'
-      - id: get_type
-        run: python3 ./.github/get-type.py ${{ github.ref }}
-      - uses: actions/download-artifact@v1
+          msystem: ${{ matrix.msys2_msystem }}
+          update: true
+          path-type: strict
+          cache: true
+          install: ${{ matrix.msys2_cache_install }}
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - if: matrix.force_msys2_bash != 'yes'
+        uses: actions/setup-python@v5
         with:
-          name: release_url
-      - id: get_release_info
-        if: steps.get_type.outputs.TYPE != 'dev'
-        run: bash -c "./.github/get-release-info.sh" ## gg github, this is terrible
-      - if: matrix.platform_short == 'mac'
-        uses: Homebrew/actions/setup-homebrew@master
-      - if: matrix.platform_short == 'mac'
-        run: brew install pkg-config
-      - if: matrix.platform_short == 'mac' && matrix.static_dynamic != 'static'
-        run: brew install luajit curl fftw zlib sdl2
-      - if: matrix.platform_short == 'lin' && matrix.static_dynamic != 'static'
-        run: sudo apt update && sudo apt install libluajit-5.1-dev libcurl4-openssl-dev libfftw3-dev zlib1g-dev libsdl2-dev
-      - run: python3 -m pip install meson ninja
+          python-version: '3.10'
+      - if: matrix.force_msys2_bash != 'yes'
+        run: python -m pip install meson ninja
+      - if: matrix.bsh_build_platform == 'darwin'
+        run: brew install bash coreutils
       - run: bash -c './.github/build.sh'
         env:
-          PLATFORM_SHORT: ${{ matrix.platform_short }}
-          MACHINE_SHORT: ${{ matrix.machine_short }}
-          TOOLSET_SHORT: ${{ matrix.toolset_short }}
-          STATIC_DYNAMIC: ${{ matrix.static_dynamic }}
-          RELNAME: ${{ steps.get_type.outputs.NAME }}
-          RELTYPE: ${{ steps.get_type.outputs.TYPE }}
-          MOD_ID: ${{ steps.get_type.outputs.MOD_ID }}
-      - uses: actions/upload-release-asset@v1
-        if: steps.get_type.outputs.TYPE != 'dev' && matrix.static_dynamic == 'static'
+          BSH_HOST_ARCH: ${{ matrix.bsh_host_arch }}
+          BSH_HOST_PLATFORM: ${{ matrix.bsh_host_platform }}
+          BSH_HOST_LIBC: ${{ matrix.bsh_host_libc }}
+          BSH_STATIC_DYNAMIC: ${{ matrix.bsh_static_dynamic }}
+          BSH_BUILD_PLATFORM: ${{ matrix.bsh_build_platform }}
+          BSH_DEBUG_RELEASE: ${{ matrix.bsh_debug_release }}
+          BSH_LINT: ${{ matrix.bsh_lint }}
+          RELEASE_NAME: ${{ needs.prepare.outputs.release_name }}
+          RELEASE_TYPE: ${{ needs.prepare.outputs.release_type }}
+          MOD_ID: ${{ needs.prepare.outputs.mod_id }}
+          APP_NAME: ${{ needs.prepare.outputs.app_name }}
+          APP_COMMENT: ${{ needs.prepare.outputs.app_comment }}
+          APP_EXE: ${{ needs.prepare.outputs.app_exe }}
+          APP_ID: ${{ needs.prepare.outputs.app_id }}
+          APP_DATA: ${{ needs.prepare.outputs.app_data }}
+          APP_VENDOR: ${{ needs.prepare.outputs.app_vendor }}
+          SEPARATE_DEBUG: ${{ matrix.separate_debug }}
+          PACKAGE_MODE: ${{ matrix.package_mode }}
+          ASSET_PATH: ${{ matrix.asset_path }}
+          DEBUG_ASSET_PATH: ${{ matrix.debug_asset_path }}
+      - if: needs.prepare.outputs.do_release == 'yes' && matrix.publish == 'yes' # TODO-NTL: ship licenses
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.get_release_info.outputs.upload_url }}
-          asset_path: powder${{ matrix.suffix }}
-          asset_name: powder-${{ steps.get_type.outputs.NAME }}-${{ matrix.machine_short }}-${{ matrix.platform_short }}-${{ matrix.toolset_short }}-${{ matrix.static_dynamic }}${{ matrix.suffix }}
-          asset_content_type: application/zip
-      - uses: actions/upload-artifact@v2
-        if: matrix.static_dynamic == 'static'
-        with:
-          path: powder${{ matrix.suffix }}
-          name: powder-${{ steps.get_type.outputs.NAME }}-${{ matrix.machine_short }}-${{ matrix.platform_short }}-${{ matrix.toolset_short }}-${{ matrix.static_dynamic }}${{ matrix.suffix }}
-  starcatcher-upload:
-    runs-on: ubuntu-latest
-    needs: [build]
-    if: startsWith(github.ref, 'refs/tags/') # not a perfect match but get-type.py takes care of this in job build
-    strategy:
-      matrix:
-#########################################################
-############# BEGIN BLOCK COPIED FROM ABOVE #############
-#########################################################
-        platform_short: [lin, mac, win]
-        toolset_short: [gcc, msvc, mingw]
-        machine_short: [x86_64, i686]
-        static_dynamic: [static, dynamic]
-        exclude:
-          - toolset_short: mingw
-          - machine_short: i686
-            platform_short: lin
-          - machine_short: i686
-            platform_short: mac
-          - toolset_short: msvc
-            platform_short: lin
-          - toolset_short: msvc
-            platform_short: mac
-          - toolset_short: gcc
-            platform_short: win
-#########################################################
-############## END BLOCK COPIED FROM ABOVE ##############
-#########################################################
-          - static_dynamic: dynamic
-        include:
-          - platform_short: lin
-            suffix: ''
-          - platform_short: mac
-            suffix: ''
-          - platform_short: win
-            suffix: '.exe'
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
-        with:
-          python-version: '3.8'
-      - id: get_type
-        run: python3 ./.github/get-type.py ${{ github.ref }}
-      - uses: actions/download-artifact@v1
-        with:
-          name: powder-${{ steps.get_type.outputs.NAME }}-${{ matrix.machine_short }}-${{ matrix.platform_short }}-${{ matrix.toolset_short }}-${{ matrix.static_dynamic }}${{ matrix.suffix }}
-      - run: sudo apt update && sudo apt install lftp
-      - if: steps.get_type.outputs.TYPE != 'dev' && matrix.static_dynamic == 'static'
-        run: bash -c './.github/starcatcher-publish.sh powder${{ matrix.suffix }}'
+          ASSET_PATH: build/${{ matrix.asset_path }}
+          ASSET_NAME: ${{ matrix.asset_name }}
+        run: bash -c './.github/upload-release-asset.sh'
+        shell: bash
+      - if: needs.prepare.outputs.do_release == 'yes' && matrix.publish == 'yes' && matrix.separate_debug == 'yes'
         env:
-          STARCATCHER_PUBLISH_HOSTPORT: ${{ secrets.STARCATCHER_PUBLISH_HOSTPORT }}
-          STARCATCHER_PUBLISH_USERNAME: ${{ secrets.STARCATCHER_PUBLISH_USERNAME }}
-          STARCATCHER_PUBLISH_PASSWORD: ${{ secrets.STARCATCHER_PUBLISH_PASSWORD }}
-          STARCATCHER_PUBLISH_FILENAME: powder-${{ steps.get_type.outputs.NAME }}-${{ matrix.machine_short }}-${{ matrix.platform_short }}-${{ matrix.toolset_short }}-${{ matrix.static_dynamic }}${{ matrix.suffix }}
-  starcatcher-release:
-    runs-on: ubuntu-latest
-    needs: [starcatcher-upload]
-    if: startsWith(github.ref, 'refs/tags/') # not a perfect match but get-type.py takes care of this in job build
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/setup-python@v2
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ASSET_PATH: build/${{ matrix.debug_asset_path }}
+          ASSET_NAME: ${{ matrix.debug_asset_name }}
+        run: bash -c './.github/upload-release-asset.sh'
+        shell: bash
+      - uses: actions/upload-artifact@v4
+        if: matrix.artifact == 'yes'
         with:
-          python-version: '3.8'
-      - id: get_type
-        run: python3 ./.github/get-type.py ${{ github.ref }}
-      - run: curl "https://starcatcher.us/TPT/perform-release.lua?mod=${{ steps.get_type.outputs.MOD_ID }}&type=${{ steps.get_type.outputs.TYPE }}&name=${{ steps.get_type.outputs.NAME }}&commit=${{ github.sha }}" | grep "Release complete"
+          path: build/${{ matrix.asset_path }}
+          name: ${{ matrix.asset_name }}
+      - uses: actions/upload-artifact@v4
+        if: matrix.artifact == 'yes' && matrix.separate_debug == 'yes'
+        with:
+          path: build/${{ matrix.debug_asset_path }}
+          name: ${{ matrix.debug_asset_name }}
+  publish:
+    runs-on: ubuntu-24.04
+    needs: [build, prepare]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare.outputs.publish_matrix) }}
+    if: needs.prepare.outputs.do_publish == 'yes'
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+      - run: mv ${{ matrix.asset_path }} ${{ matrix.starcatcher_name }}
+      - run: bash -c './.github/starcatcher-publish.sh'
+        env:
+          PUBLISH_HOSTPORT: ${{ vars.STARCATCHER_PUBLISH_HOSTPORT }}
+          PUBLISH_USERNAME: ${{ vars.STARCATCHER_PUBLISH_USERNAME }}
+          PUBLISH_PASSWORD: ${{ secrets.STARCATCHER_PUBLISH_PASSWORD }}
+          PUBLISH_DIRECTORY: ${{ vars.STARCATCHER_PUBLISH_DIRECTORY }}
+          PUBLISH_FILENAME: ${{ matrix.starcatcher_name }}
+  release:
+    runs-on: ubuntu-24.04
+    needs: [build, publish, prepare]
+    if: needs.prepare.outputs.do_publish == 'yes'
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@v4
+      - run: ./.github/starcatcher-release.sh
+        env:
+          RELEASE_NAME: ${{ needs.prepare.outputs.release_name }}
+          RELEASE_TYPE: ${{ needs.prepare.outputs.release_type }}
+          MOD_ID: ${{ needs.prepare.outputs.mod_id }}
+          GITHUB_SHA: ${{ github.sha }}

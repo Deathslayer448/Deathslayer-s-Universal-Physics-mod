@@ -26,10 +26,17 @@ namespace ui
 		std::vector<wrap_record> records;
 
 		int word_begins_at = -1; // this is a pointer into records; we're not currently in a word
-		int word_width;
-		int lines = 1;
+		int word_width = 0;
+		int lines = 0;
 		int char_width;
 		int clear_count = 0;
+
+		wrappedWidth = 0;
+		auto resetLine = [&]() {
+			wrappedWidth = std::max(wrappedWidth, line_width);
+			line_width = 0;
+			lines += 1;
+		};
 
 		auto wrap_if_needed = [&](int width_to_consider) -> bool {
 			if (do_wrapping && width_to_consider + char_width > max_width)
@@ -42,8 +49,7 @@ namespace ui
 					true, // signal the end of the line to the clickmap generator
 					true // allow record to eat the following space
 				});
-				line_width = 0;
-				lines += 1;
+				resetLine();
 				return true;
 			}
 			return false;
@@ -57,6 +63,7 @@ namespace ui
 			switch (*it) // set sequence_length if *it starts a sequence that should be forwarded as-is
 			{
 			case   '\b': sequence_length = 2; break;
+			case '\x0e': sequence_length = 1; break;
 			case '\x0f': sequence_length = 4; break;
 			}
 			
@@ -98,8 +105,7 @@ namespace ui
 					true, // signal the end of the line to the clickmap generator
 					false
 				});
-				lines += 1;
-				line_width = 0;
+				resetLine();
 				word_begins_at = -1; // reset word state
 				++clear_count;
 				break;
@@ -206,6 +212,7 @@ namespace ui
 			wrapped_text.append(1, record.character);
 		}
 
+		resetLine();
 		clear_text_size = clear_count;
 		wrapped_lines = lines;
 		return lines;
@@ -231,8 +238,7 @@ namespace ui
 				return it;
 			};
 
-			auto next = find_next_nonempty(curr);
-			while (next != end)
+			while (true)
 			{
 				if (curr->pos_y + FONT_H > y)
 				{
@@ -243,6 +249,14 @@ namespace ui
 						// the previous iteration
 						return curr->index;
 					}
+				}
+				auto next = find_next_nonempty(curr);
+				if (next == end)
+				{
+					break;
+				}
+				if (curr->pos_y + FONT_H > y)
+				{
 					if (curr->pos_x + curr->width / 2 <= x && next->pos_x + next->width / 2 > x)
 					{
 						// if x is to the right of the vertical bisector of the current region
@@ -257,7 +271,6 @@ namespace ui
 					}
 				}
 				curr = next;
-				next = find_next_nonempty(next);
 			}
 		}
 		return IndexEnd();

@@ -4,7 +4,7 @@ void Element::Element_PSCN()
 {
 	Identifier = "DEFAULT_PT_PSCN";
 	Name = "PSCN";
-	Colour = PIXPACK(0x805050);
+	Colour = 0x805050_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_ELEC;
 	Enabled = 1;
@@ -28,7 +28,7 @@ void Element::Element_PSCN()
 	Weight = 100;
 
 	HeatConduct = 251;
-	Description = "P-Type Silicon, Will transfer current to any conductor.";
+	Description = "P-Type Silicon, Will transfer current to any conductor. Enables powered materials.";
 
 	Properties = TYPE_SOLID|PROP_CONDUCTS|PROP_LIFE_DEC;
 

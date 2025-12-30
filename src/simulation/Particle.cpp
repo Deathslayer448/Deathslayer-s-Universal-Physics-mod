@@ -1,11 +1,12 @@
-#include <cstddef>
 #include "Particle.h"
+#include <cstddef>
+#include <cassert>
 
 std::vector<StructProperty> const &Particle::GetProperties()
 {
 	static std::vector<StructProperty> properties = {
 		{ "type"   , StructProperty::ParticleType, (intptr_t)(offsetof(Particle, type   )) },
-		{ "life"   , StructProperty::ParticleType, (intptr_t)(offsetof(Particle, life   )) },
+		{ "life"   , StructProperty::Integer     , (intptr_t)(offsetof(Particle, life   )) },
 		{ "ctype"  , StructProperty::ParticleType, (intptr_t)(offsetof(Particle, ctype  )) },
 		{ "x"      , StructProperty::Float       , (intptr_t)(offsetof(Particle, x      )) },
 		{ "y"      , StructProperty::Float       , (intptr_t)(offsetof(Particle, y      )) },
@@ -16,39 +17,46 @@ std::vector<StructProperty> const &Particle::GetProperties()
 		{ "tmp"    , StructProperty::Integer     , (intptr_t)(offsetof(Particle, tmp    )) },
 		{ "tmp2"   , StructProperty::Integer     , (intptr_t)(offsetof(Particle, tmp2   )) },
 		{ "tmp3"   , StructProperty::Integer     , (intptr_t)(offsetof(Particle, tmp3   )) },
-		{ "tmp4"   , StructProperty::Integer	 , (intptr_t)(offsetof(Particle, tmp4	)) },
-		{ "carbons"  , StructProperty::Integer	 , (intptr_t)(offsetof(Particle, carbons)) },
-		{ "hydrogens"  , StructProperty::Integer , (intptr_t)(offsetof(Particle, hydrogens))},
-		{ "oxygens"  , StructProperty::Integer	 , (intptr_t)(offsetof(Particle, oxygens)) },
-		{ "CO2"  , StructProperty::Integer , (intptr_t)(offsetof(Particle, co2))},
-		{ "nitrogens"  , StructProperty::Integer , (intptr_t)(offsetof(Particle, nitrogens)) },
-		{ "co2"  , StructProperty::Integer , (intptr_t)(offsetof(Particle, co2))},
-		{ "water"   , StructProperty::Integer	 , (intptr_t)(offsetof(Particle, water)) },
-		{ "metabolism"   , StructProperty::Integer, (intptr_t)(offsetof(Particle, metabolism)) },
+		{ "tmp4"   , StructProperty::Integer     , (intptr_t)(offsetof(Particle, tmp4   )) },
 		{ "dcolour", StructProperty::UInteger    , (intptr_t)(offsetof(Particle, dcolour)) },
-		{ "pavg0"  , StructProperty::Float       , (intptr_t)(offsetof(Particle, pavg[0])) },
-		{ "pavg1"  , StructProperty::Float       , (intptr_t)(offsetof(Particle, pavg[1])) },
-		{ "capacity", StructProperty::Float    , (intptr_t)(offsetof(Particle, capacity)) },
-		{ "tmpcity0"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpcity[0])) },
-		{ "tmpcity1"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpcity[1])) },
-		{ "tmpcity2"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpcity[2])) },
-		{ "tmpcity3"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpcity[3])) },
-		{ "tmpcity4"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpcity[4])) },
-		{ "tmpcity5"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpcity[5])) },
-		{ "tmpcity6"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpcity[6])) },
-		{ "tmpcity7"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpcity[7])) },
-		{ "tmpcity8"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpcity[8])) },
-		{ "tmpcity9"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpcity[9])) },
-		{ "tmpville[0]"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpville[0])) },
-		{ "tmpville[1]"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpville[1])) },
-		{ "tmpville[2]"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpville[2])) },
-		{ "tmpville[3]"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpville[3])) },
-		{ "tmpville[4]"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpville[4])) },
-		{ "tmpville[5]"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpville[5])) },
-		{ "tmpville[6]"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpville[6])) },
-		{ "tmpville[7]"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpville[7])) },
-		{ "tmpville[8]"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpville[8])) },
-		{ "tmpville[9]"  , StructProperty::Float    , (intptr_t)(offsetof(Particle, tmpville[9])) },
 	};
 	return properties;
+}
+
+std::vector<StructPropertyAlias> const &Particle::GetPropertyAliases()
+{
+	static std::vector<StructPropertyAlias> aliases = {
+		{ "pavg0" , "tmp3"    },
+		{ "pavg1" , "tmp4"    },
+		{ "dcolor", "dcolour" },
+	};
+	return aliases;
+}
+
+std::vector<unsigned int> const &Particle::PossiblyCarriesType()
+{
+	struct DoOnce
+	{
+		std::vector<unsigned int> indices = {
+			FIELD_LIFE,
+			FIELD_CTYPE,
+			FIELD_TMP,
+			FIELD_TMP2,
+			FIELD_TMP3,
+			FIELD_TMP4,
+		};
+
+		DoOnce()
+		{
+			auto &properties = GetProperties();
+			for (auto index : indices)
+			{
+				// code that depends on PossiblyCarriesType only knows how to set ints
+				assert(properties[index].Type == StructProperty::Integer ||
+				       properties[index].Type == StructProperty::ParticleType);
+			}
+		}
+	};
+	static DoOnce doOnce;
+	return doOnce.indices;
 }

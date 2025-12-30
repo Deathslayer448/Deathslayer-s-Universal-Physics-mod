@@ -3,14 +3,15 @@
 
 static int update(UPDATE_FUNC_ARGS);
 static int graphics(GRAPHICS_FUNC_ARGS);
+static void create(ELEMENT_CREATE_FUNC_ARGS);
 
 void Element::Element_TUNG()
 {
 	Identifier = "DEFAULT_PT_TUNG";
 	Name = "TUNG";
-	Colour = PIXPACK(0x505050);
+	Colour = 0x505050_rgb;
 	MenuVisible = 1;
-	MenuSection = SC_SOLIDS;
+	MenuSection = SC_ELEC;
 	Enabled = 1;
 
 	Advection = 0.0f;
@@ -46,42 +47,43 @@ void Element::Element_TUNG()
 
 	Update = &update;
 	Graphics = &graphics;
+	Create = &create;
 }
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	if (surround_space < 2)
-	{
-		sim->air->bmap_blockair[y / CELL][x / CELL] = 1;
-		sim->air->bmap_blockairh[y / CELL][x / CELL] = 0x8;
-	}
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 	bool splode = false;
-	const float MELTING_POINT = sim->elements[PT_TUNG].HighTemperature - sim->pv[y / CELL][x / CELL] / 100;
+	const float MELTING_POINT = elements[PT_TUNG].HighTemperature;
 
 	if(parts[i].temp > 2400.0)
 	{
-		int r, rx, ry;
-		for (rx=-1; rx<2; rx++)
-			for (ry=-1; ry<2; ry++)
-				if (BOUNDS_CHECK && (rx || ry))
+		for (auto rx = -1; rx <= 1; rx++)
+		{
+			for (auto ry = -1; ry <= 1; ry++)
+			{
+				if (rx || ry)
 				{
-					r = pmap[y+ry][x+rx];
+					auto r = pmap[y+ry][x+rx];
 					if(TYP(r) == PT_O2)
 					{
 						splode = true;
 					}
 				}
+			}
+		}
 	}
-	if((parts[i].temp > MELTING_POINT && RNG::Ref().chance(1, 20)) || splode)
+	if((parts[i].temp > MELTING_POINT && sim->rng.chance(1, 20)) || splode)
 	{
-		if (RNG::Ref().chance(1, 50))
+		if (sim->rng.chance(1, 50))
 		{
 			sim->pv[y/CELL][x/CELL] += 50.0f;
 		}
-		else if (RNG::Ref().chance(1, 100))
+		else if (sim->rng.chance(1, 100))
 		{
 			sim->part_change_type(i, x, y, PT_FIRE);
-			parts[i].life = RNG::Ref().between(0, 499);
+			parts[i].life = sim->rng.between(0, 499);
 			return 1;
 		}
 		else
@@ -92,38 +94,35 @@ static int update(UPDATE_FUNC_ARGS)
 		}
 		if(splode)
 		{
-			parts[i].temp = restrict_flt(MELTING_POINT + RNG::Ref().between(200, 799), MIN_TEMP, NORMAL_MAX_TEMP);
+			parts[i].temp = restrict_flt(MELTING_POINT + sim->rng.between(200, 799), MIN_TEMP, MAX_TEMP);
 		}
-		parts[i].vx += RNG::Ref().between(-50, 50);
-		parts[i].vy += RNG::Ref().between(-50, 50);
+		parts[i].vx += sim->rng.between(-50, 50);
+		parts[i].vy += sim->rng.between(-50, 50);
 		return 1;
 	}
-	parts[i].pavg[0] = parts[i].pavg[1];
-	parts[i].pavg[1] = sim->pv[y/CELL][x/CELL];
-	float diff = parts[i].pavg[1] - parts[i].pavg[0];
-	if (diff > 3 || diff < -3)
+	auto press = int(sim->pv[y/CELL][x/CELL] * 64);
+	auto diff = press - parts[i].tmp3;
+	if (diff > 32 || diff < -32)
 	{
 		sim->part_change_type(i,x,y,PT_BRMT);
 		parts[i].ctype = PT_TUNG;
 		return 1;
 	}
-	else if (diff > 1 || diff < -1)
-	{
-		parts[i].vx += 0.01f * sim->vx[y / CELL][x / CELL];
-		parts[i].vy += 0.01f * sim->vy[y / CELL][x / CELL];
-	}
+	parts[i].tmp3 = press;
 	return 0;
 }
 
 static int graphics(GRAPHICS_FUNC_ARGS)
 {
-	const float MELTING_POINT = ren->sim->elements[PT_TUNG].HighTemperature;
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
+	const float MELTING_POINT = elements[PT_TUNG].HighTemperature;
 	double startTemp = (MELTING_POINT - 1500.0);
-	double tempOver = (((cpart->temp - startTemp)/1500.0)*M_PI) - (M_PI/2.0);
-	if(tempOver > -(M_PI/2.0))
+	double tempOver = (((cpart->temp - startTemp)/1500.0)*TPT_PI_FLT) - (TPT_PI_FLT/2.0);
+	if(tempOver > -(TPT_PI_FLT/2.0))
 	{
-		if(tempOver > (M_PI/2.0))
-			tempOver = (M_PI/2.0);
+		if(tempOver > (TPT_PI_FLT/2.0))
+			tempOver = (TPT_PI_FLT/2.0);
 		double gradv = sin(tempOver) + 1.0;
 		*firer = (int)(gradv * 258.0);
 		*fireg = (int)(gradv * 156.0);
@@ -136,4 +135,9 @@ static int graphics(GRAPHICS_FUNC_ARGS)
 		*pixel_mode |= FIRE_ADD;
 	}
 	return 0;
+}
+
+static void create(ELEMENT_CREATE_FUNC_ARGS)
+{
+	sim->parts[i].tmp3 = int(sim->pv[y/CELL][x/CELL] * 64);
 }

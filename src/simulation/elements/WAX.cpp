@@ -8,7 +8,7 @@ void Element::Element_WAX()
 {
 	Identifier = "DEFAULT_PT_WAX";
 	Name = "WAX";
-	Colour = PIXPACK(0xF0F0BB);
+	Colour = 0xF0F0BB_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_SOLIDS;
 	Enabled = 1;
@@ -31,7 +31,7 @@ void Element::Element_WAX()
 	Weight = 100;
 
 	HeatConduct = 44;
-	Description = "Wax. Melts at moderately high temperatures.";
+	Description = "Flammable, melts at moderately high temperatures.";
 
 	Properties = TYPE_SOLID;
 

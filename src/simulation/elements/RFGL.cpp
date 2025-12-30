@@ -1,12 +1,11 @@
 #include "simulation/ElementCommon.h"
-
-int Element_RFRG_update(UPDATE_FUNC_ARGS);
+#include "RFRG.h"
 
 void Element::Element_RFGL()
 {
 	Identifier = "DEFAULT_PT_RFGL";
 	Name = "RFGL";
-	Colour = PIXPACK(0x84C2CF);
+	Colour = 0x84C2CF_rgb;
 	MenuVisible = 0;
 	MenuSection = SC_LIQUID;
 	Enabled = 1;
@@ -24,7 +23,7 @@ void Element::Element_RFGL()
 	Flammable = 0;
 	Explosive = 0;
 	Meltable = 0;
-	Hardness = 20;
+	Hardness = 21;
 
 	Weight = 10;
 

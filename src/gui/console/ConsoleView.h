@@ -1,8 +1,6 @@
-#ifndef CONSOLEVIEW_H_
-#define CONSOLEVIEW_H_
-
-#include <vector>
+#pragma once
 #include "gui/interface/Window.h"
+#include <vector>
 
 namespace ui
 {
@@ -23,7 +21,7 @@ class ConsoleView: public ui::Window
 public:
 	ConsoleView();
 	void OnDraw() override;
-	void OnTick(float dt) override;
+	void OnTick() override;
 	void DoKeyPress(int key, int scan, bool repeat, bool shift, bool ctrl, bool alt) override;
 	void DoTextInput(String text) override;
 	void AttachController(ConsoleController * c_) { c = c_; }
@@ -31,5 +29,3 @@ public:
 	void NotifyCurrentCommandChanged(ConsoleModel * sender);
 	virtual ~ConsoleView();
 };
-
-#endif /* CONSOLEVIEW_H_ */

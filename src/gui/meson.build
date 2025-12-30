@@ -4,6 +4,7 @@ gui_files = files(
 
 subdir('colourpicker')
 subdir('console')
+subdir('credits')
 subdir('dialogues')
 subdir('elementsearch')
 subdir('filebrowser')
@@ -20,6 +21,3 @@ subdir('save')
 subdir('search')
 subdir('tags')
 subdir('update')
-
-powder_files += gui_files
-font_files += gui_files

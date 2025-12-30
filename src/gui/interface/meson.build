@@ -5,7 +5,9 @@ gui_files += files(
 	'Component.cpp',
 	'ContextMenu.cpp',
 	'CopyTextButton.cpp',
+	'DirectionSelector.cpp',
 	'DropDown.cpp',
+	'Fade.cpp',
 	'Engine.cpp',
 	'Label.cpp',
 	'Panel.cpp',
@@ -22,4 +24,5 @@ powder_files += files(
 	'AvatarButton.cpp',
 	'RichLabel.cpp',
 	'SaveButton.cpp',
+	'Separator.cpp',
 )

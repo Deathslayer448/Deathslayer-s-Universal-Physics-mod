@@ -1,10 +1,25 @@
 #pragma once
-
+#include <memory>
+#include <optional>
 #include <stack>
+#include <variant>
 #include "common/String.h"
-#include "common/Singleton.h"
+#include "common/ExplicitSingleton.h"
 #include "graphics/Pixel.h"
 #include "gui/interface/Point.h"
+#include "gui/WindowFrameOps.h"
+#include <climits>
+#include "FpsLimit.h"
+
+struct RefreshRateDefault
+{
+	int value = 60;
+};
+struct RefreshRateQueried
+{
+	int value;
+};
+using RefreshRate = std::variant<RefreshRateDefault, RefreshRateQueried>;
 
 class Graphics;
 namespace ui
@@ -16,7 +31,7 @@ namespace ui
 	 * Controls the User Interface.
 	 * Send user inputs to the Engine and the appropriate controls and components will interact.
 	 */
-	class Engine: public Singleton<Engine>
+	class Engine: public ExplicitSingleton<Engine>
 	{
 	public:
 		Engine();
@@ -24,62 +39,44 @@ namespace ui
 
 		void ShowWindow(Window * window);
 		int CloseWindow();
+		void CloseWindowAndEverythingAbove(Window *window);
 
 		void initialMouse(int x, int y);
 		void onMouseMove(int x, int y);
-		void onMouseClick(int x, int y, unsigned button);
-		void onMouseUnclick(int x, int y, unsigned button);
+		void onMouseDown(int x, int y, unsigned button);
+		void onMouseUp(int x, int y, unsigned button);
 		void onMouseWheel(int x, int y, int delta);
 		void onKeyPress(int key, int scan, bool repeat, bool shift, bool ctrl, bool alt);
 		void onKeyRelease(int key, int scan, bool repeat, bool shift, bool ctrl, bool alt);
 		void onTextInput(String text);
 		void onTextEditing(String text, int start);
-		void onResize(int newWidth, int newHeight);
 		void onClose();
 		void onFileDrop(ByteString filename);
 
-		void Begin(int width, int height);
+		void Begin();
 		inline bool Running() { return running_; }
-		inline bool Broken() { return break_; }
 		inline long unsigned int LastTick() { return lastTick; }
-		inline void LastTick(long unsigned int tick) { lastTick = tick; }
 		void Exit();
 		void ConfirmExit();
-		void Break();
-		void UnBreak();
 
-		void SetDrawingFrequencyLimit(int limit) {drawingFrequencyLimit = limit;}
-		inline int GetDrawingFrequencyLimit() {return drawingFrequencyLimit;}
-		void SetFullscreen(bool fullscreen) { Fullscreen = fullscreen; }
-		inline bool GetFullscreen() { return Fullscreen; }
-		void SetAltFullscreen(bool altFullscreen) { this->altFullscreen = altFullscreen; }
-		inline bool GetAltFullscreen() { return altFullscreen; }
-		void SetForceIntegerScaling(bool forceIntegerScaling) { this->forceIntegerScaling = forceIntegerScaling; }
-		inline bool GetForceIntegerScaling() { return forceIntegerScaling; }
-		void SetScale(int scale) { Scale = scale; }
-		inline int GetScale() { return Scale; }
-		void SetResizable(bool resizable) { this->resizable = resizable; }
-		inline bool GetResizable() { return resizable; }
+		void SetDrawingFrequencyLimit(DrawLimit limit) {drawingFrequencyLimit = limit;}
+		inline DrawLimit GetDrawingFrequencyLimit() const {return drawingFrequencyLimit;}
+		std::optional<int> GetEffectiveDrawCap() const;
 		void SetFastQuit(bool fastquit) { FastQuit = fastquit; }
 		inline bool GetFastQuit() {return FastQuit; }
+		void SetGlobalQuit(bool newGlobalQuit) { GlobalQuit = newGlobalQuit; }
+		inline bool GetGlobalQuit() {return GlobalQuit; }
 
 		void Tick();
+		void SimTick();
 		void Draw();
 
-		void SetFps(float fps);
-		inline float GetFps() { return fps; }
+		void SetFps(float newFps);
+		float GetFps() const;
 
 		inline int GetMouseButton() { return mouseb_; }
 		inline int GetMouseX() { return mousex_; }
 		inline int GetMouseY() { return mousey_; }
-		inline int GetWidth() { return width_; }
-		inline int GetHeight() { return height_; }
-		inline int GetMaxWidth() { return maxWidth; }
-		inline int GetMaxHeight() { return maxHeight; }
-
-		void SetMaxSize(int width, int height);
-
-		inline void SetSize(int width, int height);
 
 		void StartTextInput();
 		void StopTextInput();
@@ -88,35 +85,44 @@ namespace ui
 		//void SetState(Window* state);
 		//inline State* GetState() { return state_; }
 		inline Window* GetWindow() { return state_; }
-		float FpsLimit;
-		int drawingFrequencyLimit;
+
+		FpsLimit GetFpsLimit() const;
+		bool GetContributesToFps() const;
+
+		DrawLimit drawingFrequencyLimit;
 		Graphics * g;
-		int Scale;
-		bool Fullscreen;
+		bool GraveExitsConsole;
+
+		bool confirmingExit = false;
 
 		unsigned int FrameIndex;
 	private:
-		bool altFullscreen;
-		bool forceIntegerScaling = true;
-		bool resizable;
 
 		bool textInput = false;
+		int lastTextEditingStart = INT_MAX;
 
-		float dt;
-		float fps;
-		pixel * lastBuffer;
-		std::stack<pixel*> prevBuffers;
-		std::stack<Window*> windows;
+		void ApplyFpsLimit();
+		std::deque<Window*> windows;
 		std::stack<Point> mousePositions;
 		//Window* statequeued_;
 		Window* state_;
 		Point windowTargetPosition;
-		int windowOpenState;
 		bool ignoreEvents = false;
+		RefreshRate refreshRate;
+
+		// saved appearances of windows that are in the backround and
+		// thus are not currently being redrawn
+		struct FrozenGraphics
+		{
+			int fadeTicks;
+			std::unique_ptr<pixel []> screen;
+		};
+		constexpr static int maxFadeTicks = 20;
+		std::stack<FrozenGraphics> frozenGraphics;
 
 		bool running_;
-		bool break_;
 		bool FastQuit;
+		bool GlobalQuit;
 
 		long unsigned int lastTick;
 		int mouseb_;
@@ -124,20 +130,36 @@ namespace ui
 		int mousey_;
 		int mousexp_;
 		int mouseyp_;
-		int width_;
-		int height_;
-
-		int maxWidth;
-		int maxHeight;
-
-		bool momentumScroll;
 
 		String textEditingBuf;
 
 	public:
 		bool MomentumScroll = true;
-		bool AutoDrawingFrequencyLimit = false;
 		bool ShowAvatars = true;
-	};
+		bool TouchUI = false;
+		WindowFrameOps windowFrameOps;
 
+		void SetScale              (int newScale               ) { windowFrameOps.scale               = newScale;               }
+		void SetFullscreen         (bool newFullscreen         ) { windowFrameOps.fullscreen          = newFullscreen;          }
+		void SetChangeResolution   (bool setChangeResolution   ) { windowFrameOps.changeResolution    = setChangeResolution;    }
+		void SetForceIntegerScaling(bool newForceIntegerScaling) { windowFrameOps.forceIntegerScaling = newForceIntegerScaling; }
+		void SetResizable          (bool newResizable          ) { windowFrameOps.resizable           = newResizable;           }
+		void SetBlurryScaling      (bool newBlurryScaling      ) { windowFrameOps.blurryScaling       = newBlurryScaling;       }
+		int  GetScale              () const { return windowFrameOps.scale;               }
+		bool GetFullscreen         () const { return windowFrameOps.fullscreen;          }
+		bool GetChangeResolution   () const { return windowFrameOps.changeResolution;    }
+		bool GetForceIntegerScaling() const { return windowFrameOps.forceIntegerScaling; }
+		bool GetResizable          () const { return windowFrameOps.resizable;           }
+		bool GetBlurryScaling      () const { return windowFrameOps.blurryScaling;       }
+
+		RefreshRate GetRefreshRate() const
+		{
+			return refreshRate;
+		}
+
+		void SetRefreshRate(RefreshRate newRefreshRate)
+		{
+			refreshRate = newRefreshRate;
+		}
+	};
 }

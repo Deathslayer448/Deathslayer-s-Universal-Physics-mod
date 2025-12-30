@@ -1,17 +1,17 @@
 #include "simulation/ToolCommon.h"
 
-static int perform(Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength);
+static int perform(SimTool *tool, Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength);
 
 void SimTool::Tool_HEAT()
 {
 	Identifier = "DEFAULT_TOOL_HEAT";
 	Name = "HEAT";
-	Colour = PIXPACK(0xFFDD00);
+	Colour = 0xFFDD00_rgb;
 	Description = "Heats the targeted element.";
 	Perform = &perform;
 }
 
-static int perform(Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength)
+static int perform(SimTool *tool, Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength)
 {
 	if(!cpart)
 		return 0;

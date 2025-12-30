@@ -1,24 +1,24 @@
 #include "simulation/ToolCommon.h"
 #include "simulation/Air.h"
 
-static int perform(Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength);
+static int perform(SimTool *tool, Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength);
 
 void SimTool::Tool_AIR()
 {
 	Identifier = "DEFAULT_TOOL_AIR";
 	Name = "AIR";
-	Colour = PIXPACK(0xFFFFFF);
+	Colour = 0xFFFFFF_rgb;
 	Description = "Air, creates airflow and pressure.";
 	Perform = &perform;
 }
 
-static int perform(Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength)
+static int perform(SimTool *tool, Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength)
 {
-	sim->air->pv[y/CELL][x/CELL] += strength*0.05f;
+	sim->pv[y/CELL][x/CELL] += strength*0.05f;
 
-	if (sim->air->pv[y/CELL][x/CELL] > 2048.0f)
-		sim->air->pv[y/CELL][x/CELL] = 2048.0f;
-	else if (sim->air->pv[y/CELL][x/CELL] < -2048.0f)
-		sim->air->pv[y/CELL][x/CELL] = -2048.0f;
+	if (sim->pv[y/CELL][x/CELL] > MAX_PRESSURE)
+		sim->pv[y/CELL][x/CELL] = MAX_PRESSURE;
+	else if (sim->pv[y/CELL][x/CELL] < MIN_PRESSURE)
+		sim->pv[y/CELL][x/CELL] = MIN_PRESSURE;
 	return 1;
 }

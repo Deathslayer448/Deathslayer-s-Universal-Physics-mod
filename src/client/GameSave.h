@@ -1,13 +1,17 @@
-#ifndef The_Powder_Toy_GameSave_h
-#define The_Powder_Toy_GameSave_h
-#include "Config.h"
-
-#include <vector>
+#pragma once
+#include "common/Bson.h"
+#include "common/Plane.h"
 #include "common/String.h"
+#include "common/tpt-rand.h"
+#include "common/Version.h"
+#include "simulation/Sign.h"
+#include "simulation/Particle.h"
+#include "simulation/MissingElements.h"
+#include "simulation/gravity/GravityData.h"
 #include "Misc.h"
-
-#include "bson/BSON.h"
-#include "json/json.h"
+#include "SimulationConfig.h"
+#include <vector>
+#include <array>
 
 struct sign;
 struct Particle;
@@ -43,23 +47,10 @@ public:
 	bool rocketBoots2 = false;
 	bool fan1 = false;
 	bool fan2 = false;
-	std::vector<unsigned int> rocketBootsFigh = std::vector<unsigned int>();
-	std::vector<unsigned int> fanFigh = std::vector<unsigned int>();
+	std::vector<unsigned int> rocketBootsFigh;
+	std::vector<unsigned int> fanFigh;
 
-	StkmData() = default;
-
-	StkmData(const StkmData & stkmData):
-		rocketBoots1(stkmData.rocketBoots1),
-		rocketBoots2(stkmData.rocketBoots2),
-		fan1(stkmData.fan1),
-		fan2(stkmData.fan2),
-		rocketBootsFigh(stkmData.rocketBootsFigh),
-		fanFigh(stkmData.fanFigh)
-	{
-
-	}
-
-	bool hasData()
+	bool hasData() const
 	{
 		return rocketBoots1 || rocketBoots2 || fan1 || fan2
 		        || rocketBootsFigh.size() || fanFigh.size();
@@ -68,37 +59,59 @@ public:
 
 class GameSave
 {
-public:
+	// number of pixels translated. When translating CELL pixels, shift all CELL grids
+	void readOPS(const std::vector<char> &data);
+	void readPSv(const std::vector<char> &data);
+	std::pair<bool, std::vector<char>> serialiseOPS() const;
 
-	int blockWidth, blockHeight;
-	bool fromNewerVersion;
-	int majorVersion, minorVersion;
-	bool hasPressure;
-	bool hasAmbientHeat;
+	void MapPalette();
+
+public:
+	Vec2<int> blockSize = { 0, 0 };
+	bool fromNewerVersion = false;
+	Version<2> version{};
+	bool hasPressure = false;
+	bool hasAmbientHeat = false;
+	bool hasBlockAirMaps = false;
+	bool hasGravityMaps = false;
+	bool ensureDeterminism = false; // only taken seriously by serializeOPS; readOPS may set this even if the save does not have everything required for determinism
+	bool hasRngState = false; // only written by readOPS, never read
+	RNG::State rngState;
+	uint64_t frameCount = 0;
 
 	//Simulation data
-	//int ** particleMap;
-	int particlesCount;
-	Particle * particles;
-	unsigned char ** blockMap;
-	float ** fanVelX;
-	float ** fanVelY;
-	float ** pressure;
-	float ** velocityX;
-	float ** velocityY;
-	float ** ambientHeat;
+	int particlesCount = 0;
+	std::vector<Particle> particles;
+	PlaneAdapter<std::vector<unsigned char>> blockMap;
+	PlaneAdapter<std::vector<float>> fanVelX;
+	PlaneAdapter<std::vector<float>> fanVelY;
+	PlaneAdapter<std::vector<float>> pressure;
+	PlaneAdapter<std::vector<float>> velocityX;
+	PlaneAdapter<std::vector<float>> velocityY;
+	PlaneAdapter<std::vector<float>> ambientHeat;
+	PlaneAdapter<std::vector<unsigned char>> blockAir;
+	PlaneAdapter<std::vector<unsigned char>> blockAirh;
+	PlaneAdapter<std::vector<float>> gravMass;
+	PlaneAdapter<std::vector<uint32_t>> gravMask;
+	PlaneAdapter<std::vector<float>> gravForceX;
+	PlaneAdapter<std::vector<float>> gravForceY;
 
 	//Simulation Options
-	bool waterEEnabled;
-	bool legacyEnable;
-	bool gravityEnable;
-	bool aheatEnable;
-	bool NoWeightSwitch;
-	bool BetterBurningEnable;
-	bool paused;
-	int gravityMode;
-	int airMode;
-	int edgeMode;
+	bool waterEEnabled = false;
+	bool legacyEnable = false;
+	bool gravityEnable = false;
+	bool aheatEnable = false;
+	bool paused = false;
+	int gravityMode = 0;
+	float customGravityX = 0.0f;
+	float customGravityY = 0.0f;
+	int airMode = 0;
+	float ambientAirTemp = R_TEMP + 273.15f;
+	float vorticityCoeff = 0.0f;
+	int edgeMode = 0;
+	bool wantAuthors = true;
+
+	MissingElements missingElements;
 
 	//Signs
 	std::vector<sign> signs;
@@ -109,57 +122,21 @@ public:
 	std::vector<PaletteItem> palette;
 
 	// author information
-	Json::Value authors;
+	Bson authors;
 
-	int pmapbits;
+	int pmapbits = 8; // default to 8 bits for older saves
 
-	GameSave();
-	GameSave(GameSave & save);
-	GameSave(int width, int height);
-	GameSave(char * data, int dataSize);
-	GameSave(std::vector<char> data);
-	GameSave(std::vector<unsigned char> data);
-	~GameSave();
-	void setSize(int width, int height);
-	char * Serialise(unsigned int & dataSize);
-	std::vector<char> Serialise();
-	vector2d Translate(vector2d translate);
-	void Transform(matrix2d transform, vector2d translate);
-	void Transform(matrix2d transform, vector2d translate, vector2d translateReal, int newWidth, int newHeight);
+	GameSave(Vec2<int> newBlockSize);
+	GameSave(const std::vector<char> &data, bool newWantAuthors = true);
+	void setSize(Vec2<int> newBlockSize);
+	// return value is [ fakeFromNewerVersion, gameData ]
+	std::pair<bool, std::vector<char>> Serialise() const;
+	void Transform(Mat2<int> transform, Vec2<int> nudge);
 
-	void Expand();
-	void Collapse();
-	bool Collapsed();
+	void Expand(const std::vector<char> &data);
 
-	static bool TypeInCtype(int type, int ctype);
-	static bool TypeInTmp(int type);
-	static bool TypeInTmp2(int type, int tmp2);
+	static bool PressureInTmp3(int type);
 
 	GameSave& operator << (Particle &v);
 	GameSave& operator << (sign &v);
-
-private:
-	bool expanded;
-	bool hasOriginalData;
-	// number of pixels translated. When translating CELL pixels, shift all CELL grids
-	vector2d translated;
-
-	std::vector<char> originalData;
-
-	void InitData();
-	void InitVars();
-	void CheckBsonFieldUser(bson_iterator iter, const char *field, unsigned char **data, unsigned int *fieldLen);
-	void CheckBsonFieldBool(bson_iterator iter, const char *field, bool *flag);
-	void CheckBsonFieldInt(bson_iterator iter, const char *field, int *setting);
-	template <typename T> T ** Allocate2DArray(int blockWidth, int blockHeight, T defaultVal);
-	template <typename T> void Deallocate2DArray(T ***array, int blockHeight);
-	void dealloc();
-	void read(char * data, int dataSize);
-	void readOPS(char * data, int dataLength);
-	void readPSv(char * data, int dataLength);
-	char * serialiseOPS(unsigned int & dataSize);
-	void ConvertJsonToBson(bson *b, Json::Value j, int depth = 0);
-	void ConvertBsonToJson(bson_iterator *b, Json::Value *j, int depth = 0);
 };
-
-#endif

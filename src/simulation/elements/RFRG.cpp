@@ -1,12 +1,11 @@
 #include "simulation/ElementCommon.h"
-
-int Element_RFRG_update(UPDATE_FUNC_ARGS);
+#include "RFRG.h"
 
 void Element::Element_RFRG()
 {
 	Identifier = "DEFAULT_PT_RFRG";
 	Name = "RFRG";
-	Colour = PIXPACK(0x72D2D4);
+	Colour = 0x72D2D4_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_GAS;
 	Enabled = 1;
@@ -24,7 +23,7 @@ void Element::Element_RFRG()
 	Flammable = 0;
 	Explosive = 0;
 	Meltable = 0;
-	Hardness = 20;
+	Hardness = 21;
 
 	Weight = 1;
 

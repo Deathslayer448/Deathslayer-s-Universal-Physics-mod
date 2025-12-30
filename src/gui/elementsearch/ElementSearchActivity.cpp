@@ -3,27 +3,26 @@
 #include <set>
 #include <map>
 #include <algorithm>
+#include <SDL.h>
 
 #include "gui/interface/Textbox.h"
+#include "gui/interface/ScrollPanel.h"
 #include "gui/interface/Label.h"
-#include "gui/interface/Keys.h"
-#include "gui/game/Tool.h"
+#include "gui/game/tool/Tool.h"
 #include "gui/game/Menu.h"
 #include "gui/Style.h"
 #include "gui/game/Favorite.h"
 #include "gui/game/GameController.h"
 #include "gui/game/ToolButton.h"
-#include "gui/game/Favorite.h"
 
 #include "graphics/Graphics.h"
 
 ElementSearchActivity::ElementSearchActivity(GameController * gameController, std::vector<Tool*> tools) :
 	WindowActivity(ui::Point(-1, -1), ui::Point(236, 302)),
-	firstResult(NULL),
+	firstResult(nullptr),
 	gameController(gameController),
 	tools(tools),
 	toolTip(""),
-	toolTipPresence(0),
 	shiftPressed(false),
 	ctrlPressed(false),
 	altPressed(false),
@@ -52,41 +51,37 @@ ElementSearchActivity::ElementSearchActivity(GameController * gameController, st
 	AddComponent(okButton);
 	AddComponent(closeButton);
 
+	scrollPanel = new ui::ScrollPanel(searchField->Position + Vec2{ 1, searchField->Size.Y+9 }, { searchField->Size.X - 2, Size.Y-(searchField->Position.Y+searchField->Size.Y+6)-23 });
+	AddComponent(scrollPanel);
+
 	searchTools("");
 }
 
 void ElementSearchActivity::searchTools(String query)
 {
-	firstResult = NULL;
+	firstResult = nullptr;
 	for (auto &toolButton : toolButtons) {
-		RemoveComponent(toolButton);
+		scrollPanel->RemoveChild(toolButton);
 		delete toolButton;
 	}
 	toolButtons.clear();
 
-	ui::Point viewPosition = searchField->Position + ui::Point(2+0, searchField->Size.Y+2+8);
+	ui::Point viewPosition = { 1, 1 };
 	ui::Point current = ui::Point(0, 0);
 
 	String queryLower = query.ToLower();
 
 	struct Match
 	{
-		int favouritePriority; // relevant by whether the tool is favourited
 		int toolIndex; // relevance by position of tool in tools vector
 		int haystackOrigin; // relevance by origin of haystack
 		int needlePosition; // relevance by position of needle in haystack
 
 		bool operator <(Match const &other) const
 		{
-			return std::tie(favouritePriority, haystackOrigin, needlePosition, toolIndex) < std::tie(other.favouritePriority, other.haystackOrigin, other.needlePosition, other.toolIndex);
+			return std::tie(haystackOrigin, needlePosition, toolIndex) < std::tie(other.haystackOrigin, other.needlePosition, other.toolIndex);
 		}
 	};
-
-	std::set<ByteString> favs;
-	for (auto fav : Favorite::Ref().GetFavoritesList())
-	{
-		favs.insert(fav);
-	}
 
 	std::map<int, Match> indexToMatch;
 	auto push = [ &indexToMatch ](Match match) {
@@ -101,18 +96,18 @@ void ElementSearchActivity::searchTools(String query)
 		}
 	};
 
-	auto pushIfMatches = [ &queryLower, &push ](String infoLower, int toolIndex, int favouritePriority, int haystackRelevance) {
+	auto pushIfMatches = [ &queryLower, &push ](String infoLower, int toolIndex, int haystackRelevance) {
 		if (infoLower == queryLower)
 		{
-			push(Match{ favouritePriority, toolIndex, haystackRelevance, 0 });
+			push(Match{ toolIndex, haystackRelevance, 0 });
 		}
 		if (infoLower.BeginsWith(queryLower))
 		{
-			push(Match{ favouritePriority, toolIndex, haystackRelevance, 1 });
+			push(Match{ toolIndex, haystackRelevance, 1 });
 		}
 		if (infoLower.Contains(queryLower))
 		{
-			push(Match{ favouritePriority, toolIndex, haystackRelevance, 2 });
+			push(Match{ toolIndex, haystackRelevance, 2 });
 		}
 	};
 
@@ -127,13 +122,12 @@ void ElementSearchActivity::searchTools(String query)
 
 	for (int toolIndex = 0; toolIndex < (int)tools.size(); ++toolIndex)
 	{
-		int favouritePriority = favs.find(tools[toolIndex]->GetIdentifier()) != favs.end() ? 0 : 1;
-		pushIfMatches(tools[toolIndex]->GetName().ToLower(), toolIndex, favouritePriority, 0);
-		pushIfMatches(tools[toolIndex]->GetDescription().ToLower(), toolIndex, favouritePriority, 1);
+		pushIfMatches(tools[toolIndex]->Name.ToLower(), toolIndex, 0);
+		pushIfMatches(tools[toolIndex]->Description.ToLower(), toolIndex, 1);
 		auto it = menudescriptionLower.find(tools[toolIndex]);
 		if (it != menudescriptionLower.end())
 		{
-			pushIfMatches(it->second, toolIndex, favouritePriority, 2);
+			pushIfMatches(it->second, toolIndex, 2);
 		}
 	}
 
@@ -149,16 +143,16 @@ void ElementSearchActivity::searchTools(String query)
 		if(!firstResult)
 			firstResult = tool;
 
-		VideoBuffer * tempTexture = tool->GetTexture(26, 14);
+		std::unique_ptr<VideoBuffer> tempTexture = tool->GetTexture(Vec2(26, 14));
 		ToolButton * tempButton;
 
 		if(tempTexture)
-			tempButton = new ToolButton(current+viewPosition, ui::Point(30, 18), "", tool->GetIdentifier(), tool->GetDescription());
+			tempButton = new ToolButton(current+viewPosition, ui::Point(30, 18), "", tool->Identifier, tool->Description);
 		else
-			tempButton = new ToolButton(current+viewPosition, ui::Point(30, 18), tool->GetName(), tool->GetIdentifier(), tool->GetDescription());
+			tempButton = new ToolButton(current+viewPosition, ui::Point(30, 18), tool->Name, tool->Identifier, tool->Description);
 
-		tempButton->Appearance.SetTexture(tempTexture);
-		tempButton->Appearance.BackgroundInactive = ui::Colour(tool->colRed, tool->colGreen, tool->colBlue);
+		tempButton->Appearance.SetTexture(std::move(tempTexture));
+		tempButton->Appearance.BackgroundInactive = tool->Colour.WithAlpha(0xFF);
 		tempButton->SetActionCallback({ [this, tempButton, tool] {
 			if (tempButton->GetSelectionState() >= 0 && tempButton->GetSelectionState() <= 2)
 				SetActiveTool(tempButton->GetSelectionState(), tool);
@@ -178,7 +172,7 @@ void ElementSearchActivity::searchTools(String query)
 		}
 
 		toolButtons.push_back(tempButton);
-		AddComponent(tempButton);
+		scrollPanel->AddChild(tempButton);
 
 		current.X += 31;
 
@@ -186,21 +180,24 @@ void ElementSearchActivity::searchTools(String query)
 			current.X = 0;
 			current.Y += 19;
 		}
-
-		if(current.Y + viewPosition.Y + 18 > Size.Y-23)
-			break;
 	}
+
+	if (current.X == 0)
+	{
+		current.Y -= 19;
+	}
+	scrollPanel->InnerSize = ui::Point(scrollPanel->Size.X, current.Y + 20);
 }
 
 void ElementSearchActivity::SetActiveTool(int selectionState, Tool * tool)
 {
 	if (ctrlPressed && shiftPressed && !altPressed)
 	{
-		Favorite::Ref().AddFavorite(tool->GetIdentifier());
+		Favorite::Ref().AddFavorite(tool->Identifier);
 		gameController->RebuildFavoritesMenu();
 	}
 	else if (ctrlPressed && altPressed && !shiftPressed &&
-	         tool->GetIdentifier().Contains("DEFAULT_PT_"))
+	         tool->Identifier.BeginsWith("DEFAULT_PT_"))
 	{
 		gameController->SetActiveTool(3, tool);
 	}
@@ -212,31 +209,31 @@ void ElementSearchActivity::SetActiveTool(int selectionState, Tool * tool)
 void ElementSearchActivity::OnDraw()
 {
 	Graphics * g = GetGraphics();
-	g->clearrect(Position.X-2, Position.Y-2, Size.X+3, Size.Y+3);
-	g->drawrect(Position.X, Position.Y, Size.X, Size.Y, 255, 255, 255, 255);
+	g->DrawFilledRect(RectSized(Position - Vec2{ 1, 1 }, Size + Vec2{ 2, 2 }), 0x000000_rgb);
+	g->DrawRect(RectSized(Position, Size), 0xFFFFFF_rgb);
 
-	g->drawrect(Position.X+searchField->Position.X, Position.Y+searchField->Position.Y+searchField->Size.Y+8, searchField->Size.X, Size.Y-(searchField->Position.Y+searchField->Size.Y+8)-23, 255, 255, 255, 180);
+	g->BlendRect(
+		RectSized(Position + scrollPanel->Position - Vec2{ 1, 1 }, scrollPanel->Size + Vec2{ 2, 2 }),
+		0xFFFFFF_rgb .WithAlpha(180));
 	if (toolTipPresence && toolTip.length())
 	{
-		g->drawtext(10, Size.Y+70, toolTip, 255, 255, 255, toolTipPresence>51?255:toolTipPresence*5);
+		g->BlendText({ 10, Size.Y+70 }, toolTip, 0xFFFFFF_rgb .WithAlpha(toolTipPresence>51?255:toolTipPresence*5));
 	}
 }
 
-void ElementSearchActivity::OnTick(float dt)
+void ElementSearchActivity::OnTick()
 {
 	if (exit)
 		Exit();
+
 	if (isToolTipFadingIn)
 	{
 		isToolTipFadingIn = false;
-		if (toolTipPresence < 120)
-			toolTipPresence += int(dt*2)>1?int(dt*2):2;
+		toolTipPresence.SetTarget(120);
 	}
-	else if (toolTipPresence>0)
+	else
 	{
-		toolTipPresence -= int(dt)>0?int(dt):1;
-		if (toolTipPresence<0)
-			toolTipPresence = 0;
+		toolTipPresence.SetTarget(0);
 	}
 }
 
@@ -251,6 +248,7 @@ void ElementSearchActivity::OnKeyPress(int key, int scan, bool repeat, bool shif
 		if(firstResult)
 			gameController->SetActiveTool(0, firstResult);
 	case SDLK_ESCAPE:
+	case SDLK_AC_BACK:
 		exit = true;
 		break;
 	case SDLK_LSHIFT:

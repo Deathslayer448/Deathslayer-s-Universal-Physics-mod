@@ -6,7 +6,7 @@ void Element::Element_IRON()
 {
 	Identifier = "DEFAULT_PT_IRON";
 	Name = "IRON";
-	Colour = PIXPACK(0x707070);
+	Colour = 0x707070_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_SOLIDS;
 	Enabled = 1;
@@ -24,7 +24,7 @@ void Element::Element_IRON()
 	Flammable = 0;
 	Explosive = 0;
 	Meltable = 1;
-	Hardness = 50;
+	Hardness = 49;
 
 	Weight = 100;
 
@@ -47,41 +47,48 @@ void Element::Element_IRON()
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	int r, rx, ry;
 	if (parts[i].life)
 		return 0;
-	for (rx=-1; rx<2; rx++)
-		for (ry=-1; ry<2; ry++)
-			if (BOUNDS_CHECK && (rx || ry))
+	auto tryBreak = [&]() {
+		for (auto rx = -1; rx <= 1; rx++)
+		{
+			for (auto ry = -1; ry <= 1; ry++)
 			{
-				r = pmap[y+ry][x+rx];
-				switch TYP(r)
+				if (rx || ry)
 				{
-				case PT_SALT:
-					if (RNG::Ref().chance(1, 47))
-						goto succ;
-					break;
-				case PT_SLTW:
-					if (RNG::Ref().chance(1, 67))
-						goto succ;
-					break;
-				case PT_WATR:
-					if (RNG::Ref().chance(1, 1200))
-						goto succ;
-					break;
-				case PT_O2:
-					if (RNG::Ref().chance(1, 250))
-						goto succ;
-					break;
-				case PT_LO2:
-					goto succ;
-				default:
-					break;
+					auto r = pmap[y+ry][x+rx];
+					switch (TYP(r))
+					{
+					case PT_SALT:
+						if (sim->rng.chance(1, 47))
+							return true;
+						break;
+					case PT_SLTW:
+						if (sim->rng.chance(1, 67))
+							return true;
+						break;
+					case PT_WATR:
+						if (sim->rng.chance(1, 1200))
+							return true;
+						break;
+					case PT_O2:
+						if (sim->rng.chance(1, 250))
+							return true;
+						break;
+					case PT_LO2:
+						return true;
+					default:
+						break;
+					}
 				}
 			}
-	return 0;
-succ:
-	sim->part_change_type(i,x,y,PT_BMTL);
-	parts[i].tmp = RNG::Ref().between(20, 29);
+		}
+		return false;
+	};
+	if (tryBreak())
+	{
+		sim->part_change_type(i,x,y,PT_BMTL);
+		parts[i].tmp = sim->rng.between(20, 29);
+	}
 	return 0;
 }

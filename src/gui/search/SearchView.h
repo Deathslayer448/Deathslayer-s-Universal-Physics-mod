@@ -1,9 +1,7 @@
-#ifndef SEARCHVIEW_H
-#define SEARCHVIEW_H
-
-#include <vector>
+#pragma once
 #include "client/ClientListener.h"
 #include "gui/interface/Window.h"
+#include <vector>
 
 namespace ui
 {
@@ -13,6 +11,7 @@ namespace ui
 	class Label;
 	class Spinner;
 	class Textbox;
+	class DropDown;
 }
 
 class SearchModel;
@@ -34,6 +33,7 @@ private:
 	ui::Label * pageCountLabel;
 	ui::Label * tagsLabel;
 	ui::RichLabel * motdLabel = nullptr;
+	ui::DropDown * dateRange;
 	ui::Button * sortButton;
 	ui::Button * ownButton;
 	ui::Spinner * loadingSpinner;
@@ -42,6 +42,7 @@ private:
 	ui::Button * unpublishSelected;
 	ui::Button * favouriteSelected;
 	ui::Button * clearSelection;
+	void searchHelp();
 	void clearSearch();
 	void doSearch();
 	void textChanged();
@@ -54,6 +55,7 @@ public:
 	void NotifySaveListChanged(SearchModel * sender);
 	void NotifySelectedChanged(SearchModel * sender);
 	void NotifyPageChanged(SearchModel * sender);
+	void NotifyPeriodChanged(SearchModel * sender);
 	void NotifySortChanged(SearchModel * sender);
 	void NotifyShowOwnChanged(SearchModel * sender);
 	void NotifyShowFavouriteChanged(SearchModel * sender);
@@ -65,11 +67,9 @@ public:
 	virtual ~SearchView();
 	void AttachController(SearchController * _c) { c = _c; }
 	virtual void Search(String);
-	void OnTick(float dt) override;
+	void OnTick() override;
 	void OnMouseWheel(int x, int y, int d) override;
 	void OnKeyPress(int key, int scan, bool repeat, bool shift, bool ctrl, bool alt) override;
 	void OnKeyRelease(int key, int scan, bool repeat, bool shift, bool ctrl, bool alt) override;
 
 };
-
-#endif // SEARCHVIEW_H
