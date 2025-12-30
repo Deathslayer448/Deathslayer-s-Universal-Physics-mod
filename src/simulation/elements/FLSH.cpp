@@ -464,9 +464,9 @@ if (parts[i].capacity == 0)
 
 
 
-				if((rt == PT_POPS ||  rt == PT_NRVE || rt == PT_BRIN) && (parts[i].type == PT_POPS ||  parts[i].type == PT_NRVE || parts[i].type == PT_BRIN))
+				if((rt == PT_POPS ||  rt == PT_BRIN) && (parts[i].type == PT_POPS ||  parts[i].type == PT_BRIN))
 				{
-						if (rt == PT_NRVE || rt == PT_BRIN)
+						if (rt == PT_BRIN)
 								partnum = 5;
 						else 
 								partnum = 2;

@@ -10,7 +10,7 @@ void Element::Element_NRVE() {
 	Colour = PIXPACK(0xFFC6AD);
 	MenuVisible = 1;
 	MenuSection = SC_ORGANIC;
-	Enabled = 1;
+	Enabled = 0;
 
 	Advection = 0.0f;
 	AirDrag = 0.00f * CFDS;

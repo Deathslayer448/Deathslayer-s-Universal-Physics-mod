@@ -146,7 +146,7 @@ static int update(UPDATE_FUNC_ARGS) {
 							//	Element_PIPE_transfer_pipe_to_part(sim, parts + i, parts + np, false);
 						//	}
 					//	}
-					if((rt == PT_FLSH || rt == PT_UDDR || rt == PT_LUNG || rt == PT_POPS || rt == PT_STMH || rt == PT_BRIN || rt == PT_NRVE) && parts[i].tmpville[3] == 0 )
+					if((rt == PT_FLSH || rt == PT_UDDR || rt == PT_LUNG || rt == PT_POPS || rt == PT_STMH || rt == PT_BRIN) && parts[i].tmpville[3] == 0 )
 						parts[i].tmpville[3] = 1;
 					
 					if (rt == PT_BVSL && parts[i].tmpville[3] == 0 && parts[ID(r)].tmpville[3] > 0 && RNG::Ref().chance(1, 8))

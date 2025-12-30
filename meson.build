@@ -176,7 +176,8 @@ if copt_msvc
 	project_c_args += args_msvc
 	project_cpp_args += args_msvc
 else
-	args_ccomp = [ '-U__STRICT_ANSI__', '-Wno-unused-result' ]
+	args_ccomp = [ '-Wno-unused-result' ]
+	args_ccomp_c = [ '-U__STRICT_ANSI__' ]
 	if copt_platform == 'mac'
 		if uopt_x86_sse_level >= 0
 			message('SSE level explicitly configured but unavailable on macosx')
@@ -215,7 +216,7 @@ else
 	if copt_platform == 'lin' and not get_option('b_pie') and get_option('workaround_gcc_no_pie') # nice one, meson
 		project_link_args += [ '-no-pie' ]
 	endif
-	project_c_args += args_ccomp
+	project_c_args += args_ccomp + args_ccomp_c
 	project_cpp_args += args_ccomp + [ '-Wno-invalid-offsetof' ]
 endif
 
