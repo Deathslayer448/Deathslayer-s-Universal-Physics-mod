@@ -14,6 +14,7 @@
 #include "Element.h"
 #include "SimulationConfig.h"
 #include "SimulationSettings.h"
+#include "SimulationData.h"
 #include <cstring>
 #include <cstddef>
 #include <vector>
@@ -155,6 +156,8 @@ public:
 	float customGravityX = 0;
 	float customGravityY = 0;
 	int legacy_enable = 0;
+	int betterburning_enable = 0;
+	int NoWeightSwitching = 0;
 	int water_equal_test = 0;
 	int pretty_powder = 0;
 	int sandcolour_frame = 0;
@@ -267,6 +270,12 @@ public:
 	~Simulation();
 
 	void EnableNewtonianGravity(bool enable);
+
+	// Helper methods to access SimulationData - use these instead of SimulationData::CRef() in element code
+	SimulationData &sd() { return SimulationData::Ref(); }
+	const SimulationData &sd() const { return SimulationData::CRef(); }
+	auto &elements() { return SimulationData::Ref().elements; }
+	const auto &elements() const { return SimulationData::CRef().elements; }
 
 private:
 	CoordStack& getCoordStackSingleton();

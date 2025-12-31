@@ -87,7 +87,7 @@ static std::vector<menu_section> LoadMenus()
 		{0xE044, String("Liquids"), 0, 1},
 		{0xE050, String("Powders"), 0, 1},
 		{0xE051, String("Solids"), 0, 1},
-		{0xE076, String("Organic"), 0, 1 },
+		{0xE060, String("Organic"), 0, 1}, // Life icon for organic
 		{0xE046, String("Radioactive"), 0, 1},
 		{0xE04C, String("Special"), 0, 1},
 		{0xE052, String("Game Of Life"), 0, 1},

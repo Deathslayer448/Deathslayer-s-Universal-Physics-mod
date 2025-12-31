@@ -11,7 +11,7 @@ void Element::Element_TUNG()
 	Name = "TUNG";
 	Colour = 0x505050_rgb;
 	MenuVisible = 1;
-	MenuSection = SC_ELEC;
+	MenuSection = SC_SOLIDS;
 	Enabled = 1;
 
 	Advection = 0.0f;
@@ -52,10 +52,8 @@ void Element::Element_TUNG()
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	auto &sd = SimulationData::CRef();
-	auto &elements = sd.elements;
 	bool splode = false;
-	const float MELTING_POINT = elements[PT_TUNG].HighTemperature;
+	const float MELTING_POINT = sim->elements()[PT_TUNG].HighTemperature;
 
 	if(parts[i].temp > 2400.0)
 	{
@@ -114,8 +112,7 @@ static int update(UPDATE_FUNC_ARGS)
 
 static int graphics(GRAPHICS_FUNC_ARGS)
 {
-	auto &sd = SimulationData::CRef();
-	auto &elements = sd.elements;
+	auto &elements = SimulationData::CRef().elements;
 	const float MELTING_POINT = elements[PT_TUNG].HighTemperature;
 	double startTemp = (MELTING_POINT - 1500.0);
 	double tempOver = (((cpart->temp - startTemp)/1500.0)*TPT_PI_FLT) - (TPT_PI_FLT/2.0);

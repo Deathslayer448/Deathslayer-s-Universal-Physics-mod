@@ -9,7 +9,7 @@ void Element::Element_ATOM()
 {
 	Identifier = "DEFAULT_PT_ATOM";
 	Name = "ATOM";
-	Colour = PIXPACK(0xBB99FF);
+	Colour = 0xBB99FF_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_NUCLEAR;
 	Enabled = 1;
@@ -52,11 +52,10 @@ void Element::Element_ATOM()
 	Create = &create;
 }
 
-static int update(UPDATE_FUNC_ARGS)
-{
+static int update(UPDATE_FUNC_ARGS) {
 	//ctype = energy, life = Z, tmp = A
 
-	//parts[i].pavg[0] = BindingEnergy(parts[i].life, parts[i].tmp); //binding energy 
+	//parts[i].tmp3 = BindingEnergy(parts[i].life, parts[i].tmp); //binding energy 
 
 	//Z can't be higher than A
 	if (parts[i].life > parts[i].tmp)
@@ -82,22 +81,22 @@ static int update(UPDATE_FUNC_ARGS)
 
 	int Energy = parts[i].ctype, Z = parts[i].life, A = parts[i].tmp, N = A - Z;
 	double BE = BindingEnergy(Z, A);
-	parts[i].pavg[0] = BindingEnergy(Z, A);
-	//parts[i].pavg[0] = CoulombBarrier(2, 4, 2, 4);
+	parts[i].tmp3 = BindingEnergy(Z, A);
+	//parts[i].tmp3 = CoulombBarrier(2, 4, 2, 4);
 
 
 	//Nuclear interactions
 	int r, rx, ry, rt, np;
 	for (rx = -2; rx < 3; rx++)
 		for (ry = -2; ry < 3; ry++)
-			if (BOUNDS_CHECK && (rx || ry))
+			if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES)
 			{
 				r = pmap[y + ry][x + rx];
 				if (!r)
 				{
 					//Decay
 					//beta -   electron
-					if (BE < BindingEnergy(Z + 1, A) && RNG::Ref().between(0, 100) == 1) //missing rate control
+					if (BE < BindingEnergy(Z + 1, A) && sim->rng.between(0, 100) == 1) //missing rate control
 					{
 						sim->create_part(-1, x + rx, y + ry, PT_ELEC);
 						parts[i].life = Z += 1;
@@ -105,14 +104,14 @@ static int update(UPDATE_FUNC_ARGS)
 
 					//beta +   positron
 
-					else if (BE < BindingEnergy(Z - 1, A) && parts[i].life >= 1 && RNG::Ref().between(0, 100)==1)
+					else if (BE < BindingEnergy(Z - 1, A) && parts[i].life >= 1 && sim->rng.between(0, 100)==1)
 					{
 						sim->create_part(-1, x + rx, y + ry, PT_PHOT);
 						parts[i].life = Z -= 1;
 					}
 
 					//alpha  He-4
-					else if (BE < BindingEnergy(Z - 2, A - 4) + BindingEnergy(2, 4) && parts[i].tmp >=4 && RNG::Ref().between(0, 100) == 1)
+					else if (BE < BindingEnergy(Z - 2, A - 4) + BindingEnergy(2, 4) && parts[i].tmp >=4 && sim->rng.between(0, 100) == 1)
 					{
 						np = sim->create_part(-1, x + rx, y + ry, PT_ATOM);
 						parts[np].life = 2;
@@ -170,7 +169,7 @@ end
 							unsigned int transfE = Energy + tEnergy;
 							if (transfE <= pow(2, 31) - 1)
 							{
-								transfE = RNG::Ref().between(0, Energy + tEnergy);
+								transfE = sim->rng.between(0, Energy + tEnergy);
 								parts[ID(r)].ctype = tEnergy = Energy + tEnergy - transfE;
 								parts[i].ctype = Energy = transfE;
 							}
@@ -249,10 +248,10 @@ static int graphics(GRAPHICS_FUNC_ARGS)
 	}
 	else
 	{
-		int caddress = restrict_flt(RNG::Ref().between(50, 100) * 3, 0.0f, (200.0f * 3) - 3);
-		*colr = (unsigned char)ren->plasma_data[caddress];
-		*colg = (unsigned char)ren->plasma_data[caddress + 1];
-		*colb = (unsigned char)ren->plasma_data[caddress + 2];
+		int caddress = restrict_flt((int)(cpart->tmp) % 51 + 50, 0.0f, (200.0f * 3) - 3);
+		*colr = (unsigned char)(caddress * 3);
+		*colg = (unsigned char)(caddress * 3 + 1);
+		*colb = (unsigned char)(caddress * 3 + 2);
 	}
 
 	*firea = 255;

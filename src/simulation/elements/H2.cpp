@@ -48,6 +48,7 @@ void Element::Element_H2()
 static int update(UPDATE_FUNC_ARGS)
 {
 	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 	auto &can_move = sd.can_move;
 	for (auto rx = -2; rx <= 2; rx++)
 	{

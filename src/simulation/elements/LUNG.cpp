@@ -7,7 +7,7 @@ int Element_FLSH_update(UPDATE_FUNC_ARGS);
 void Element::Element_LUNG() {
 	Identifier = "DEFAULT_PT_LUNG";
 	Name = "LUNG";
-	Colour = PIXPACK(0xd4aaab);
+	Colour = 0xd4aaab_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_ORGANIC;
 	Enabled = 1;
@@ -32,7 +32,7 @@ void Element::Element_LUNG() {
 	HeatConduct = 104;
 	Description = "Lungs. Absorbs O2 and releases CO2.";
 	 
-	Properties = TYPE_SOLID | PROP_NEUTPENETRATE | PROP_EDIBLE | PROP_ORGANISM | PROP_ANIMAL;
+	Properties = TYPE_SOLID | PROP_NEUTPENETRATE;
 
 	DefaultProperties.carbons = 50;
 	DefaultProperties.oxygens = 50;
@@ -76,11 +76,11 @@ static int update(UPDATE_FUNC_ARGS) {
 	Element_FLSH_update(sim, i, x, y, surround_space, nt, parts, pmap);
 	int lcapacity = 0;
 	parts[i].gassaturation = parts[i].oxygens + parts[i].co2;
-	if (parts[i].pavg[0] != 2)
+	if (parts[i].tmp3 != 2)
 	{
-	if (parts[i].oxygens > parts[i].capacity / 2 && RNG::Ref().chance(1, 100))
+	if (parts[i].oxygens > parts[i].capacity / 2 && sim->rng.chance(1, 100))
 		parts[i].tmpcity[5]++;
-	if (parts[i].co2 > 50 && RNG::Ref().chance(1, 10))
+	if (parts[i].co2 > 50 && sim->rng.chance(1, 10))
 		parts[i].tmpcity[6]++;
 
 
@@ -88,18 +88,18 @@ static int update(UPDATE_FUNC_ARGS) {
 		for (ry = -1; ry < 2; ++ry)
 		for (rx = -1; rx < 2; ++rx)
 			
-				if (BOUNDS_CHECK && (rx || ry)) {
+				if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) {
 					r = pmap[y + ry][x + rx];
 					int partnum = 10;
 					if (!r)
 					{
-						if(parts[i].tmpcity[6] > 0 && parts[i].co2 > 50 + 10 && RNG::Ref().chance(1, 8))
+						if(parts[i].tmpcity[6] > 0 && parts[i].co2 > 50 + 10 && sim->rng.chance(1, 8))
 						{
 							parts[sim->create_part(-1, x + rx, y + ry, PT_CO2)].tmp3 = std::min(100, parts[i].co2 - 10);
 							parts[i].co2 -= std::min(100, parts[i].co2 - 10);
 							parts[i].tmpcity[6]--;
 						}
-						if (parts[i].tmpcity[5] > 0 && parts[i].oxygens > 60 && RNG::Ref().chance(1, 8))
+						if (parts[i].tmpcity[5] > 0 && parts[i].oxygens > 60 && sim->rng.chance(1, 8))
 						{
 							parts[sim->create_part(-1, x + rx, y + ry, PT_O2)].tmp3 = 50;
 							parts[i].oxygens -= 50;
@@ -112,7 +112,7 @@ static int update(UPDATE_FUNC_ARGS) {
 					//	if (rt == PT_BRKN)
 						//	rt = parts[ID(r)].ctype;
 
-					if ((rt == PT_O2 || rt == PT_LO2) && parts[i].oxygens < parts[i].capacity / 2 && parts[ID(r)].oxygens > 0 && RNG::Ref().chance(1, 8)
+					if ((rt == PT_O2 || rt == PT_LO2) && parts[i].oxygens < parts[i].capacity / 2 && parts[ID(r)].oxygens > 0 && sim->rng.chance(1, 8)
 						) {
 
 						parts[i].oxygens += std::min(5, parts[ID(r)].oxygens);
@@ -128,24 +128,24 @@ static int update(UPDATE_FUNC_ARGS) {
 				//	lcapacity = 0;
 
 					//nerve signals
-					if(rt == PT_LUNG && parts[i].tmpcity[5] > parts[ID(r)].tmpcity[5] && parts[i].tmpcity[5] > 0 && parts[ID(r)].tmpcity[5] < 2  && parts[ID(r)].pavg[0] != 2 && RNG::Ref().chance(1, 8))
+					if(rt == PT_LUNG && parts[i].tmpcity[5] > parts[ID(r)].tmpcity[5] && parts[i].tmpcity[5] > 0 && parts[ID(r)].tmpcity[5] < 2  && parts[ID(r)].tmp3 != 2 && sim->rng.chance(1, 8))
 					{
 						parts[ID(r)].tmpcity[5]++;
 						parts[i].tmpcity[5]--;
 					}
-					if (rt == PT_LUNG && parts[i].tmpcity[6] > parts[ID(r)].tmpcity[6] && parts[i].tmpcity[6] > 0 && parts[ID(r)].tmpcity[6] < 2 && parts[ID(r)].pavg[0] != 2 && RNG::Ref().chance(1, 8))
+					if (rt == PT_LUNG && parts[i].tmpcity[6] > parts[ID(r)].tmpcity[6] && parts[i].tmpcity[6] > 0 && parts[ID(r)].tmpcity[6] < 2 && parts[ID(r)].tmp3 != 2 && sim->rng.chance(1, 8))
 					{
 						parts[ID(r)].tmpcity[6]++;
 						parts[i].tmpcity[6]--;
 					}
-				/*	if (rt == PT_LUNG && parts[ID(r)].oxygens < parts[ID(r)].capacity / 2 && parts[i].oxygens >= partnum + 10 && parts[i].oxygens > parts[ID(r)].oxygens && RNG::Ref().chance(1, 8))
+				/*	if (rt == PT_LUNG && parts[ID(r)].oxygens < parts[ID(r)].capacity / 2 && parts[i].oxygens >= partnum + 10 && parts[i].oxygens > parts[ID(r)].oxygens && sim->rng.chance(1, 8))
 					{
 
 						parts[ID(r)].oxygens += partnum;
 						parts[i].oxygens -= partnum;
 
 					}*/
-					if (rt == PT_LUNG && parts[ID(r)].co2 < parts[ID(r)].capacity / 3 && parts[i].co2 >= 10 + 10 && parts[i].co2 > parts[ID(r)].co2 && RNG::Ref().chance(1, 8))
+					if (rt == PT_LUNG && parts[ID(r)].co2 < parts[ID(r)].capacity / 3 && parts[i].co2 >= 10 + 10 && parts[i].co2 > parts[ID(r)].co2 && sim->rng.chance(1, 8))
 					{
 						partnum += 10;
 
@@ -160,7 +160,7 @@ static int update(UPDATE_FUNC_ARGS) {
 					// Consume food
 				/*	if (rt == PT_PLNT || rt == PT_VINE || rt == PT_SEED || rt == PT_POTO ||
 						rt == PT_SPDR || rt == PT_ANT || rt == PT_SUGR) {
-						if (RNG::Ref().chance(1, 500)) {
+						if (sim->rng.chance(1, 500)) {
 							parts[i].tmp += 50;
 							parts[i].tmp2 += 500;
 							sim->kill_part(ID(r));

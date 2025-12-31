@@ -10,7 +10,7 @@ int Element_FLSH_update(UPDATE_FUNC_ARGS);
 void Element::Element_BVSL() {
 	Identifier = "DEFAULT_PT_BVSL";
 	Name = "BVSL";
-	Colour = PIXPACK(0xF05F5B);
+	Colour = 0xF05F5B_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_ORGANIC;
 	Enabled = 1;
@@ -35,7 +35,7 @@ void Element::Element_BVSL() {
 	HeatConduct = 250;
 	Description = "Blood vessel. Transports nutrients, co2 and oxygen.";
 
-	Properties = TYPE_SOLID | PROP_NEUTPENETRATE | PROP_ORGANISM | PROP_ANIMAL;
+	Properties = TYPE_SOLID | PROP_NEUTPENETRATE ;
 
 	DefaultProperties.oxygens = 100;
 	DefaultProperties.carbons = 100;
@@ -80,7 +80,7 @@ static int update(UPDATE_FUNC_ARGS) {
 	 * tmpville[3]: s other check to check where its walls
 	 */
 	Element_FLSH_update(sim, i, x, y, surround_space, nt, parts, pmap);
-	if (parts[i].pavg[0] != 2)
+	if (parts[i].tmp3 != 2)
 	{
 		int rx, ry, r, rt;// e, f;
 		
@@ -106,7 +106,7 @@ static int update(UPDATE_FUNC_ARGS) {
 		}
 		for (e = 0; e < 8; e++)
 		{
-			rndtmp = RNG::Ref().between(0, 8);
+			rndtmp = sim->rng.between(0, 8);
 			if (std::find(std::begin(arraynumbrs), std::end(arraynumbrs), rndtmp) != std::end(arraynumbrs))
 			{
 				e--;
@@ -124,7 +124,7 @@ static int update(UPDATE_FUNC_ARGS) {
 
 				//for (f = 0; f < 8; f++)
 			{
-				if (BOUNDS_CHECK && (rx || ry)) {
+				if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) {
 					r = pmap[y + ry][x + rx];//givestuff[f]
 					//	if (!r) continue;
 					int partnum = 10;
@@ -149,10 +149,10 @@ static int update(UPDATE_FUNC_ARGS) {
 					if((rt == PT_FLSH || rt == PT_UDDR || rt == PT_LUNG || rt == PT_POPS || rt == PT_STMH || rt == PT_BRIN) && parts[i].tmpville[3] == 0 )
 						parts[i].tmpville[3] = 1;
 					
-					if (rt == PT_BVSL && parts[i].tmpville[3] == 0 && parts[ID(r)].tmpville[3] > 0 && RNG::Ref().chance(1, 8))
+					if (rt == PT_BVSL && parts[i].tmpville[3] == 0 && parts[ID(r)].tmpville[3] > 0 && sim->rng.chance(1, 8))
 						parts[i].tmpville[3] = parts[ID(r)].tmpville[3] + 1;
 					
-					if (turntoblod > 6 && parts[i].tmpville[3] > 2 && RNG::Ref().chance(1, 8))
+					if (turntoblod > 6 && parts[i].tmpville[3] > 2 && sim->rng.chance(1, 8))
 					{
 						sim->part_change_type(i, x, y, PT_BLOD);
 						parts[i].tmp2 = restrict_flt(parts[i].water / 10, 0, 100);
@@ -182,7 +182,7 @@ static int update(UPDATE_FUNC_ARGS) {
 					//if (rt == PT_FLSH || rt == PT_STMH || rt == PT_UDDR || rt == PT_LUNG || rt == PT_POPS)
 					//{
 					//	capacity = parts[ID(r)].oxygens + parts[ID(r)].carbons + parts[ID(r)].hydrogens + parts[ID(r)].water + parts[ID(r)].nitrogens;
-					//	if (RNG::Ref().chance(1, 8) && capacity + partnum < parts[ID(r)].tmpcity[7])
+					//	if (sim->rng.chance(1, 8) && capacity + partnum < parts[ID(r)].tmpcity[7])
 					//	{
 					//		
 					//		//give stuff
@@ -224,7 +224,7 @@ static int update(UPDATE_FUNC_ARGS) {
 					//	
 
 					//	capacity = parts[i].oxygens + parts[i].carbons + parts[i].co2 + parts[i].water + parts[i].nitrogens;
-					//	if (RNG::Ref().chance(1, 8) && capacity + partnum < parts[i].capacity)
+					//	if (sim->rng.chance(1, 8) && capacity + partnum < parts[i].capacity)
 					//	{
 					//		
 					//		//take stuff
@@ -262,7 +262,7 @@ static int update(UPDATE_FUNC_ARGS) {
 					//	
 					//	partnum += 10;
 					//	capacity = parts[ID(r)].oxygens + parts[ID(r)].carbons + parts[ID(r)].hydrogens + parts[ID(r)].water + parts[ID(r)].nitrogens;
-					//	if (RNG::Ref().chance(1, 8) && capacity + partnum < parts[i].capacity)
+					//	if (sim->rng.chance(1, 8) && capacity + partnum < parts[i].capacity)
 					//	{
 					//	
 
@@ -294,7 +294,7 @@ static int update(UPDATE_FUNC_ARGS) {
 					//		}
 					//	}
 					//	capacity = parts[i].oxygens + parts[i].carbons + parts[i].co2 + parts[i].water + parts[i].nitrogens;
-					//	if (RNG::Ref().chance(1, 8) && capacity + partnum < parts[i].capacity)
+					//	if (sim->rng.chance(1, 8) && capacity + partnum < parts[i].capacity)
 					//	{
 					//		
 
@@ -326,7 +326,7 @@ static int update(UPDATE_FUNC_ARGS) {
 					//	}
 
 					//}
-					//if(RNG::Ref().chance(1, 1000)
+					//if(sim->rng.chance(1, 1000)
 
 
 					//sim->kill_part(ID(r));
@@ -352,14 +352,14 @@ static int update(UPDATE_FUNC_ARGS) {
 
 		//}
 
-//	if (parts[i].pavg[1] == 1) // Override skin formation
-	//	parts[i].pavg[1] = 0;
+//	if (parts[i].tmp4 == 1) // Override skin formation
+	//	parts[i].tmp4 = 0;
 
-	//if (parts[i].pavg[1] != 2) {
+	//if (parts[i].tmp4 != 2) {
 		//int rx, ry, r, rt;
 		//for (rx = -1; rx < 2; ++rx)
 		//for (ry = -1; ry < 2; ++ry)
-		//	if (BOUNDS_CHECK && (rx || ry)) {
+		//	if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) {
 		//		r = pmap[y + ry][x + rx];
 		//		if (!r) continue;
 		//		rt = TYP(r);
@@ -369,7 +369,7 @@ static int update(UPDATE_FUNC_ARGS) {
 		//		// Consume food
 		///*		if (rt == PT_PLNT || rt == PT_VINE || rt == PT_SEED || rt == PT_POTO ||
 		//			rt == PT_SPDR || rt == PT_ANT || rt == PT_SUGR) {
-		//			if (RNG::Ref().chance(1, 500)) {
+		//			if (sim->rng.chance(1, 500)) {
 		//				parts[i].tmp += 50;
 		//				parts[i].tmp2 += 500;
 		//				sim->kill_part(ID(r));

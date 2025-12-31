@@ -6,7 +6,7 @@
 void Element::Element_BACL() {
 	Identifier = "DEFAULT_PT_BACL";
 	Name = "BACL";
-	Colour = PIXPACK(0x333333);
+	Colour = 0x333333_rgb;
 	MenuVisible = 0;
 	MenuSection = SC_POWDERS;
 	Enabled = 1;

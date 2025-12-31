@@ -1,6 +1,6 @@
 #include "simulation/ElementCommon.h"
 
-static int update(UPDATE_FUNC_ARGS);
+int Element_WATR_update(UPDATE_FUNC_ARGS);
 
 void Element::Element_WATR()
 {
@@ -15,7 +15,7 @@ void Element::Element_WATR()
 	AirDrag = 0.01f * CFDS;
 	AirLoss = 0.98f;
 	Loss = 0.95f;
-	Collision = 0.0f;
+	Collision = 0.1f;
 	Gravity = 0.1f;
 	Diffusion = 0.00f;
 	HotAir = 0.000f	* CFDS;
@@ -30,9 +30,9 @@ void Element::Element_WATR()
 
 	DefaultProperties.temp = R_TEMP - 2.0f + 273.15f;
 	HeatConduct = 29;
-	Description = "Water. Conducts electricity, freezes, and extinguishes fires.";
+	Description = "Water. Conducts electricity, freezes, essencial for life.";
 
-	Properties = TYPE_LIQUID | PROP_CONDUCTS | PROP_LIFE_DEC | PROP_NEUTPASS | PROP_PHOTPASS;
+	Properties = TYPE_LIQUID | PROP_CONDUCTS;
 
 	LowPressure = IPL;
 	LowPressureTransition = NT;
@@ -40,14 +40,95 @@ void Element::Element_WATR()
 	HighPressureTransition = NT;
 	LowTemperature = 273.15f;
 	LowTemperatureTransition = PT_ICEI;
-	HighTemperature = 373.0f;
+	HighTemperature = 373.15f;
 	HighTemperatureTransition = PT_WTRV;
 
-	Update = &update;
+	Update = &Element_WATR_update;
 }
 
-static int update(UPDATE_FUNC_ARGS)
+int Element_WATR_update(UPDATE_FUNC_ARGS)
 {
+	auto &elements = sim->elements();
+	
+	// Initialize water content if needed
+	if (parts[i].tmpcity[7] == 0 && (parts[i].type == PT_WATR || parts[i].type == PT_WTRV || parts[i].type == PT_DSTW || parts[i].type == PT_SLTW || parts[i].type == PT_CBNW || parts[i].type == PT_H2O2))
+	{
+		if(parts[i].water > 0)
+			parts[i].tmpcity[7] = 400;
+		else
+		{
+			switch (parts[i].type)
+			{
+			case PT_DSTW:
+			case PT_WTRV:
+			case PT_WATR:
+				parts[i].water = 100;
+				parts[i].tmpcity[7] = 400;
+				break;
+
+			case PT_CBNW:
+				parts[i].water = 10;
+				parts[i].tmp4 = 100;
+				parts[i].ctype = PT_CO2;
+				parts[i].tmpcity[7] = 400;
+				break;
+				
+			case PT_SLTW:
+				parts[i].water = 100;
+				parts[i].tmp4 = 100;
+				parts[i].ctype = PT_SALT;
+				parts[i].tmpcity[7] = 400;
+				break;
+				
+			case PT_H2O2:
+				parts[i].water = 80;
+				parts[i].oxygens = 100;
+				parts[i].tmpcity[7] = 400;
+				break;
+
+			default:
+				parts[i].water = 100;
+				parts[i].tmpcity[7] = 400;
+				break;
+			}
+		}
+	}
+
+	// Handle water content transitions
+	if (parts[i].tmp4 <= 0 && parts[i].water > 0 && parts[i].type != PT_WATR && parts[i].type != PT_H2O2)
+		sim->part_change_type(i, x, y, PT_WATR);
+	else if (parts[i].tmp4 <= 0 && parts[i].water <= 0 && parts[i].type != PT_H2O2)
+		sim->part_change_type(i, x, y, PT_DUST);
+	if (parts[i].ctype == parts[i].type)
+		parts[i].ctype = 0;
+	if (parts[i].ctype != 0 && parts[i].tmp4 <= 0)
+		parts[i].ctype = 0;
+	if (parts[i].ctype == 0 && parts[i].tmp4 > 0 && parts[i].type == PT_WATR)
+		parts[i].tmp4 = 0;
+
+	// Freezing - dynamic temperature transition based on ctype
+	if ((elements[parts[i].ctype].LowTemperature > 0 && parts[i].temp - (sim->pv[y / CELL][x / CELL] / 2.0f) < elements[parts[i].ctype].LowTemperature && sim->rng.chance(1, restrict_flt(parts[i].temp - sim->pv[y / CELL][x / CELL], 1.0f, elements[parts[i].ctype].LowTemperature))) ||
+	 (elements[parts[i].ctype].LowTemperature <= 0 && parts[i].temp - (sim->pv[y / CELL][x / CELL] / 2.0f) < 273.15f && sim->rng.chance(1, restrict_flt(parts[i].temp - sim->pv[y / CELL][x / CELL], 1.0f, 273.15f)))) 
+	{
+		if(elements[parts[i].ctype].LowTemperatureTransition > 0)
+			sim->part_change_type(i, x, y, elements[parts[i].ctype].LowTemperatureTransition);
+		else
+			sim->part_change_type(i, x, y, PT_ICEI);
+		return 0;
+	}
+
+	// Boiling - dynamic temperature transition based on ctype
+	if ((elements[parts[i].ctype].HighTemperature > 0 && parts[i].temp - (sim->pv[y / CELL][x / CELL] / 2.0f) > elements[parts[i].ctype].HighTemperature && sim->rng.chance(restrict_flt(parts[i].temp - sim->pv[y / CELL][x / CELL], 1.0f, elements[parts[i].ctype].HighTemperature), elements[parts[i].ctype].HighTemperature)) ||
+	(elements[parts[i].ctype].HighTemperature <= 0 && parts[i].temp - (sim->pv[y / CELL][x / CELL] / 2.0f) > 373.15f && sim->rng.chance(restrict_flt(parts[i].temp - sim->pv[y / CELL][x / CELL], 1.0f, 373.15f), 373.15f)))
+	{
+		if(elements[parts[i].ctype].HighTemperatureTransition > 0)
+			sim->part_change_type(i, x, y, elements[parts[i].ctype].HighTemperatureTransition);
+		else
+			sim->part_change_type(i, x, y, PT_WTRV);
+		return 0;
+	}
+
+	// Standard interactions
 	for (auto rx = -1; rx <= 1; rx++)
 	{
 		for (auto ry = -1; ry <= 1; ry++)

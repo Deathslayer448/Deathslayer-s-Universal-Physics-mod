@@ -1,6 +1,7 @@
 #include "OptionsModel.h"
 #include "OptionsView.h"
 #include "simulation/Simulation.h"
+#include "simulation/SimulationData.h"
 #include "simulation/Air.h"
 #include "simulation/gravity/Gravity.h"
 #include "prefs/GlobalPrefs.h"
@@ -74,7 +75,19 @@ void OptionsModel::SetNoWeightSwitching(bool state)
 {
 	sim->NoWeightSwitching = state?1:0;
 	notifySettingsChanged();
-	sim->init_can_move();
+	auto &sd = SimulationData::Ref();
+	sd.init_can_move();
+}
+
+bool OptionsModel::GetBetterBurningEnable()
+{
+	return sim->betterburning_enable != 0;
+}
+
+void OptionsModel::SetBetterBurningEnable(bool state)
+{
+	sim->betterburning_enable = state ? 1 : 0;
+	notifySettingsChanged();
 }
 
 

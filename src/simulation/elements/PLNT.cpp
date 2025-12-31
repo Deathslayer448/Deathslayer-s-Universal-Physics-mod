@@ -10,7 +10,7 @@ void Element::Element_PLNT()
 	Name = "PLNT";
 	Colour = 0x0CAC00_rgb;
 	MenuVisible = 1;
-	MenuSection = SC_SOLIDS;
+	MenuSection = SC_ORGANIC;
 	Enabled = 1;
 
 	Advection = 0.0f;

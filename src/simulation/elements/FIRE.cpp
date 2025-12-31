@@ -90,6 +90,12 @@ int Element_FIRE_update(UPDATE_FUNC_ARGS)
 		}
 		break;
 	case PT_LAVA: {
+		// Handle molten thermite - call THRM's update function
+		if (parts[i].ctype == PT_THRM && elements[PT_THRM].Update)
+		{
+			elements[PT_THRM].Update(sim, i, x, y, surround_space, nt, parts, pmap);
+		}
+		
 		float pres = sim->pv[y / CELL][x / CELL];
 		if (parts[i].ctype == PT_ROCK)
 		{			
@@ -154,23 +160,7 @@ int Element_FIRE_update(UPDATE_FUNC_ARGS)
 					continue;
 				auto rt = TYP(r);
 
-				//THRM burning
-				if (rt==PT_THRM && (t==PT_FIRE || t==PT_PLSM || t==PT_LAVA))
-				{
-					if (sim->rng.chance(1, 500)) {
-						sim->part_change_type(ID(r),x+rx,y+ry,PT_LAVA);
-						parts[ID(r)].ctype = PT_BMTL;
-						parts[ID(r)].temp = 3500.0f;
-						sim->pv[(y+ry)/CELL][(x+rx)/CELL] += 50.0f;
-					} else {
-						sim->part_change_type(ID(r),x+rx,y+ry,PT_LAVA);
-						parts[ID(r)].life = 400;
-						parts[ID(r)].ctype = PT_THRM;
-						parts[ID(r)].temp = 3500.0f;
-						parts[ID(r)].tmp = 20;
-					}
-					continue;
-				}
+				// THRM burning is now handled in THRM's own update function
 
 				if ((rt==PT_COAL) || (rt==PT_BCOL))
 				{

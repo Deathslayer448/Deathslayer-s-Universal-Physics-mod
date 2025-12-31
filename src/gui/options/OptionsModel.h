@@ -24,6 +24,8 @@ public:
 	void SetWaterEqualisation(bool state);
 	bool GetNoWeightSwitching();
 	void SetNoWeightSwitching(bool state);
+	bool GetBetterBurningEnable();
+	void SetBetterBurningEnable(bool state);
 	bool GetShowAvatars();
 	void SetShowAvatars(bool state);
 	int GetAirMode();

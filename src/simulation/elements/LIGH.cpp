@@ -56,6 +56,8 @@ constexpr float LIGHTING_POWER = 0.65f;
 
 static int update(UPDATE_FUNC_ARGS)
 {
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 	/*
 	 * tmp2:
 	 * 0 - bending
@@ -81,8 +83,6 @@ static int update(UPDATE_FUNC_ARGS)
 			sim->hv[y/CELL][x/CELL] = MAX_TEMP;
 	}
 
-	auto &sd = SimulationData::CRef();
-	auto &elements = sd.elements;
 	for (auto rx = -2; rx <= 2; rx++)
 	{
 		for (auto ry = -2; ry <= 2; ry++)

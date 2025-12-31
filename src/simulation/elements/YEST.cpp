@@ -8,7 +8,7 @@ void Element::Element_YEST()
 	Name = "YEST";
 	Colour = 0xEEE0C0_rgb;
 	MenuVisible = 1;
-	MenuSection = SC_POWDERS;
+	MenuSection = SC_ORGANIC;
 	Enabled = 1;
 
 	Advection = 0.7f;

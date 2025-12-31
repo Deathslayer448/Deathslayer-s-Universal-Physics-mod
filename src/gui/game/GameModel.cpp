@@ -134,9 +134,15 @@ GameModel::GameModel(GameView *newView):
 
 	decoSpace = prefs.Get("Simulation.DecoSpace", NUM_DECOSPACES, DECOSPACE_SRGB);
 	sim->SetDecoSpace(decoSpace);
+	// Newtonian Gravity disabled by default - too computationally expensive
+	// Can be enabled in options menu if needed
 	if (prefs.Get("Simulation.NewtonianGravity", false))
 	{
 		sim->EnableNewtonianGravity(true);
+	}
+	else
+	{
+		sim->EnableNewtonianGravity(false); // Explicitly disable
 	}
 	sim->aheat_enable = prefs.Get("Simulation.AmbientHeat", 0); // TODO: AmbientHeat enum
 	sim->pretty_powder = prefs.Get("Simulation.PrettyPowder", 0); // TODO: PrettyPowder enum
@@ -227,8 +233,10 @@ void GameModel::BuildQuickOptionMenu(GameController * controller)
 	quickOptions.push_back(new SandEffectOption(this));
 	quickOptions.push_back(new DrawGravOption(this));
 	quickOptions.push_back(new DecorationsOption(this));
-	quickOptions.push_back(new NGravityOption(this));
+	// NGravityOption removed from sidebar - still available in options menu
 	quickOptions.push_back(new AHeatOption(this));
+	quickOptions.push_back(new BurningOption(this));
+	quickOptions.push_back(new NoWeightOption(this));
 	quickOptions.push_back(new ConsoleShowOption(this, controller));
 
 	notifyQuickOptionsChanged();
@@ -1081,6 +1089,26 @@ bool GameModel::GetAHeatEnable()
 void GameModel::ResetAHeat()
 {
 	sim->air->ClearAirH();
+}
+
+bool GameModel::GetBetterBurningEnable()
+{
+	return sim->betterburning_enable != 0;
+}
+
+void GameModel::SetBetterBurningEnable(bool Betterburnin)
+{
+	sim->betterburning_enable = Betterburnin ? 1 : 0;
+}
+
+bool GameModel::GetNoWeightSwitching()
+{
+	return sim->NoWeightSwitching != 0;
+}
+
+void GameModel::SetNoWeightSwitching(bool noWeight)
+{
+	sim->NoWeightSwitching = noWeight ? 1 : 0;
 }
 
 void GameModel::SetNewtonianGravity(bool newtonainGravity)

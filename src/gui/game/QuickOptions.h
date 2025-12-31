@@ -41,6 +41,13 @@ public:
 	void perform() override;
 };
 
+class NoWeightOption: public QuickOption
+{
+public:
+	NoWeightOption(GameModel * m);
+	bool GetToggle() override;
+	void perform() override;
+};
 
 class AHeatOption: public QuickOption
 {

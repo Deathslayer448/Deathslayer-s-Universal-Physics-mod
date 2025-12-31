@@ -42,6 +42,11 @@ void OptionsController::SetNoWeightSwitch(bool state)
 	model->SetNoWeightSwitching(state);
 }
 
+void OptionsController::SetBetterBurningEnable(bool state)
+{
+	model->SetBetterBurningEnable(state);
+}
+
 void OptionsController::SetGravityMode(int gravityMode)
 {
 	model->SetGravityMode(gravityMode);

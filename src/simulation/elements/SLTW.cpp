@@ -1,6 +1,7 @@
 #include "simulation/ElementCommon.h"
 
 static int update(UPDATE_FUNC_ARGS);
+int Element_WATR_update(UPDATE_FUNC_ARGS);
 
 void Element::Element_SLTW()
 {
@@ -28,10 +29,10 @@ void Element::Element_SLTW()
 
 	Weight = 35;
 
-	HeatConduct = 75;
+	HeatConduct = 35;
 	Description = "Saltwater, conducts electricity, difficult to freeze.";
 
-	Properties = TYPE_LIQUID | PROP_CONDUCTS | PROP_LIFE_DEC | PROP_NEUTPENETRATE | PROP_PHOTPASS;
+	Properties = TYPE_LIQUID | PROP_CONDUCTS | PROP_WATER;
 
 	LowPressure = IPL;
 	LowPressureTransition = NT;
@@ -39,58 +40,39 @@ void Element::Element_SLTW()
 	HighPressureTransition = NT;
 	LowTemperature = 252.05f;
 	LowTemperatureTransition = PT_ICEI;
-	HighTemperature = 383.0f;
-	HighTemperatureTransition = ST;
+	HighTemperature = 383.15f;
+	HighTemperatureTransition = PT_WTRV;
 
 	Update = &update;
 }
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	for (auto rx = -1; rx <= 1; rx++)
-	{
-		for (auto ry = -1; ry <= 1; ry++)
-		{
-			if (rx || ry)
+	Element_WATR_update(sim, i, x, y, surround_space, nt, parts, pmap);
+
+	int r, rx, ry;
+	for (rx=-1; rx<2; rx++)
+		for (ry=-1; ry<2; ry++)
+			if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES)
 			{
-				auto r = pmap[y+ry][x+rx];
+				r = pmap[y+ry][x+rx];
+				if (!r) continue;
 				switch (TYP(r))
 				{
-				case PT_SALT:
-					if (sim->rng.chance(1, 2000))
-						sim->part_change_type(ID(r),x+rx,y+ry,PT_SLTW);
-					break;
 				case PT_PLNT:
 					if (sim->rng.chance(1, 40))
 						sim->kill_part(ID(r));
 					break;
 				case PT_RBDM:
 				case PT_LRBD:
-					if ((sim->legacy_enable||parts[i].temp>(273.15f+12.0f)) && sim->rng.chance(1, 100))
+					if ((sim->legacy_enable || parts[i].temp > (273.15f + 12.0f)) && sim->rng.chance(1, 100))
 					{
-						sim->part_change_type(i,x,y,PT_FIRE);
+						sim->part_change_type(i, x, y, PT_FIRE);
 						parts[i].life = 4;
 						parts[i].ctype = PT_WATR;
 					}
 					break;
-				case PT_FIRE:
-					if (parts[ID(r)].ctype!=PT_WATR)
-					{
-						sim->kill_part(ID(r));
-						if (sim->rng.chance(1, 30))
-						{
-							sim->kill_part(i);
-							return 1;
-						}
-					}
-					break;
-				case PT_NONE:
-					break;
-				default:
-					continue;
 				}
 			}
-		}
-	}
 	return 0;
 }

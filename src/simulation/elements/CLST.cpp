@@ -2,7 +2,7 @@
 
 static int update(UPDATE_FUNC_ARGS);
 static int graphics(GRAPHICS_FUNC_ARGS);
-static void create(ELEMENT_CREATE_FUNC_ARGS);
+void Element_CLST_create(ELEMENT_CREATE_FUNC_ARGS);
 
 void Element::Element_CLST()
 {
@@ -46,7 +46,7 @@ void Element::Element_CLST()
 
 	Update = &update;
 	Graphics = &graphics;
-	Create = &create;
+	Create = &Element_CLST_create;
 }
 
 static int update(UPDATE_FUNC_ARGS)
@@ -102,7 +102,7 @@ static int graphics(GRAPHICS_FUNC_ARGS)
 	return 0;
 }
 
-static void create(ELEMENT_CREATE_FUNC_ARGS)
+void Element_CLST_create(ELEMENT_CREATE_FUNC_ARGS)
 {
 	sim->parts[i].tmp = sim->rng.between(0, 6);
 }

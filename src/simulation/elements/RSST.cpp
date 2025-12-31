@@ -8,7 +8,7 @@ void Element::Element_RSST()
 	Name = "RSST";
 	Colour = 0xF95B49_rgb;
 	MenuVisible = 1;
-	MenuSection = SC_LIQUID;
+	MenuSection = SC_SPECIAL;
 	Enabled = 1;
 
 	Advection = 0.3f;

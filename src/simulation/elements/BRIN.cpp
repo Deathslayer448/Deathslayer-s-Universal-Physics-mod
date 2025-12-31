@@ -7,7 +7,7 @@ int Element_FLSH_update(UPDATE_FUNC_ARGS);
 void Element::Element_BRIN() {
 	Identifier = "DEFAULT_PT_BRIN";
 	Name = "BRIN";
-	Colour = PIXPACK(0xd9a5b2);
+	Colour = 0xd9a5b2_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_ORGANIC;
 	Enabled = 1;
@@ -32,7 +32,7 @@ void Element::Element_BRIN() {
 	HeatConduct = 104;
 	Description = "Brain. Receives, processes and outputs signals.";
 
-	Properties = TYPE_SOLID | PROP_NEUTPENETRATE | PROP_ORGANISM | PROP_ANIMAL;
+	Properties = TYPE_SOLID | PROP_NEUTPENETRATE ;
 
 	DefaultProperties.oxygens = 100;
 	DefaultProperties.carbons = 100;
@@ -71,12 +71,12 @@ static int update(UPDATE_FUNC_ARGS) {
 	 * tmpville[9] != 0 Deactivates hcl/water production
 	 */
 	Element_FLSH_update(sim, i, x, y, surround_space, nt, parts, pmap);
-	//if (parts[i].pavg[0] == 1) // Override skin formation
-	//	parts[i].pavg[0] = 0;
-	if (parts[i].pavg[0] != 2) {
+	//if (parts[i].tmp3 == 1) // Override skin formation
+	//	parts[i].tmp3 = 0;
+	if (parts[i].tmp3 != 2) {
 	if (surround_space != 0 && parts[i].tmpcity[0] == 0)
 		parts[i].tmpcity[0] = 1;
-	if (surround_space == 0 && sim->timer % 50 == 0 && parts[i].tmpcity[0] != 0)
+	if (surround_space == 0 && sim->currentTick % 50 == 0 && parts[i].tmpcity[0] != 0)
 		parts[i].tmpcity[0] = 0;
 
 
@@ -85,11 +85,11 @@ static int update(UPDATE_FUNC_ARGS) {
 		int lcapacity, updmetab = 0;
 		for (ry = -1; ry < 2; ++ry)
 			for (rx = -1; rx < 2; ++rx)
-			if (BOUNDS_CHECK && (rx || ry)) {
+			if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) {
 				r = pmap[y + ry][x + rx];
-				// if (!r && parts[i].tmpville[14] > 0 && parts[i].water > 30 && parts[i].oxygens > 30 && RNG::Ref().chance(1, 8) && parts[i].tmpville[9] == 0)
+				// if (!r && parts[i].tmpville[14] > 0 && parts[i].water > 30 && parts[i].oxygens > 30 && sim->rng.chance(1, 8) && parts[i].tmpville[9] == 0)
 				// {
-				// 	if (RNG::Ref().chance(1, 2))
+				// 	if (sim->rng.chance(1, 2))
 				// 	{
 					
 				// 		parts[i].water -= 20;
@@ -109,16 +109,16 @@ static int update(UPDATE_FUNC_ARGS) {
 				rt = TYP(r);
 				//signals
 				//signals
-				// if(parts[i].tmpville[14] > 0 && parts[ID(r)].tmpville[14] < 2 && RNG::Ref().chance(1, 8))
+				// if(parts[i].tmpville[14] > 0 && parts[ID(r)].tmpville[14] < 2 && sim->rng.chance(1, 8))
 				// {
 				// 	parts[i].tmpville[14]--;
 				// 	parts[ID(r)].tmpville[14]++;
 				// }
-				// if(parts[i].tmpville[15] > 0 && parts[ID(r)].tmpville[15] < 2  && RNG::Ref().chance(1, 8))
+				// if(parts[i].tmpville[15] > 0 && parts[ID(r)].tmpville[15] < 2  && sim->rng.chance(1, 8))
 				// {
 				// 	parts[i].tmpville[15]--;
 				// 	parts[ID(r)].tmpville[15]++;
-				// }if(parts[i].tmpville[16] > 0 && parts[ID(r)].tmpville[16] < 2  && RNG::Ref().chance(1, 8))
+				// }if(parts[i].tmpville[16] > 0 && parts[ID(r)].tmpville[16] < 2  && sim->rng.chance(1, 8))
 				// {
 				// 	parts[i].tmpville[16]--;
 				// 	parts[ID(r)].tmpville[16]++;
@@ -127,7 +127,7 @@ static int update(UPDATE_FUNC_ARGS) {
 				//signal parse
 				// metabolism dependent
 			
-				if(parts[i].tmpville[16] <= 0 && sim->timer % (int)restrict_flt(parts[i].metabolism, 1, MAX_TEMP) == 0)
+				if(parts[i].tmpville[16] <= 0 && sim->currentTick % (int)restrict_flt(parts[i].metabolism, 1, MAX_TEMP) == 0)
 				{
 					if((parts[ID(r)].tmpville[14] > 0 || parts[i].nitrogens > 50) && parts[i].tmpville[15] < 100)
 					{
@@ -135,7 +135,7 @@ static int update(UPDATE_FUNC_ARGS) {
 					//parts[i].tmpville[14]--;
 					}
 				}
-				else if(RNG::Ref().chance(1, 8))
+				else if(sim->rng.chance(1, 8))
 				{
 					parts[i].tmpville[16]--;
 				}
@@ -145,10 +145,10 @@ static int update(UPDATE_FUNC_ARGS) {
 
 
 				//REDO transfer
-				// if (sim->elements[rt].Properties & PROP_WATER)
+				// if (elements[rt].Properties & )
 				// {
 				// 	lcapacity = parts[i].oxygens + parts[i].carbons + parts[i].co2 + parts[i].water + parts[i].nitrogens;
-				// 	if (parts[ID(r)].tmp4 > 0 && lcapacity < parts[i].capacity / 1.5 && (sim->elements[parts[ID(r)].ctype].Properties & PROP_EDIBLE || sim->elements[rt].Properties & PROP_WATER || rt == PT_HCL)  && !(TYP(r) == PT_FLSH && parts[ID(r)].pavg[0] != 2) && RNG::Ref().chance(1, 8))
+				// 	if (parts[ID(r)].tmp4 > 0 && lcapacity < parts[i].capacity / 1.5 && (elements[parts[ID(r)].ctype].Properties & | elements[rt].Properties & | rt == PT_HCL)  && !(TYP(r) == PT_FLSH && parts[ID(r)].tmp3 != 2) && sim->rng.chance(1, 8))
 				// 	{
 
 				// 	/*if (parts[ID(r)].ctype == PT_SUGR || parts[ID(r)].ctype == PT_SWTR && parts[i].co2 < 290)
@@ -162,46 +162,46 @@ static int update(UPDATE_FUNC_ARGS) {
 				// 		{*/
 				// 		//parts[i].carbons += std::min(10, parts[ID(r)].tmp4);
 				// 		//parts[ID(r)].tmp4 -= std::min(10, parts[ID(r)].tmp4);
-				// 		if (parts[ID(r)].tmp4 > 0 && parts[i].carbons < parts[i].capacity / 2 && RNG::Ref().chance(1, 6))
+				// 		if (parts[ID(r)].tmp4 > 0 && parts[i].carbons < parts[i].capacity / 2 && sim->rng.chance(1, 6))
 				// 		{
 				// 			parts[i].carbons += std::min(20, parts[ID(r)].tmp4);
 				// 			parts[ID(r)].tmp4 -= std::min(20, parts[ID(r)].tmp4);
 				// 		}
-				// 		if (parts[ID(r)].carbons > 0 && parts[i].carbons < parts[i].capacity / 2 && RNG::Ref().chance(1, 6))
+				// 		if (parts[ID(r)].carbons > 0 && parts[i].carbons < parts[i].capacity / 2 && sim->rng.chance(1, 6))
 				// 		{
 				// 			parts[i].carbons += std::min(20, parts[ID(r)].carbons);
 				// 			parts[ID(r)].carbons -= std::min(20, parts[ID(r)].carbons);
 				// 		}
-				// 		if (parts[ID(r)].oxygens > 0 && parts[i].oxygens < parts[i].capacity / 2 && RNG::Ref().chance(1, 6))
+				// 		if (parts[ID(r)].oxygens > 0 && parts[i].oxygens < parts[i].capacity / 2 && sim->rng.chance(1, 6))
 				// 		{
 				// 			parts[i].oxygens += std::min(20, parts[ID(r)].oxygens);
 				// 			parts[ID(r)].oxygens -= std::min(20, parts[ID(r)].oxygens);
 				// 		}
-				// 			if (parts[ID(r)].co2 > 0 && parts[i].co2 < parts[i].capacity / 3 && RNG::Ref().chance(1, 6))
+				// 			if (parts[ID(r)].co2 > 0 && parts[i].co2 < parts[i].capacity / 3 && sim->rng.chance(1, 6))
 				// 		{
 				// 			parts[i].co2 += std::min(20, parts[ID(r)].co2);
 				// 			parts[ID(r)].co2 -= std::min(20, parts[ID(r)].co2);
 				// 		}
-				// 		if (parts[ID(r)].co2 > 0 && parts[i].co2 < parts[i].capacity / 3 && RNG::Ref().chance(1, 6))
+				// 		if (parts[ID(r)].co2 > 0 && parts[i].co2 < parts[i].capacity / 3 && sim->rng.chance(1, 6))
 				// 		{
 				// 			parts[i].co2 += std::min(20, parts[ID(r)].co2);
 				// 			parts[ID(r)].co2 -= std::min(20, parts[ID(r)].co2);
 				// 		}
-				// 		if (parts[ID(r)].nitrogens > 0 && parts[i].nitrogens < parts[i].capacity / 3 && RNG::Ref().chance(1, 6))
+				// 		if (parts[ID(r)].nitrogens > 0 && parts[i].nitrogens < parts[i].capacity / 3 && sim->rng.chance(1, 6))
 				// 		{
 				// 			parts[i].nitrogens += std::min(20, parts[ID(r)].nitrogens);
 				// 			parts[ID(r)].nitrogens -= std::min(20, parts[ID(r)].nitrogens);
 				// 		}
-				// 		if (parts[ID(r)].water > 0 && parts[i].water < parts[i].capacity / 4 && RNG::Ref().chance(1, 6))
+				// 		if (parts[ID(r)].water > 0 && parts[i].water < parts[i].capacity / 4 && sim->rng.chance(1, 6))
 				// 		{
 				// 			parts[i].water += std::min(10, parts[ID(r)].water);
 				// 			parts[ID(r)].water -= std::min(10, parts[ID(r)].water);
 				// 		}
-				// 		if (parts[ID(r)].tmp4 <= 0 && parts[ID(r)].co2 <= 0 && parts[ID(r)].co2 <= 0 && parts[ID(r)].oxygens <= 0 && parts[ID(r)].carbons <= 0 && parts[ID(r)].water <= 0 && parts[ID(r)].nitrogens <= 0 && RNG::Ref().chance(1, 10))
+				// 		if (parts[ID(r)].tmp4 <= 0 && parts[ID(r)].co2 <= 0 && parts[ID(r)].co2 <= 0 && parts[ID(r)].oxygens <= 0 && parts[ID(r)].carbons <= 0 && parts[ID(r)].water <= 0 && parts[ID(r)].nitrogens <= 0 && sim->rng.chance(1, 10))
 				// 			sim->kill_part(ID(r));
 
 				// 		}
-				// 	if(parts[ID(r)].tmp4 <= 0 && parts[ID(r)].co2 <= 0 && parts[ID(r)].oxygens <= 0 && parts[ID(r)].co2 <= 0 && parts[ID(r)].carbons <= 0 && parts[ID(r)].water <= 0 && parts[ID(r)].nitrogens <= 0 && (sim->elements[rt].Properties & PROP_EDIBLE || sim->elements[rt].Properties & PROP_WATER || rt == PT_HCL) && RNG::Ref().chance(restrict_flt(parts[ID(r)].tmpcity[2],0 , 99999), 100000))
+				// 	if(parts[ID(r)].tmp4 <= 0 && parts[ID(r)].co2 <= 0 && parts[ID(r)].oxygens <= 0 && parts[ID(r)].co2 <= 0 && parts[ID(r)].carbons <= 0 && parts[ID(r)].water <= 0 && parts[ID(r)].nitrogens <= 0 && (elements[rt].Properties & | elements[rt].Properties & | rt == PT_HCL) && sim->rng.chance(restrict_flt(parts[ID(r)].tmpcity[2],0 , 99999), 100000))
 				// 		sim->kill_part(ID(r));
 
 						

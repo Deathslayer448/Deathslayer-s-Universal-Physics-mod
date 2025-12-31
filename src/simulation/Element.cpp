@@ -51,6 +51,7 @@ Element::Element():
 {
 	memset(&DefaultProperties, 0, sizeof(Particle));
 	DefaultProperties.temp = R_TEMP + 273.15f;
+	DefaultProperties.quantity = 100; // Default quantity for all particles (currently only THRM uses it)
 }
 
 std::vector<StructProperty> const &Element::GetProperties()

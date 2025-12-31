@@ -5,7 +5,7 @@ static int update(UPDATE_FUNC_ARGS);
 void Element::Element_AMNA() {
 	Identifier = "DEFAULT_PT_AMNA";
 	Name = "AMNA";
-	Colour = PIXPACK(0x84E3DD);
+	Colour = 0x84E3DD_rgb;
 	MenuVisible = 0;
 	MenuSection = SC_GAS;
 	Enabled = 1;
@@ -49,7 +49,7 @@ void Element::Element_AMNA() {
 static int update(UPDATE_FUNC_ARGS) {
 	for (int rx = -1; rx <= 1; rx++)
 	for (int ry = -1; ry <= 1; ry++)
-		if (BOUNDS_CHECK && (rx || ry)) {
+		if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) {
 			int r = pmap[y + ry][x + rx];
 			if (!r) continue;
 			int rt = TYP(r);
@@ -61,7 +61,7 @@ static int update(UPDATE_FUNC_ARGS) {
 				parts[ID(r)].temp += 1.0f;
 				return 1;
 			}
-			else if (rt == PT_WATR || rt == PT_DSTW || rt == PT_SLTW || rt == PT_CBNW || rt == PT_SWTR || rt == PT_WTRV) {
+			else if (rt == PT_WATR || rt == PT_DSTW || rt == PT_SLTW || rt == PT_CBNW || rt == PT_WATR || rt == PT_WTRV) {
 				sim->part_change_type(ID(r), x + rx, y + ry, PT_SOAP);
 				sim->part_change_type(i, x, y, PT_SOAP);
 				return 1;
@@ -71,8 +71,8 @@ static int update(UPDATE_FUNC_ARGS) {
 		}
 
 	// Break apart
-	if (RNG::Ref().chance(1, 250) && (parts[i].temp > 500.0f + 273.15f || sim->pv[y / CELL][x / CELL] < -15.0f)) {
-		sim->part_change_type(i, x, y, RNG::Ref().chance(1, 3) ? PT_N2 : PT_H2);
+	if (sim->rng.chance(1, 250) && (parts[i].temp > 500.0f + 273.15f || sim->pv[y / CELL][x / CELL] < -15.0f)) {
+		sim->part_change_type(i, x, y, sim->rng.chance(1, 3) ? PT_O2 : PT_H2);
 		parts[i].temp -= 15.0f;
 		return 1;
 	}

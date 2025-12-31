@@ -9,7 +9,7 @@ void Element::Element_HEAC()
 	Name = "HEAC";
 	Colour = 0xCB6351_rgb;
 	MenuVisible = 1;
-	MenuSection = SC_SOLIDS;
+	MenuSection = SC_SPECIAL;
 	Enabled = 1;
 
 	Advection = 0.0f;
@@ -115,6 +115,7 @@ bool CheckLine(Simulation* sim, int x1, int y1, int x2, int y2, BinaryPredicate 
 static int update(UPDATE_FUNC_ARGS)
 {
 	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 	const int rad = 4;
 	int rry, rrx, r, count = 0;
 	float tempAgg = 0;

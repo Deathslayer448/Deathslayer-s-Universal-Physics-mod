@@ -5,7 +5,7 @@ static int update(UPDATE_FUNC_ARGS);
 void Element::Element_BRAS() {
 	Identifier = "DEFAULT_PT_BRAS";
 	Name = "BRAS";
-	Colour = PIXPACK(0xE3C359);
+	Colour = 0xE3C359_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_SOLIDS;
 	Enabled = 1;

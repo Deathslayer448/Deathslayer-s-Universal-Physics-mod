@@ -81,6 +81,20 @@ void BurningOption::perform()
 	m->SetBetterBurningEnable(!m->GetBetterBurningEnable());
 }
 
+NoWeightOption::NoWeightOption(GameModel* m):
+QuickOption("W", "Disable weight switching", m, Toggle)
+{
+
+}
+bool NoWeightOption::GetToggle()
+{
+	return m->GetNoWeightSwitching();
+}
+void NoWeightOption::perform()
+{
+	m->SetNoWeightSwitching(!m->GetNoWeightSwitching());
+}
+
 AHeatOption::AHeatOption(GameModel * m):
 QuickOption("A", "Ambient heat \bg(u)", m, Toggle)
 {

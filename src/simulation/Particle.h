@@ -8,8 +8,6 @@ struct Particle
 	int life, ctype, ctype2;
 	float x, y, vx, vy;
 	float temp;
-	int tmp3;
-	int tmp4;
 	int flags;
 	int tmp;
 	int tmp2;
@@ -33,6 +31,7 @@ struct Particle
 	int energy;
 	int capacity;
 	int gassaturation;
+	int quantity;
 	unsigned int dcolour;
 //	String fullname;
 	/** Returns a list of properties, their type and offset within the structure that can be changed

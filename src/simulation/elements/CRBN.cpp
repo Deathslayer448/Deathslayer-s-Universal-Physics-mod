@@ -9,7 +9,7 @@ void Element_RDMD_create(ELEMENT_CREATE_FUNC_ARGS);
 void Element::Element_CRBN() {
 	Identifier = "DEFAULT_PT_CRBN";
 	Name = "CRBN";
-	Colour = PIXPACK(0x444444);
+	Colour = 0x444444_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_POWDERS;
 	Enabled = 1;
@@ -57,7 +57,7 @@ static int update(UPDATE_FUNC_ARGS) {
 		parts[i].vx = parts[i].vy = 0;
 
 	// Solidify into realistic diamond
-	if (parts[i].temp > 273.15f + 2500.0f && sim->pv[y/CELL][x/CELL] > 1000.0f && RNG::Ref().chance(1, 20)) {
+	if (parts[i].temp > 273.15f + 2500.0f && sim->pv[y/CELL][x/CELL] > 1000.0f && sim->rng.chance(1, 20)) {
 		sim->part_change_type(i, parts[i].x, parts[i].y, PT_DMND);
 	//	Element_RDMD_create(sim, i, x, y, PT_RDMD, -1);
 		return 0;
@@ -70,7 +70,7 @@ static int update(UPDATE_FUNC_ARGS) {
 
 	for (rx = -1; rx <= 1; rx++)
 	for (ry = -1; ry <= 1; ry++)
-		if (BOUNDS_CHECK && (rx || ry)) {
+		if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) {
 			r = pmap[y + ry][x + rx];
 			if (!r) r = sim->photons[y + ry][x + rx];
 			if (!r) continue;
@@ -87,12 +87,12 @@ static int update(UPDATE_FUNC_ARGS) {
 				sim->part_change_type(ID(r), parts[ID(r)].x, parts[ID(r)].y, PT_DSTW);
 			else if (rt == PT_SLTW)
 				sim->part_change_type(ID(r), parts[ID(r)].x, parts[ID(r)].y,
-					RNG::Ref().chance(1, 2) ? PT_SALT : PT_DSTW);
+					sim->rng.chance(1, 2) ? PT_SALT : PT_DSTW);
 
 			// Convert molten IRON into METL (steel)
 			else if (rt == PT_LAVA && parts[ID(r)].ctype == PT_IRON) {
 				parts[ID(r)].ctype = PT_METL;
-				if (RNG::Ref().chance(1, 5)) {
+				if (sim->rng.chance(1, 5)) {
 					sim->kill_part(i);
 					return 0;
 				}
@@ -108,7 +108,7 @@ static int update(UPDATE_FUNC_ARGS) {
 	// Prevent conduction if conducted from PSCN and NSCN at same time
 	for (rx = -2; rx <= 2; rx++)
 	for (ry = -2; ry <= 2; ry++)
-		if (BOUNDS_CHECK && (rx || ry)) {
+		if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) {
 			r = pmap[y + ry][x + rx];
 			if (!r) continue;
 			rt = TYP(r);
@@ -132,12 +132,12 @@ static int update(UPDATE_FUNC_ARGS) {
 	if (xor_check == 3)
 		parts[i].life = 1;
 	// H2 + FIRE + CRBN = GAS
-	if (seen_h2 && (seen_fire || (parts[i].temp > 10.0f + 273.15f && RNG::Ref().chance(1, 200) ))) {
+	if (seen_h2 && (seen_fire || (parts[i].temp > 10.0f + 273.15f && sim->rng.chance(1, 200) ))) {
 		parts[i].temp += 5.0f;
 		sim->part_change_type(i, parts[i].x, parts[i].y, PT_GAS);
 	}
 	// FIRE + CRBN = CO2
-	else if (seen_fire && RNG::Ref().chance(1, 20))
+	else if (seen_fire && sim->rng.chance(1, 20))
 		sim->part_change_type(i, parts[i].x, parts[i].y, PT_CO2);
 	// Thin wires superconduct
 	else if (parts[i].temp < 100.0f && seen_sprk && crbn_count <= 2 && xor_check != 3)

@@ -6,7 +6,7 @@ int Element_WATR_update(UPDATE_FUNC_ARGS);
 void Element::Element_H2O2() {
 	Identifier = "DEFAULT_PT_H2O2";
 	Name = "H2O2";
-	Colour = PIXPACK(0x2738E6);
+	Colour = 0x2738E6_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_LIQUID;
 	Enabled = 1;
@@ -32,7 +32,7 @@ void Element::Element_H2O2() {
 	HeatConduct = 29;
 	Description = "Hydrogen Peroxide. Powerful oxidizer and desinfectant.";
 		
-	Properties = TYPE_LIQUID|PROP_CONDUCTS|PROP_LIFE_DEC|PROP_NEUTPASS|PROP_DEADLY|PROP_WATER;
+	Properties = TYPE_LIQUID|PROP_CONDUCTS|PROP_LIFE_DEC|PROP_NEUTPASS|PROP_DEADLY;
 
 
 	DefaultProperties.water = 80;
@@ -59,17 +59,17 @@ static int update(UPDATE_FUNC_ARGS) {
 		sim->part_change_type(i, x, y, PT_WATR);
 	int rx, ry, r, rt;
 
-	if (RNG::Ref().chance(1, restrict_flt(30000 - 10 * (int)parts[i].temp, 1, MAX_TEMP))) {
+	if (sim->rng.chance(1, restrict_flt(30000 - 10 * (int)parts[i].temp, 1, MAX_TEMP))) {
 		int otwo = sim->create_part(-3, x, y, PT_O2);
 		parts[otwo].oxygens = std::min(20, parts[i].water);
 		parts[i].oxygens -= std::min(20, parts[i].water);
-	//	sim->part_change_type(i, x, y, RNG::Ref().chance(1, 2) ? PT_DSTW : PT_O2);
+	//	sim->part_change_type(i, x, y, sim->rng.chance(1, 2) ? PT_DSTW : PT_O2);
 		//return 1;
 	}
 
 	//for (rx = -1; rx < 2; ++rx)
 	//for (ry = -1; ry < 2; ++ry)
-	//	if (BOUNDS_CHECK && (rx || ry)) {
+	//	if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) {
 	//		r = pmap[y + ry][x + rx];
 	//		if (!r) continue;
 	//		rt = TYP(r);
@@ -86,8 +86,8 @@ static int update(UPDATE_FUNC_ARGS) {
 	//			return 1;
 	//		}*/
 
-	//		//if (sim->elements[rt].Hardness && RNG::Ref().between(1, 100) > sim->elements[rt].Hardness &&
-	//		//		RNG::Ref().chance(1, 500) && !(sim->elements[rt].Properties & TYPE_LIQUID)) {
+	//		//if (elements[rt].Hardness && sim->rng.between(1, 100) > elements[rt].Hardness &&
+	//		//		sim->rng.chance(1, 500) && !(elements[rt].Properties & TYPE_LIQUID)) {
 	//		//	sim->kill_part(ID(r));
 	//			//sim->kill_part(i);
 	//			//return 1;

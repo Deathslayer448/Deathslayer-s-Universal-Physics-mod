@@ -101,12 +101,12 @@ constexpr float BLEND = 0.85f;
 
 static int update(UPDATE_FUNC_ARGS)
 {
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 	//0x01 - bubble on/off
 	//0x02 - first mate yes/no
 	//0x04 - "back" mate yes/no
 
-	auto &sd = SimulationData::CRef();
-	auto &elements = sd.elements;
 	if (parts[i].ctype&1)
 	{
 		// reset invalid SOAP links

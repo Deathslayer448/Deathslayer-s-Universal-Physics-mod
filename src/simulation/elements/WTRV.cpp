@@ -28,8 +28,10 @@ void Element::Element_WTRV()
 
 	Weight = 1;
 
+	DefaultProperties.tmpcity[7] = 400;
+	DefaultProperties.water = 100;
 	DefaultProperties.temp = R_TEMP + 100.0f + 273.15f;
-	HeatConduct = 48;
+	HeatConduct = 78;
 	Description = "Steam. Produced from hot water.";
 
 	Properties = TYPE_GAS;
@@ -48,15 +50,50 @@ void Element::Element_WTRV()
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	for (auto rx = -1; rx <= 1; rx++)
+	auto &elements = sim->elements();
+	
+	// Initialize water content if needed
+	if (parts[i].tmpcity[7] == 0)
 	{
-		for (auto ry = -1; ry <= 1; ry++)
-		{
-			if (rx || ry)
+		parts[i].tmpcity[7] = 400;
+		if(parts[i].water == 0)
+			parts[i].water = 100;
+	}
+
+	// Handle water depletion
+	if (parts[i].water <= 0)
+	{
+		if(parts[i].oxygens + parts[i].carbons + parts[i].hydrogens + parts[i].nitrogens + parts[i].tmp4 != 0)
+			sim->part_change_type(i, x, y, PT_DUST);
+		else if(parts[i].tmp4 > 0 && parts[i].ctype != 0)
+			sim->part_change_type(i, x, y, parts[i].ctype);
+		else
+			sim->kill_part(i);
+	}
+
+	// Dynamic transition to ctype based on temperature
+	if (parts[i].ctype != 0 && elements[parts[i].ctype].HighTemperature != ITH && elements[parts[i].ctype].HighTemperature != ST && parts[i].temp + sim->pv[y / CELL][x / CELL] < elements[parts[i].ctype].HighTemperature && sim->rng.chance(elements[parts[i].ctype].HighTemperature - 100.0f, restrict_flt(parts[i].temp - sim->pv[y / CELL][x / CELL], elements[parts[i].ctype].HighTemperature, MAX_TEMP)))
+	{
+		sim->part_change_type(i, x, y, parts[i].ctype);
+		if (parts[i].tmpcity[6] != 0)
+			parts[i].ctype = parts[i].tmpcity[6];
+		else
+			parts[i].ctype = 0;
+		return 1;
+	}
+
+	// Standard interactions
+	int r, rx, ry;
+	for (ry=-1; ry<2; ry++)
+		for (rx = -1; rx < 2; rx++)
+			if (x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES && (rx || ry))
 			{
-				auto r = pmap[y+ry][x+rx];
+				r = pmap[y + ry][x + rx];
 				if (!r)
-					continue;
+				{
+					if(parts[i].water > 50)
+						continue;
+				}
 				if ((TYP(r)==PT_RBDM||TYP(r)==PT_LRBD) && !sim->legacy_enable && parts[i].temp>(273.15f+12.0f) && sim->rng.chance(1, 100))
 				{
 					sim->part_change_type(i,x,y,PT_FIRE);
@@ -64,9 +101,7 @@ static int update(UPDATE_FUNC_ARGS)
 					parts[i].ctype = PT_WATR;
 				}
 			}
-		}
-	}
-	if(parts[i].temp>1273&&parts[i].ctype==PT_FIRE)
-		parts[i].temp-=parts[i].temp/1000;
+	if(parts[i].temp>1273.0f && parts[i].ctype==PT_FIRE)
+		parts[i].temp-=parts[i].temp/1000.0f;
 	return 0;
 }

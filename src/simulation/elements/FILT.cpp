@@ -10,7 +10,7 @@ void Element::Element_FILT()
 	Name = "FILT";
 	Colour = 0x000056_rgb;
 	MenuVisible = 1;
-	MenuSection = SC_SOLIDS;
+	MenuSection = SC_SPECIAL;
 	Enabled = 1;
 
 	Advection = 0.0f;

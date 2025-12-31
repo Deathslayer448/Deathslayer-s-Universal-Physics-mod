@@ -7,7 +7,7 @@ static void create(ELEMENT_CREATE_FUNC_ARGS);
 void Element::Element_FLSH() {
 	Identifier = "DEFAULT_PT_FLSH";
 	Name = "FLSH";
-	Colour = PIXPACK(0xF05B5B);
+	Colour = 0xF05B5B_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_ORGANIC;
 	Enabled = 1;
@@ -42,7 +42,7 @@ void Element::Element_FLSH() {
 	HeatConduct = 54;
 	Description = "Flesh. Can be cooked.";
 
-	Properties = TYPE_SOLID | PROP_NEUTPENETRATE | PROP_EDIBLE | PROP_ORGANISM | PROP_ANIMAL;
+	Properties = TYPE_SOLID | PROP_NEUTPENETRATE;
 
 	LowPressure = IPL;
 	LowPressureTransition = NT;
@@ -113,7 +113,7 @@ if (parts[i].capacity == 0)
 			parts[i].tmpcity[3] = 100;
 			parts[i].tmpcity[9] = 0;
 			parts[i].metabolism = 50;
-			parts[i].pavg[0] = 0;
+			parts[i].tmp3 = 0;
 			break;
 
 			case PT_LUNG:
@@ -127,7 +127,7 @@ if (parts[i].capacity == 0)
 			parts[i].tmpcity[3] = 100;
 			parts[i].tmpcity[9] = 0;
 			parts[i].metabolism = 50;
-			parts[i].pavg[0] = 0;
+			parts[i].tmp3 = 0;
 			break;
 			
 			case PT_STMH:
@@ -141,7 +141,7 @@ if (parts[i].capacity == 0)
 			parts[i].tmpcity[3] = 100;
 			parts[i].tmpcity[9] = 0;
 			parts[i].metabolism = 50;
-			parts[i].pavg[0] = 0;
+			parts[i].tmp3 = 0;
 			break;
 
 			case PT_POPS:
@@ -155,7 +155,7 @@ if (parts[i].capacity == 0)
 			parts[i].tmpcity[3] = 100;
 			parts[i].tmpcity[9] = 0;
 			parts[i].metabolism = 50;
-			parts[i].pavg[0] = 0;
+			parts[i].tmp3 = 0;
 
 			break;
 
@@ -170,7 +170,7 @@ if (parts[i].capacity == 0)
 			parts[i].tmpcity[3] = 100;
 			parts[i].tmpcity[9] = 0;
 			parts[i].metabolism = 50;
-			parts[i].pavg[0] = 0;
+			parts[i].tmp3 = 0;
 			break;
 
 			case PT_BVSL:
@@ -187,7 +187,7 @@ if (parts[i].capacity == 0)
 			parts[i].tmpville[3] = 0;
 			parts[i].tmpville[4] = 0;
 			parts[i].metabolism = 50;
-			parts[i].pavg[0] = 0;
+			parts[i].tmp3 = 0;
 			break;
 
 			default:
@@ -200,7 +200,7 @@ if (parts[i].capacity == 0)
 			parts[i].tmpcity[3] = 100;
 			parts[i].tmpcity[9] = 0;
 			parts[i].metabolism = 50;
-			parts[i].pavg[0] = 0;
+			parts[i].tmp3 = 0;
 			break;
 
 			
@@ -211,23 +211,24 @@ if (parts[i].capacity == 0)
 
 	int r = 0;
 	int lcapacity = 0;
-	if (parts[i].tmp3 <= 0 && parts[i].pavg[0] != 2)
+	if (parts[i].tmp3 <= 0 && parts[i].tmp3 != 2)
 	{
-		parts[i].pavg[0] = 2;
+		parts[i].tmp3 = 2;
 		parts[i].tmp3 = 0;
 	}
 
 
-	if (parts[i].temp - sim->pv[y / CELL][x / CELL] < 258.15f && RNG::Ref().chance(1, restrict_flt(parts[i].temp - sim->pv[y / CELL][x / CELL], 2, 100 + 273.15f))) {
+	if (parts[i].temp - sim->pv[y / CELL][x / CELL] < 258.15f && sim->rng.chance(1, restrict_flt(parts[i].temp - sim->pv[y / CELL][x / CELL], 2, 100 + 273.15f))) {
 		parts[i].tmp = parts[i].ctype;
 		parts[i].ctype = parts[i].type;
     	sim->part_change_type(i, x, y, PT_ICEI);
 		
-		parts[i].dcolour = sim->elements[parts[i].ctype].Colour + 0x77000000;
+		auto &elements = sim->elements();
+		parts[i].dcolour = elements[parts[i].ctype].Colour.Pack() + 0x77000000;
 	return 1;
 	}
 
-	if (parts[i].pavg[0] != 2 && sim->timer % (int)restrict_flt(parts[i].metabolism, 1, MAX_TEMP) == 0)
+	if (parts[i].tmp3 != 2 && sim->currentTick % (int)restrict_flt(parts[i].metabolism, 1, MAX_TEMP) == 0)
 	{
 
 			if (parts[i].oxygens > 0 && parts[i].carbons > 0 && parts[i].nitrogens < 70 && parts[i].tmpcity[3] < 100-1)
@@ -240,14 +241,14 @@ if (parts[i].capacity == 0)
 				parts[i].co2++;
 				parts[i].tmpcity[3]+=2;
 
-				if (RNG::Ref().chance(1, 10))
+				if (sim->rng.chance(1, 10))
 				
 					parts[i].temp++;
 
 
 
 				//temporary healing
-					if (RNG::Ref().chance(1, 1000) && parts[i].tmp3 < 100)
+					if (sim->rng.chance(1, 1000) && parts[i].tmp3 < 100)
 					
 						parts[i].tmp3++;
 						
@@ -257,9 +258,9 @@ if (parts[i].capacity == 0)
 			{
 				parts[i].tmpcity[3]--;
 				
-				if (RNG::Ref().chance(1, 10))
+				if (sim->rng.chance(1, 10))
 					parts[i].temp++;
-				if (RNG::Ref().chance(1, 20))
+				if (sim->rng.chance(1, 20))
 				{
 					
 					parts[i].water--;
@@ -277,19 +278,19 @@ if (parts[i].capacity == 0)
 
 	// The randomization is to avoid easily burning meat and creatingwha
 	// a more realistic crystallization effect
-	if (parts[i].temp > 110.0f + 273.15f && RNG::Ref().chance(1, 100))
+	if (parts[i].temp > 110.0f + 273.15f && sim->rng.chance(1, 100))
 		parts[i].tmp2 = parts[i].temp;
 	if (parts[i].temp > parts[i].tmp2 && (parts[i].temp < 110.0f + 273.15f ||
 			parts[i].temp > 150.0f + 273.15f))
 		parts[i].tmp2 = parts[i].temp;
 	
 	// Rot if dead and not cooked or frozen
-	if (parts[i].temp > 3.0f + 273.15f && parts[i].tmp2 < 120.0f + 273.15f && parts[i].pavg[0] == 2
-			&& RNG::Ref().chance(1, 10000 / (surround_space + 1))) {
-		if (RNG::Ref().chance(1, 20))
+	if (parts[i].temp > 3.0f + 273.15f && parts[i].tmp2 < 120.0f + 273.15f && parts[i].tmp3 == 2
+			&& sim->rng.chance(1, 10000 / (surround_space + 1))) {
+		if (sim->rng.chance(1, 20))
 		{
 			int bctr = sim->create_part(-3, x, y, PT_BCTR);
-			parts[bctr].ctype = RNG::Ref().chance(1, 8) ? (parts[i].ctype ^ (1 << RNG::Ref().between(0, 32))) : (512 ^ (1 << RNG::Ref().between(0, 32))); // Meat eating gene
+			parts[bctr].ctype = sim->rng.chance(1, 8) ? (parts[i].ctype ^ (1 << sim->rng.between(0, 32))) : (512 ^ (1 << sim->rng.between(0, 32))); // Meat eating gene
 			parts[bctr].tmp = 0;
 			parts[bctr].tmp2 = 0;
 			parts[bctr].tmp3 = 420;
@@ -310,7 +311,7 @@ if (parts[i].capacity == 0)
 
 
 
-	if (((fabs(sim->pv[y / CELL][x / CELL]) > 5.0f && RNG::Ref().chance(1, 300)) || parts[i].tmpcity[8] == 1) && parts[i].type != PT_BRKN) {
+	if (((fabs(sim->pv[y / CELL][x / CELL]) > 5.0f && sim->rng.chance(1, 300)) || parts[i].tmpcity[8] == 1) && parts[i].type != PT_BRKN) {
 		parts[i].tmp = parts[i].ctype;
 		parts[i].ctype = parts[i].type;
 		sim->part_change_type(i, x, y, PT_BRKN);
@@ -323,7 +324,7 @@ if (parts[i].capacity == 0)
 		sim->part_change_type(i, x, y, PT_LQUD);
 		return 1;
 	}
-	if (parts[i].pavg[0] != 2)
+	if (parts[i].tmp3 != 2)
 	{	
 		//damages 
 		
@@ -347,7 +348,7 @@ if (parts[i].capacity == 0)
 			
 		}
 		// Temperature
-		if ((parts[i].temp < 273.15f - 5.0f || parts[i].temp > 52.0f + 273.15f ) && RNG::Ref().chance(restrict_flt(parts[i].temp, 1, 1249.0f + 273.15f), 1250.0f + 273.15f))
+		if ((parts[i].temp < 273.15f - 5.0f || parts[i].temp > 52.0f + 273.15f ) && sim->rng.chance(restrict_flt(parts[i].temp, 1, 1249.0f + 273.15f), 1250.0f + 273.15f))
 			parts[i].tmp3--;
 	 
 
@@ -356,22 +357,22 @@ if (parts[i].capacity == 0)
 	
 
 //signal decay
-	if (sim->timer % 500 == 0 && parts[i].tmpville[2] > 0)
+	if (sim->currentTick % 500 == 0 && parts[i].tmpville[2] > 0)
 		parts[i].tmpville[2]--;
-	// if(sim->timer % 500 == 0 && parts[i].tmpville[14] > 0)
+	// if(sim->currentTick % 500 == 0 && parts[i].tmpville[14] > 0)
 	// 	parts[i].tmpville[14]--;
-	// if(sim->timer % 500 == 0 && parts[i].tmpville[15] > 0)
+	// if(sim->currentTick % 500 == 0 && parts[i].tmpville[15] > 0)
 	// 	parts[i].tmpville[15]--;
-	// if(sim->timer % 500 == 0 && parts[i].tmpville[16] > 0)
+	// if(sim->currentTick % 500 == 0 && parts[i].tmpville[16] > 0)
 	// 	parts[i].tmpville[16]--;
-	if(RNG::Ref().chance(1, 1000) && parts[i].tmpville[14] > 0)
+	if(sim->rng.chance(1, 1000) && parts[i].tmpville[14] > 0)
 		parts[i].tmpville[14]--;
-	if(RNG::Ref().chance(1, 1000) && parts[i].tmpville[15] > 0)
+	if(sim->rng.chance(1, 1000) && parts[i].tmpville[15] > 0)
 		parts[i].tmpville[15]--;
-	if(RNG::Ref().chance(1, 1000) && parts[i].tmpville[16] > 0)
+	if(sim->rng.chance(1, 1000) && parts[i].tmpville[16] > 0)
 		parts[i].tmpville[16]--;
 
-	if (parts[i].temp > 42.0f + 273.15f && RNG::Ref().chance(restrict_flt(parts[i].temp, 1, 49.0f + 273.15f), 50.0f + 273.15f) && parts[i].tmpville[2] < 2)
+	if (parts[i].temp > 42.0f + 273.15f && sim->rng.chance(restrict_flt(parts[i].temp, 1, 49.0f + 273.15f), 50.0f + 273.15f) && parts[i].tmpville[2] < 2)
 		parts[i].tmpville[2]++;
 
 	
@@ -388,7 +389,7 @@ if (parts[i].capacity == 0)
 	
 	for (ry = -1; ry < 2; ry++)
 	for (rx = -1; rx < 2; rx++)
-		if (BOUNDS_CHECK && (rx || ry)) 
+		if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) 
 		{
 			r = pmap[y + ry][x + rx];
 			int partnum = 10;
@@ -396,9 +397,9 @@ if (parts[i].capacity == 0)
 			if (!r) 
 			{
 
-				if (parts[i].tmpville[2] > 0 && parts[i].water > 40 && RNG::Ref().chance(1, 8000))
+				if (parts[i].tmpville[2] > 0 && parts[i].water > 40 && sim->rng.chance(1, 8000))
 				{
-					int sweat = RNG::Ref().between(20, 60);
+					int sweat = sim->rng.between(20, 60);
 					int ee = sim->create_part(-1, x + rx, y + ry, PT_WATR);
 					parts[i].water -= 100;
 					parts[ee].water += 100;
@@ -408,9 +409,9 @@ if (parts[i].capacity == 0)
 
 				}
 				// Alive flesh
-				if (parts[i].pavg[0] == 0 && RNG::Ref().chance(1, 1000) && parts[i].type == PT_FLSH) {
+				if (parts[i].tmp3 == 0 && sim->rng.chance(1, 1000) && parts[i].type == PT_FLSH) {
 					// Create skin
-					parts[i].pavg[0] = 1;
+					parts[i].tmp3 = 1;
 				}
 				continue;
 			}
@@ -424,7 +425,7 @@ if (parts[i].capacity == 0)
 
 				if (sqrtf(parts[ID(r)].vx * parts[ID(r)].vx + parts[ID(r)].vy * parts[ID(r)].vy) > 16.0f)
 				{
-					if (sqrtf(parts[ID(r)].vx * parts[ID(r)].vx + parts[ID(r)].vy * parts[ID(r)].vy) > parts[i].tmp3 && RNG::Ref().chance(1, restrict_flt(20 - sqrtf(parts[ID(r)].vx * parts[ID(r)].vx + parts[ID(r)].vy * parts[ID(r)].vy), 1, MAX_TEMP)))
+					if (sqrtf(parts[ID(r)].vx * parts[ID(r)].vx + parts[ID(r)].vy * parts[ID(r)].vy) > parts[i].tmp3 && sim->rng.chance(1, restrict_flt(20 - sqrtf(parts[ID(r)].vx * parts[ID(r)].vx + parts[ID(r)].vy * parts[ID(r)].vy), 1, MAX_TEMP)))
 						parts[i].tmpcity[8] = 1;
 					parts[i].tmp3 -= sqrtf(parts[ID(r)].vx * parts[ID(r)].vx + parts[ID(r)].vy * parts[ID(r)].vy);
 
@@ -432,7 +433,7 @@ if (parts[i].capacity == 0)
 
 				//nerve endings
 					
-				// if (rt == PT_NRVE && parts[i].tmpville[3] == 0 && RNG::Ref().chance(1, 8))
+				// if (rt == PT_NRVE && parts[i].tmpville[3] == 0 && sim->rng.chance(1, 8))
 				// 		parts[i].tmpville[3] = parts[ID(r)].tmpville[3] + 1;
 				// if((rt == PT_FLSH || rt == PT_UDDR || rt == PT_LUNG || rt == PT_POPS || rt == PT_STMH || rt == PT_BRIN || rt == PT_NRVE) && parts[i].tmpville[12] == 0 )
 				// 		parts[i].tmpville[3] = 1;
@@ -446,17 +447,17 @@ if (parts[i].capacity == 0)
 					parts[i].tmpville[2]--;
 				}
 				//signals
-				// if(parts[i].tmpville[14] > 0 && parts[ID(r)].tmpville[14] < 30 && RNG::Ref().chance(1, 8) && (rt == PT_POPS ||  rt == PT_NRVE || rt == PT_BRIN) && parts[i].type != PT_NRVE)
+				// if(parts[i].tmpville[14] > 0 && parts[ID(r)].tmpville[14] < 30 && sim->rng.chance(1, 8) && (rt == PT_POPS ||  rt == PT_NRVE || rt == PT_BRIN) && parts[i].type != PT_NRVE)
 				// {
 				// 	parts[i].tmpville[14]--;
 				// 	parts[ID(r)].tmpville[14]++;
 				// }
-				// if(parts[i].tmpville[15] > 0 && parts[ID(r)].tmpville[15] < 30  && RNG::Ref().chance(1, 8)&& (rt == PT_POPS ||  rt == PT_NRVE || rt == PT_BRIN) && parts[i].type != PT_NRVE)
+				// if(parts[i].tmpville[15] > 0 && parts[ID(r)].tmpville[15] < 30  && sim->rng.chance(1, 8)&& (rt == PT_POPS ||  rt == PT_NRVE || rt == PT_BRIN) && parts[i].type != PT_NRVE)
 				// {
 				// 	parts[i].tmpville[15]--;
 				// 	parts[ID(r)].tmpville[15]++;
 				// }
-				// if(parts[i].tmpville[16] > 0 && parts[ID(r)].tmpville[16] < 30  && RNG::Ref().chance(1, 8) && (rt == PT_POPS ||  rt == PT_NRVE || rt == PT_BRIN) && parts[i].type != PT_NRVE)
+				// if(parts[i].tmpville[16] > 0 && parts[ID(r)].tmpville[16] < 30  && sim->rng.chance(1, 8) && (rt == PT_POPS ||  rt == PT_NRVE || rt == PT_BRIN) && parts[i].type != PT_NRVE)
 				// {
 				// 	parts[i].tmpville[16]--;
 				// 	parts[ID(r)].tmpville[16]++;
@@ -471,20 +472,20 @@ if (parts[i].capacity == 0)
 						else 
 								partnum = 2;
 					//give
-					if(RNG::Ref().chance(1, 2))
+					if(sim->rng.chance(1, 2))
 					{
-						if(parts[i].tmpville[14] > 0 && parts[i].tmpville[14] > parts[ID(r)].tmpville[14]  * 1.5f && parts[ID(r)].tmpville[14] <  420 && !(parts[i].type != PT_POPS && rt == PT_POPS) && RNG::Ref().chance(1, 8))
+						if(parts[i].tmpville[14] > 0 && parts[i].tmpville[14] > parts[ID(r)].tmpville[14]  * 1.5f && parts[ID(r)].tmpville[14] <  420 && !(parts[i].type != PT_POPS && rt == PT_POPS) && sim->rng.chance(1, 8))
 						{
 							parts[ID(r)].tmpville[14] += std::min(partnum, (int)parts[i].tmpville[14]);
 							parts[i].tmpville[14] -= std::min(partnum, (int)parts[i].tmpville[14]);
 						}
-						if(parts[i].tmpville[15] > 0 && parts[i].tmpville[15] > parts[ID(r)].tmpville[15]  * 1.5f&& parts[ID(r)].tmpville[15] < 420   && RNG::Ref().chance(1, 8))
+						if(parts[i].tmpville[15] > 0 && parts[i].tmpville[15] > parts[ID(r)].tmpville[15]  * 1.5f&& parts[ID(r)].tmpville[15] < 420   && sim->rng.chance(1, 8))
 						{
 							
 							parts[ID(r)].tmpville[15] += std::min(partnum, (int)parts[i].tmpville[15]);
 							parts[i].tmpville[15] -= std::min(partnum, (int)parts[i].tmpville[15]);
 						}
-						if(parts[i].tmpville[16] > 0 && parts[i].tmpville[16] > parts[ID(r)].tmpville[16] * 1.5f	  && parts[ID(r)].tmpville[16] < 420 && RNG::Ref().chance(1, 8))
+						if(parts[i].tmpville[16] > 0 && parts[i].tmpville[16] > parts[ID(r)].tmpville[16] * 1.5f	  && parts[ID(r)].tmpville[16] < 420 && sim->rng.chance(1, 8))
 						{
 							parts[ID(r)].tmpville[16] += std::min(partnum, (int)parts[i].tmpville[16]);
 							parts[i].tmpville[16] -= std::min(partnum, (int)parts[i].tmpville[16]);
@@ -493,18 +494,18 @@ if (parts[i].capacity == 0)
 					else
 					{
 					//take
-						if(parts[ID(r)].tmpville[14] > 0 && parts[ID(r)].tmpville[14] > parts[i].tmpville[14]  * 1.5f  && parts[i].tmpville[14] < 420  && RNG::Ref().chance(1, 8) && !(parts[i].type == PT_POPS && rt != PT_POPS))
+						if(parts[ID(r)].tmpville[14] > 0 && parts[ID(r)].tmpville[14] > parts[i].tmpville[14]  * 1.5f  && parts[i].tmpville[14] < 420  && sim->rng.chance(1, 8) && !(parts[i].type == PT_POPS && rt != PT_POPS))
 						{
 							
 							parts[i].tmpville[14] += std::min(partnum, (int)parts[ID(r)].tmpville[14]);
 							parts[ID(r)].tmpville[14] -= std::min(partnum, (int)parts[ID(r)].tmpville[14]);
 						}
-						if(parts[ID(r)].tmpville[15] > 0 && parts[ID(r)].tmpville[15] > parts[i].tmpville[15]  * 1.5f && parts[i].tmpville[15] < 420 &&  RNG::Ref().chance(1, 8) && !(parts[i].type != PT_POPS && rt == PT_POPS))
+						if(parts[ID(r)].tmpville[15] > 0 && parts[ID(r)].tmpville[15] > parts[i].tmpville[15]  * 1.5f && parts[i].tmpville[15] < 420 &&  sim->rng.chance(1, 8) && !(parts[i].type != PT_POPS && rt == PT_POPS))
 						{
 							parts[i].tmpville[15] += std::min(partnum, (int)parts[ID(r)].tmpville[15]);
 							parts[ID(r)].tmpville[15] -= std::min(partnum, (int)parts[ID(r)].tmpville[15]);
 						}
-						if(parts[ID(r)].tmpville[16] > 0 && parts[ID(r)].tmpville[16] > parts[i].tmpville[16]  * 1.5f && parts[i].tmpville[16] < 420 && RNG::Ref().chance(1, 8))
+						if(parts[ID(r)].tmpville[16] > 0 && parts[ID(r)].tmpville[16] > parts[i].tmpville[16]  * 1.5f && parts[i].tmpville[16] < 420 && sim->rng.chance(1, 8))
 						{
 							parts[i].tmpville[16] += std::min(partnum, (int)parts[ID(r)].tmpville[16]);
 							parts[ID(r)].tmpville[16] = std::min(partnum, (int)parts[ID(r)].tmpville[16]);
@@ -514,21 +515,21 @@ if (parts[i].capacity == 0)
 						
 						
 					
-					if(RNG::Ref().chance(1, 2))
+					if(sim->rng.chance(1, 2))
 					{
 						//give
-						if(parts[i].tmpville[14] > 0 && parts[i].tmpville[14] > parts[ID(r)].tmpville[14] * 1.5f  && parts[ID(r)].tmpville[14] < 420  && !(parts[i].type != PT_POPS && rt == PT_POPS) && RNG::Ref().chance(1, 8))
+						if(parts[i].tmpville[14] > 0 && parts[i].tmpville[14] > parts[ID(r)].tmpville[14] * 1.5f  && parts[ID(r)].tmpville[14] < 420  && !(parts[i].type != PT_POPS && rt == PT_POPS) && sim->rng.chance(1, 8))
 						{
 							tmps = parts[i].tmpville[14];
 							parts[i].tmpville[14] = parts[ID(r)].tmpville[14];
 							parts[ID(r)].tmpville[14]= tmps;
 						}
-						if(parts[i].tmpville[15] > 0 && parts[i].tmpville[15] > parts[ID(r)].tmpville[15] * 1.5f  && parts[ID(r)].tmpville[15] < 420   && RNG::Ref().chance(1, 8))
+						if(parts[i].tmpville[15] > 0 && parts[i].tmpville[15] > parts[ID(r)].tmpville[15] * 1.5f  && parts[ID(r)].tmpville[15] < 420   && sim->rng.chance(1, 8))
 						{
 							tmps = parts[i].tmpville[15];
 							parts[i].tmpville[15] = parts[ID(r)].tmpville[15];
 							parts[ID(r)].tmpville[15]= tmps;
-						}if(parts[i].tmpville[16] > 0 && parts[i].tmpville[16] > parts[ID(r)].tmpville[16]	* 1.5f  && parts[ID(r)].tmpville[16] < 420  && RNG::Ref().chance(1, 8))
+						}if(parts[i].tmpville[16] > 0 && parts[i].tmpville[16] > parts[ID(r)].tmpville[16]	* 1.5f  && parts[ID(r)].tmpville[16] < 420  && sim->rng.chance(1, 8))
 						{
 							tmps = parts[i].tmpville[16];
 							parts[i].tmpville[16] = parts[ID(r)].tmpville[16];
@@ -538,20 +539,20 @@ if (parts[i].capacity == 0)
 					else
 					{
 					//take
-						if(parts[ID(r)].tmpville[14] > 0 && parts[ID(r)].tmpville[14] > parts[i].tmpville[14] * 1.5f  && parts[i].tmpville[14] < 420  && RNG::Ref().chance(1, 8) && !(parts[i].type == PT_POPS && rt != PT_POPS))
+						if(parts[ID(r)].tmpville[14] > 0 && parts[ID(r)].tmpville[14] > parts[i].tmpville[14] * 1.5f  && parts[i].tmpville[14] < 420  && sim->rng.chance(1, 8) && !(parts[i].type == PT_POPS && rt != PT_POPS))
 						{
 
 							tmps = parts[ID(r)].tmpville[14];
 							parts[ID(r)].tmpville[14] = parts[i].tmpville[14];
 							parts[i].tmpville[14]= tmps;
 						}
-						if(parts[ID(r)].tmpville[15] > 0 && parts[ID(r)].tmpville[15] > parts[i].tmpville[15] * 1.5f  && parts[i].tmpville[15] < 420 &&  RNG::Ref().chance(1, 8) && !(parts[i].type != PT_POPS && rt == PT_POPS))
+						if(parts[ID(r)].tmpville[15] > 0 && parts[ID(r)].tmpville[15] > parts[i].tmpville[15] * 1.5f  && parts[i].tmpville[15] < 420 &&  sim->rng.chance(1, 8) && !(parts[i].type != PT_POPS && rt == PT_POPS))
 						{
 							tmps = parts[ID(r)].tmpville[15];
 							parts[ID(r)].tmpville[15] = parts[i].tmpville[15];
 							parts[i].tmpville[15]= tmps;
 						}
-						if(parts[ID(r)].tmpville[16] > 0 && parts[ID(r)].tmpville[16] > parts[i].tmpville[16] * 1.5f  && parts[i].tmpville[16] < 420 && RNG::Ref().chance(1, 8))
+						if(parts[ID(r)].tmpville[16] > 0 && parts[ID(r)].tmpville[16] > parts[i].tmpville[16] * 1.5f  && parts[i].tmpville[16] < 420 && sim->rng.chance(1, 8))
 						{
 							tmps = parts[ID(r)].tmpville[16];
 							parts[ID(r)].tmpville[16] = parts[i].tmpville[16];
@@ -565,14 +566,14 @@ if (parts[i].capacity == 0)
 
 
 
-				if(parts[i].pavg[0] != 2)
+				if(parts[i].tmp3 != 2)
 				{
 
 					// Distribute nutrients
 
 
 
-					if (sim->elements[rt].Properties & PROP_ANIMAL && parts[ID(r)].pavg[0] != 2 && RNG::Ref().chance(1, 8))
+					if (parts[ID(r)].tmp3 != 2 && sim->rng.chance(1, 8))
 						{
 							if (rt == PT_BVSL || rt == PT_BLOD)
 								partnum = 10;
@@ -581,7 +582,7 @@ if (parts[i].capacity == 0)
 							
 						// 	//take
 						// 	lcapacity = parts[i].oxygens + parts[i].carbons + parts[i].co2 + parts[i].water + parts[i].nitrogens;
-						// 	if (RNG::Ref().chance(1, 8) && lcapacity + 10 < parts[i].capacity)
+						// 	if (sim->rng.chance(1, 8) && lcapacity + 10 < parts[i].capacity)
 						// 	{
 									
 								if (parts[i].oxygens < parts[i].capacity / 3 && parts[ID(r)].oxygens >= 10 + 10 && parts[i].oxygens < parts[ID(r)].oxygens)
@@ -619,7 +620,7 @@ if (parts[i].capacity == 0)
 					
 						 	//give
 					//	 	lcapacity = parts[ID(r)].oxygens + parts[ID(r)].carbons + parts[ID(r)].co2 + parts[ID(r)].water + parts[ID(r)].nitrogens;
-						// 	if (RNG::Ref().chance(1, 8) && lcapacity + 10 < parts[ID(r)].capacity)
+						// 	if (sim->rng.chance(1, 8) && lcapacity + 10 < parts[ID(r)].capacity)
 						 //	{
 					 		if (parts[ID(r)].oxygens < parts[ID(r)].capacity / 3 && parts[i].oxygens >= 10 + 10 && parts[ID(r)].oxygens < parts[i].oxygens)
 						 		{
@@ -651,7 +652,7 @@ if (parts[i].capacity == 0)
 								if ((rt == PT_BVSL || rt == PT_BLOD || parts[i].type == rt))
 								{
 									//take
-									if(RNG::Ref().chance(1, 2))
+									if(sim->rng.chance(1, 2))
 									{
 
 								if (parts[i].carbons < parts[i].capacity / 3 && parts[ID(r)].carbons >= 10 + 10 && parts[i].carbons * 1.5f < parts[ID(r)].carbons)
@@ -774,7 +775,7 @@ if (parts[i].capacity == 0)
 
 
 					// Take damage if touching toxic chemicals
-					if ((rt == PT_H2O2 || rt == PT_ACID || rt == PT_CAUS || rt == PT_PLUT || rt == PT_URAN || rt == PT_ISOZ || rt == PT_ISZS || rt == PT_POLO || rt == PT_MERC || sim->elements[rt].Properties & PROP_DEADLY || (rt == PT_HCL && parts[i].type != PT_STMH)) && parts[i].pavg[0] != 2 && RNG::Ref().chance(1, 20)) 
+					if ((rt == PT_H2O2 || rt == PT_ACID || rt == PT_CAUS || rt == PT_PLUT || rt == PT_URAN || rt == PT_ISOZ || rt == PT_ISZS || rt == PT_POLO || rt == PT_MERC || sim->elements()[rt].Properties & PROP_DEADLY || (rt == PT_HCL && parts[i].type != PT_STMH)) && parts[i].tmp3 != 2 && sim->rng.chance(1, 20)) 
 					{
 						parts[i].tmp3--;
 					}
@@ -794,7 +795,7 @@ if (parts[i].capacity == 0)
 		parts[i].vx += 0.10f * sim->vx[y / CELL][x / CELL];
 		parts[i].vy += 0.10f * sim->vy[y / CELL][x / CELL];
 	}
-	if (parts[i].tmp2 > R_TEMP && RNG::Ref().chance(restrict_flt(parts[i].tmp2, 1, 1999), 2000))
+	if (parts[i].tmp2 > R_TEMP && sim->rng.chance(restrict_flt(parts[i].tmp2, 1, 1999), 2000))
 		parts[i].tmp2--;
 
 
@@ -804,7 +805,7 @@ if (parts[i].capacity == 0)
 }
 
 static int graphics(GRAPHICS_FUNC_ARGS) {
-	if (cpart->pavg[0] == 1) { // Skin
+	if (cpart->tmp3 == 1) { // Skin
 		*colr = 255;
 		*colg = 226;
 		*colb = 204;
@@ -827,7 +828,7 @@ static int graphics(GRAPHICS_FUNC_ARGS) {
 	}
 
 
-	if (cpart->pavg[0] == 2) { // death
+	if (cpart->tmp3 == 2) { // death
 		float percent_fade = 1;
 		percent_fade += ((abs(nx - ny) * (nx + ny) + nx) % 5) / 10.0f; // Noise
 

@@ -251,6 +251,8 @@ public:
 	bool GetAHeatEnable();
 	void SetBetterBurningEnable(bool Betterburnin);
 	bool GetBetterBurningEnable();
+	void SetNoWeightSwitching(bool noWeight);
+	bool GetNoWeightSwitching();
 	void ResetAHeat();
 	void SetNewtonianGravity(bool newtonainGravity);
 	bool GetNewtonianGrvity();

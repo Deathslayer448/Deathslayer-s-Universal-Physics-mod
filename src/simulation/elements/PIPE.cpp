@@ -104,9 +104,7 @@ static unsigned int nextColor(unsigned int flags)
 
 int Element_PIPE_update(UPDATE_FUNC_ARGS)
 {
-	auto &sd = SimulationData::CRef();
-	auto &elements = sd.elements;
-	if (parts[i].ctype && !elements[TYP(parts[i].ctype)].Enabled)
+	if (parts[i].ctype && !sim->elements()[TYP(parts[i].ctype)].Enabled)
 		parts[i].ctype = 0;
 	if (parts[i].tmp & PPIP_TMPFLAG_TRIGGERS)
 	{
@@ -250,14 +248,14 @@ int Element_PIPE_update(UPDATE_FUNC_ARGS)
 					}
 				}
 				//try eating particle at entrance
-				else if (!TYP(parts[i].ctype) && (elements[TYP(r)].Properties & (TYPE_PART | TYPE_LIQUID | TYPE_GAS | TYPE_ENERGY)))
+				else if (!TYP(parts[i].ctype) && (sim->elements()[TYP(r)].Properties & (TYPE_PART | TYPE_LIQUID | TYPE_GAS | TYPE_ENERGY)))
 				{
 					if (TYP(r)==PT_SOAP)
 						Element_SOAP_detach(sim, ID(r));
 					Element_PIPE_transfer_part_to_pipe(parts+(ID(r)), parts+i);
 					sim->kill_part(ID(r));
 				}
-				else if (!TYP(parts[i].ctype) && TYP(r)==PT_STOR && sd.IsElement(parts[ID(r)].tmp) && (elements[parts[ID(r)].tmp].Properties & (TYPE_PART | TYPE_LIQUID | TYPE_GAS | TYPE_ENERGY)))
+				else if (!TYP(parts[i].ctype) && TYP(r)==PT_STOR && sim->sd().IsElement(parts[ID(r)].tmp) && (sim->elements()[parts[ID(r)].tmp].Properties & (TYPE_PART | TYPE_LIQUID | TYPE_GAS | TYPE_ENERGY)))
 				{
 					// STOR stores properties in the same places as PIPE does
 					transfer_pipe_to_pipe(parts+(ID(r)), parts+i, true);
@@ -419,10 +417,9 @@ int Element_PIPE_graphics(GRAPHICS_FUNC_ARGS)
 
 static void props_pipe_to_part(const Particle *pipe, Particle *part, bool STOR)
 {
-	auto &sd = SimulationData::CRef();
-	auto &elements = sd.elements;
 	// STOR also calls this function to move particles from STOR to PRTI
 	// PIPE was changed, so now PIPE and STOR don't use the same particle storage format
+	auto &elements = SimulationData::CRef().elements;
 	if (STOR)
 	{
 		part->type = TYP(pipe->tmp);
@@ -474,8 +471,7 @@ void Element_PIPE_transfer_part_to_pipe(Particle *part, Particle *pipe)
 		pipe->temp = part->temp;
 	else
 	{
-		auto &sd = SimulationData::CRef();
-		auto &elements = sd.elements;
+		auto &elements = SimulationData::CRef().elements;
 		auto c_pipe = elements[pipe->type].HeatCapacity;
 		auto c_part = elements[part->type].HeatCapacity;
 
@@ -523,8 +519,7 @@ static void transfer_pipe_to_pipe(Particle *src, Particle *dest, bool STOR)
 		dest->temp = src->temp;
 	else
 	{
-		auto &sd = SimulationData::CRef();
-		auto &elements = sd.elements;
+		auto &elements = SimulationData::CRef().elements;
 		auto src_ctype = src->ctype;
 		auto c_src = (0 < src_ctype && src_ctype < PT_NUM) ? elements[src_ctype].HeatCapacity : 1.0f;
 		auto c_dest = elements[dest->type].HeatCapacity;

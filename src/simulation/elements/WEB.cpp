@@ -102,22 +102,22 @@ static int update(UPDATE_FUNC_ARGS) {
 
 				// Connect to first web or solid it sees
 				// If connecting to web must be a connected web
-				if ((rt != PT_WEB && sim->elements[rt].Properties & TYPE_SOLID) || (rt == PT_WEB && parts[ID(r)].tmp2 >= 0)) {
+				if ((rt != PT_WEB && sim->sim->elements()[rt].Properties & TYPE_SOLID) || (rt == PT_WEB && parts[ID(r)].tmp2 >= 0)) {
 					if (parts[i].tmp2 < 0) 
 						parts[i].tmp2 = ID(r);
 				}
 
 				// Set touching property for decay
-				if (sim->elements[rt].Properties & TYPE_SOLID)
+				if (sim->sim->elements()[rt].Properties & TYPE_SOLID)
 					touching = true;
 
 				bool is_alive = rt == PT_ANT || rt == PT_SPDR;
 
 				// Stop particles if possible
 				if (particles_supporting < 2 && 
-					(sim->elements[rt].Properties & TYPE_PART ||
-						sim->elements[rt].Properties & TYPE_LIQUID) &&
-						sim->elements[rt].Weight < 50 && !is_alive) {
+					(sim->sim->elements()[rt].Properties & TYPE_PART ||
+						sim->sim->elements()[rt].Properties & TYPE_LIQUID) &&
+						sim->sim->elements()[rt].Weight < 50 && !is_alive) {
 					++particles_supporting;
 					parts[ID(r)].vx = 0;
 					parts[ID(r)].vy = 0;
@@ -143,11 +143,11 @@ static int update(UPDATE_FUNC_ARGS) {
 
 static int graphics(GRAPHICS_FUNC_ARGS) {
 	// Mimic ctype color
-	bool valid_ctype = cpart->ctype > 0 && cpart->ctype < PT_NUM && ren->sim->elements[cpart->ctype].Enabled;
+	bool valid_ctype = cpart->ctype > 0 && cpart->ctype < PT_NUM && ren->sim->sim->elements()[cpart->ctype].Enabled;
 	if (valid_ctype) {
-		*colr = PIXR(ren->sim->elements[cpart->ctype].Colour);
-		*colg = PIXG(ren->sim->elements[cpart->ctype].Colour);
-		*colb = PIXB(ren->sim->elements[cpart->ctype].Colour);
+		*colr = PIXR(ren->sim->sim->elements()[cpart->ctype].Colour);
+		*colg = PIXG(ren->sim->sim->elements()[cpart->ctype].Colour);
+		*colb = PIXB(ren->sim->sim->elements()[cpart->ctype].Colour);
 		return 0;
 	}
 	

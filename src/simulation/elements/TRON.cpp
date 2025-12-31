@@ -98,6 +98,8 @@ static const auto tron_colours = MakeTronColors();
 
 static int update(UPDATE_FUNC_ARGS)
 {
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 	if (parts[i].tmp&TRON_WAIT)
 	{
 		parts[i].tmp &= ~TRON_WAIT;

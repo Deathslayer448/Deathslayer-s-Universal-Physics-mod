@@ -8,7 +8,7 @@ int Element_FLSH_update(UPDATE_FUNC_ARGS);
 void Element::Element_BLOD() {
 	Identifier = "DEFAULT_PT_BLOD";
 	Name = "BLOD";
-	Colour = PIXPACK(0xEB1515);
+	Colour = 0xEB1515_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_ORGANIC;
 	Enabled = 1;
@@ -45,7 +45,7 @@ void Element::Element_BLOD() {
 	HeatConduct = 69;
 	Description = "Blood. Stains particles, clots when exposed to air or when it's dry.";
 
-	Properties = TYPE_LIQUID | PROP_NEUTPENETRATE | PROP_EDIBLE | PROP_ORGANISM | PROP_ANIMAL;
+	Properties = TYPE_LIQUID | PROP_NEUTPENETRATE;
 
 	LowPressure = IPL;
 	LowPressureTransition = NT;
@@ -61,7 +61,8 @@ void Element::Element_BLOD() {
 }
 
 static int update(UPDATE_FUNC_ARGS) {
-
+	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 
 	/**
 	 * Properties:
@@ -103,21 +104,21 @@ if (parts[i].capacity == 0)
 
 
 	// Freezing
-	if (parts[i].temp - sim->pv[y / CELL][x / CELL] < 273.15f  && RNG::Ref().chance(1, restrict_flt(parts[i].temp - sim->pv[y / CELL][x / CELL], 1, 100 + 273.15f))) 
+	if (parts[i].temp - sim->pv[y / CELL][x / CELL] < 273.15f  && sim->rng.chance(1, restrict_flt(parts[i].temp - sim->pv[y / CELL][x / CELL], 1, 100 + 273.15f))) 
 	{
 		sim->part_change_type(i, x, y, PT_ICEI);
 		parts[i].ctype = PT_BLOD;
-		parts[i].dcolour = sim->elements[PT_BLOD].Colour + 0x77000000;
+		parts[i].dcolour = sd.elements[PT_BLOD].Colour.Pack() + 0x77000000U;
 		return 0;
 	}
 
 	// Boiling
-	if (parts[i].temp - sim->pv[y / CELL][x / CELL] > 273.15f + 100.0f && RNG::Ref().chance(restrict_flt(parts[i].temp - sim->pv[y / CELL][x / CELL], 1, 200 + 273.15f), 200 + 273.15f)) {
-		if (RNG::Ref().chance(1, 500))
+	if (parts[i].temp - sim->pv[y / CELL][x / CELL] > 273.15f + 100.0f && sim->rng.chance(restrict_flt(parts[i].temp - sim->pv[y / CELL][x / CELL], 1, 200 + 273.15f), 200 + 273.15f)) {
+		if (sim->rng.chance(1, 500))
 			sim->part_change_type(i, x, y, PT_BRMT);
 		else {
 			sim->part_change_type(i, x, y, PT_WTRV);
-			parts[i].dcolour = sim->elements[PT_BLOD].Colour + 0x44000000;
+			parts[i].dcolour = elements[PT_BLOD].Colour.Pack() + 0x44000000U;
 			parts[i].ctype = PT_BLOD;
 		}
 		return 0;
@@ -144,20 +145,20 @@ if (parts[i].capacity == 0)
 	// Clotted blood is inert
 	if (parts[i].tmp2 >= 150 + parts[i].water) 
 	{
-		if (parts[i].pavg[0] != 2)
-			parts[i].pavg[0];
+		if (parts[i].tmp3 != 2)
+			parts[i].tmp3;
 		parts[i].vx = parts[i].vy = 0;
 	}
 
 
-	if (parts[i].tmp3 <= 0 && parts[i].pavg[0] != 2)
+	if (parts[i].tmp3 <= 0 && parts[i].tmp3 != 2)
 	{
-		parts[i].pavg[0] = 2;
+		parts[i].tmp3 = 2;
 		parts[i].tmp3 = 0;
 	}
 
 
-	if (parts[i].pavg[0] != 2 && sim->timer % parts[i].metabolism == 0)
+	if (parts[i].tmp3 != 2 && sim->currentTick % parts[i].metabolism == 0)
 	{
 
 		if (parts[i].oxygens > 0 && parts[i].carbons > 0 && parts[i].tmpcity[3] < 100 - 1)
@@ -170,14 +171,14 @@ if (parts[i].capacity == 0)
 			parts[i].co2++;
 			parts[i].tmpcity[3] += 2;
 
-			if (RNG::Ref().chance(1, 10))
+			if (sim->rng.chance(1, 10))
 
 				parts[i].temp++;
 
 
 
 			//temporary healing
-			if (RNG::Ref().chance(1, 1000) && parts[i].tmp3 < 100)
+			if (sim->rng.chance(1, 1000) && parts[i].tmp3 < 100)
 
 				parts[i].tmp3++;
 
@@ -187,9 +188,9 @@ if (parts[i].capacity == 0)
 		{
 			parts[i].tmpcity[3]--;
 
-			if (RNG::Ref().chance(1, 10))
+			if (sim->rng.chance(1, 10))
 				parts[i].temp++;
-			if (RNG::Ref().chance(1, 20))
+			if (sim->rng.chance(1, 20))
 			{
 
 				parts[i].water--;
@@ -204,13 +205,13 @@ if (parts[i].capacity == 0)
 
 	}
 	// Rot if dead and not frozem - gotta love the typo
-	if (parts[i].temp > 3.0f + 273.15f && parts[i].pavg[0] == 2
-		&& RNG::Ref().chance(1, 10000 / (surround_space + 1))) {
-		if (RNG::Ref().chance(1, 20))
+	if (parts[i].temp > 3.0f + 273.15f && parts[i].tmp3 == 2
+		&& sim->rng.chance(1, 10000 / (surround_space + 1))) {
+		if (sim->rng.chance(1, 20))
 		{
 			//parts[i].life = 110;
 			int bctr = sim->create_part(-3, x, y, PT_BCTR);
-			parts[bctr].ctype = RNG::Ref().chance(1, 8) ? (parts[i].ctype ^ (1 << RNG::Ref().between(0, 32))) : (512 ^ (1 << RNG::Ref().between(0, 32))); // 512 Meat eating gene
+			parts[bctr].ctype = sim->rng.chance(1, 8) ? (parts[i].ctype ^ (1 << sim->rng.between(0, 32))) : (512 ^ (1 << sim->rng.between(0, 32))); // 512 Meat eating gene
 			parts[bctr].tmp = 0;
 			parts[bctr].tmp2 = 0;
 			parts[bctr].tmp3 = 420;
@@ -230,7 +231,7 @@ if (parts[i].capacity == 0)
 	}
 
 
-	if (parts[i].pavg[0] != 2)
+	if (parts[i].tmp3 != 2)
 	{
 
 
@@ -254,7 +255,7 @@ if (parts[i].capacity == 0)
 
 		}
 		// Temperature
-		if ((parts[i].temp < 273.15f - 5.0f || parts[i].temp > 50.0f + 273.15f) && RNG::Ref().chance(1, 10))
+		if ((parts[i].temp < 273.15f - 5.0f || parts[i].temp > 50.0f + 273.15f) && sim->rng.chance(1, 10))
 			parts[i].tmp3--;
 	
 	}
@@ -264,11 +265,11 @@ if (parts[i].capacity == 0)
 	unsigned int newcolor;
 	for (rx = -1; rx <= 1; ++rx)
 		for (ry = -1; ry <= 1; ++ry)
-			if (BOUNDS_CHECK && (rx || ry)) {
+			if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) {
 				r = pmap[y + ry][x + rx];
 				rt = TYP(r);
 				int lcapacity , partnum = 0;
-			//	if (rt == PT_SOAP && RNG::Ref().chance(1, 100)) {
+			//	if (rt == PT_SOAP && sim->rng.chance(1, 100)) {
 					//sim->kill_part(i);
 				//	continue;
 				//}
@@ -281,7 +282,7 @@ if (parts[i].capacity == 0)
 					// Random visocity increase if not moving fast and minimal pressure
 					if (fabs(parts[i].vx) < 0.1f && fabs(parts[i].vy) < 0.1f &&
 							fabs(sim->pv[y / CELL][x / CELL]) < 1.0f)
-						parts[i].tmp2 += RNG::Ref().between(1, 7 *restrict_flt(parts[i].pavg[0], 1, MAX_TEMP));
+						parts[i].tmp2 += sim->rng.between(1, 7 *restrict_flt(parts[i].tmp3, 1, MAX_TEMP));
 					continue;
 				}
 				//else if(!r && )
@@ -289,22 +290,22 @@ if (parts[i].capacity == 0)
 					continue;
 					
 				
-				if (parts[i].pavg[0] != 2)
+				if (parts[i].tmp3 != 2)
 				{
 
 
 					//signals 
 				//signals
-				// if(parts[i].tmpville[14] > 0 && parts[ID(r)].tmpville[14] < 5 && RNG::Ref().chance(1, 8))
+				// if(parts[i].tmpville[14] > 0 && parts[ID(r)].tmpville[14] < 5 && sim->rng.chance(1, 8))
 				// {
 				// 	parts[i].tmpville[14]--;
 				// 	parts[ID(r)].tmpville[14]++;
 				// }
-				// if(parts[i].tmpville[15] > 0 && parts[ID(r)].tmpville[15] < 5  && RNG::Ref().chance(1, 8))
+				// if(parts[i].tmpville[15] > 0 && parts[ID(r)].tmpville[15] < 5  && sim->rng.chance(1, 8))
 				// {
 				// 	parts[i].tmpville[15]--;
 				// 	parts[ID(r)].tmpville[15]++;
-				// }if(parts[i].tmpville[16] > 0 && parts[ID(r)].tmpville[16] < 5  && RNG::Ref().chance(1, 8))
+				// }if(parts[i].tmpville[16] > 0 && parts[ID(r)].tmpville[16] < 5  && sim->rng.chance(1, 8))
 				// {
 				// 	parts[i].tmpville[16]--;
 				// 	parts[ID(r)].tmpville[16]++;
@@ -323,7 +324,7 @@ if (parts[i].capacity == 0)
 
 					}
 						// Distribute nutrients
-						if (sim->elements[rt].Properties & PROP_ANIMAL && parts[ID(r)].pavg[0] != 2 && RNG::Ref().chance(1, 8))
+						if (parts[ID(r)].tmp3 != 2 && sim->rng.chance(1, 8))
 						{
 							if (rt == PT_BVSL || rt == PT_BLOD)
 								partnum += 10;
@@ -332,7 +333,7 @@ if (parts[i].capacity == 0)
 							
 						// 	//take
 						// 	lcapacity = parts[i].oxygens + parts[i].carbons + parts[i].co2 + parts[i].water + parts[i].nitrogens;
-						// 	if (RNG::Ref().chance(1, 8) && lcapacity + 10 < parts[i].capacity)
+						// 	if (sim->rng.chance(1, 8) && lcapacity + 10 < parts[i].capacity)
 						// 	{
 									
 								if (parts[i].oxygens < parts[i].capacity / 3 && parts[ID(r)].oxygens >= 10 + 10 && parts[i].oxygens < parts[ID(r)].oxygens)
@@ -370,7 +371,7 @@ if (parts[i].capacity == 0)
 					
 						 	//give
 					//	 	lcapacity = parts[ID(r)].oxygens + parts[ID(r)].carbons + parts[ID(r)].co2 + parts[ID(r)].water + parts[ID(r)].nitrogens;
-						// 	if (RNG::Ref().chance(1, 8) && lcapacity + 10 < parts[ID(r)].capacity)
+						// 	if (sim->rng.chance(1, 8) && lcapacity + 10 < parts[ID(r)].capacity)
 						 //	{
 					 		if (parts[ID(r)].oxygens < parts[ID(r)].capacity / 3 && parts[i].oxygens >= 10 + 10 && parts[ID(r)].oxygens   < parts[i].oxygens)
 						 		{
@@ -403,7 +404,7 @@ if (parts[i].capacity == 0)
 								{
 
 									//take
-									if(RNG::Ref().chance(1, 2))
+									if(sim->rng.chance(1, 2))
 									{
 											
 								if (parts[i].carbons < parts[i].capacity / 3 && parts[ID(r)].carbons >= 10 + 10 && parts[i].carbons * 1.5f < parts[ID(r)].carbons)
@@ -520,7 +521,7 @@ if (parts[i].capacity == 0)
 				//	if (rt == PT_FLSH || rt == PT_STMH || rt == PT_UDDR || rt == PT_LUNG || rt == PT_POPS)
 				//	{
 				//		lcapacity = parts[ID(r)].oxygens + parts[ID(r)].carbons + parts[ID(r)].co2 + parts[ID(r)].water + parts[ID(r)].nitrogens;
-				//		if (RNG::Ref().chance(1, 8) && lcapacity + partnum < parts[ID(r)].capacity)
+				//		if (sim->rng.chance(1, 8) && lcapacity + partnum < parts[ID(r)].capacity)
 				//		{
 
 				//			//give stuff
@@ -562,7 +563,7 @@ if (parts[i].capacity == 0)
 
 
 				//		lcapacity = parts[i].oxygens + parts[i].carbons + parts[i].co2 + parts[i].water + parts[i].nitrogens;
-				//		if (RNG::Ref().chance(1, 8) && lcapacity + partnum < parts[i].capacity)
+				//		if (sim->rng.chance(1, 8) && lcapacity + partnum < parts[i].capacity)
 				//		{
 
 				//			//take stuff
@@ -600,7 +601,7 @@ if (parts[i].capacity == 0)
 
 				//		partnum += 10;
 				//		lcapacity = parts[ID(r)].oxygens + parts[ID(r)].carbons + parts[ID(r)].co2 + parts[ID(r)].water + parts[ID(r)].nitrogens;
-				//		if (RNG::Ref().chance(1, 8) && lcapacity + partnum < parts[i].capacity)
+				//		if (sim->rng.chance(1, 8) && lcapacity + partnum < parts[i].capacity)
 				//		{
 
 
@@ -632,7 +633,7 @@ if (parts[i].capacity == 0)
 				//			}
 				//		}
 				//		lcapacity = parts[i].oxygens + parts[i].carbons + parts[i].co2 + parts[i].water + parts[i].nitrogens;
-				//		if (RNG::Ref().chance(1, 8) && lcapacity + partnum < parts[i].capacity)
+				//		if (sim->rng.chance(1, 8) && lcapacity + partnum < parts[i].capacity)
 				//		{
 
 
@@ -683,9 +684,9 @@ if (parts[i].capacity == 0)
 					//parts[ID(r)].oxygens = parts[i].oxygens;
 				
 				// Stain powders and solids
-				 if (rt != PT_ICEI && rt != PT_SNOW && rt != PT_BIZRS && RNG::Ref().chance(1, 8) &&
-						(sim->elements[rt].Properties & TYPE_PART || sim->elements[rt].Properties & TYPE_SOLID)) {
-					newcolor = 0xFF000000 + sim->elements[PT_BLOD].Colour;
+				 if (rt != PT_ICEI && rt != PT_SNOW && rt != PT_BIZRS && sim->rng.chance(1, 8) &&
+						(elements[rt].Properties & TYPE_PART || elements[rt].Properties & TYPE_SOLID)) {
+					newcolor = 0xFF000000U + elements[PT_BLOD].Colour.Pack();
 					if (parts[ID(r)].dcolour != newcolor && parts[i].tmp > 0) {
 						--parts[i].tmp;
 						parts[ID(r)].dcolour = newcolor;
@@ -693,34 +694,34 @@ if (parts[i].capacity == 0)
 				}
 				// Stain liquids
 				// Liquids get stained more, but in a diluted color
-				 if (rt != PT_BLOD && rt != PT_SOAP && rt != PT_MILK && rt != PT_BIZR && !(sim->elements[rt].Properties & PROP_WATER) && sim->elements[rt].Properties & TYPE_LIQUID && RNG::Ref().chance(1, 8)) {
+				 if (rt != PT_BLOD && rt != PT_SOAP && rt != PT_MILK && rt != PT_BIZR && elements[rt].Properties & TYPE_LIQUID && sim->rng.chance(1, 8)) {
 					if (parts[i].tmp > 0) {
-						newcolor = 0xAA000000 + sim->elements[PT_BLOD].Colour;
-						if (parts[ID(r)].dcolour != newcolor && RNG::Ref().chance(1, 8)) {
+						newcolor = 0xAA000000U + elements[PT_BLOD].Colour.Pack();
+						if (parts[ID(r)].dcolour != newcolor && sim->rng.chance(1, 8)) {
 							--parts[i].tmp;
 							parts[ID(r)].dcolour = newcolor;
 						}
 					}
 				}
-				 if ((sim->elements[rt].Properties & PROP_WATER || rt == PT_MILK) && RNG::Ref().chance(1, 40))
+				 if (rt == PT_MILK && sim->rng.chance(1, 40))
 				 {
-					 if (parts[ID(r)].tmpville[5] < 60 && RNG::Ref().chance(1, 8))
+					 if (parts[ID(r)].tmpville[5] < 60 && sim->rng.chance(1, 8))
 						 //&& parts[ID(r)].tmpville[5] < 60
-						 parts[ID(r)].tmpville[5] += RNG::Ref().between(10, 40);
+						 parts[ID(r)].tmpville[5] += sim->rng.between(10, 40);
 
-					 if(parts[ID(r)].tmpville[7] > -60 && RNG::Ref().chance(1, 8))
-						 parts[ID(r)].tmpville[7] -= RNG::Ref().between(10, 40);
+					 if(parts[ID(r)].tmpville[7] > -60 && sim->rng.chance(1, 8))
+						 parts[ID(r)].tmpville[7] -= sim->rng.between(10, 40);
 
 				 }
 
 				 if ((rt == PT_H2O2 || rt == PT_ACID || rt == PT_CAUS || rt == PT_PLUT || rt == PT_URAN ||
-					 rt == PT_ISOZ || rt == PT_ISZS || rt == PT_POLO || rt == PT_MERC  || sim->elements[rt].Properties & PROP_DEADLY  ||  (rt == PT_HCL && parts[i].type != PT_STMH)) && parts[i].pavg[0] != 2 && RNG::Ref().chance(1, 20)) 
+					 rt == PT_ISOZ || rt == PT_ISZS || rt == PT_POLO || rt == PT_MERC  || elements[rt].Properties & PROP_DEADLY  ||  (rt == PT_HCL && parts[i].type != PT_STMH)) && parts[i].tmp3 != 2 && sim->rng.chance(1, 20)) 
 					 parts[i].tmp3--;
 				// Chance to kill VIRS
-			//	else if (RNG::Ref().chance(1, 10) && (rt == PT_VIRS || rt == PT_VRSG || rt == PT_VRSS))
+			//	else if (sim->rng.chance(1, 10) && (rt == PT_VIRS || rt == PT_VRSG || rt == PT_VRSS))
 				//	sim->kill_part(ID(r));
 				// Chance to kill BCTR
-			//	else if (RNG::Ref().chance(1, 10) && rt == PT_BCTR)
+			//	else if (sim->rng.chance(1, 10) && rt == PT_BCTR)
 			//		sim->kill_part(ID(r));
 			
 
@@ -729,16 +730,16 @@ if (parts[i].capacity == 0)
 					// if((rt == PT_FLSH || rt == PT_UDDR || rt == PT_LUNG || rt == PT_POPS || rt == PT_STMH) && parts[i].tmpville[3] == 0 )
 					// 	parts[i].tmpville[3] = 1;
 					
-					// if (rt == PT_BLOD && parts[i].tmpville[3] == 0 && parts[ID(r)].tmpville[3] > 0 && RNG::Ref().chance(1, 8))
+					// if (rt == PT_BLOD && parts[i].tmpville[3] == 0 && parts[ID(r)].tmpville[3] > 0 && sim->rng.chance(1, 8))
 					// 	parts[i].tmpville[3] = parts[ID(r)].tmpville[3] + 1;
 				
 					// if(parts[i].tmpville[3] > parts[ID(r)].tmpville[3])
 					// {
-					// 	if (sim->NoWeightSwitching && sim->pmap_count[y][x]<2 && TYP(r) == parts[i].type && RNG::Ref().chance(1, 80))
+					// 	if (sim->NoWeightSwitching && sim->pmap_count[y][x]<2 && TYP(r) == parts[i].type && sim->rng.chance(1, 80))
 					//  	sim->better_do_swap(i, x, y, ID(r), parts[ID(r)].x, parts[ID(r)].y);
 					// }
 
-					// if (turntoblod > 6 && parts[i].tmpville[3] > 2 && RNG::Ref().chance(1, 8))
+					// if (turntoblod > 6 && parts[i].tmpville[3] > 2 && sim->rng.chance(1, 8))
 					// {S
 					// 	sim->part_change_type(i, x, y, PT_BLOD);
 					// 	parts[i].tmp2 = restrict_flt(parts[i].water / 10, 0, 100);
@@ -752,17 +753,23 @@ if (parts[i].capacity == 0)
 
 
 
-				//  if ((sim->elements[TYP(r)].Properties & TYPE_PART ||
-				// 	 sim->elements[TYP(r)].Properties & TYPE_SOLID) && RNG::Ref().chance(parts[i].tmp2, 5 + parts[i].water / 10))
+				//  if ((elements[TYP(r)].Properties & TYPE_PART ||
+				// 	 elements[TYP(r)].Properties & TYPE_SOLID) && sim->rng.chance(parts[i].tmp2, 5 + parts[i].water / 10))
 				// 	 parts[i].vx = parts[i].vy = 0;
-			 		 if (sim->NoWeightSwitching && sim->pmap_count[y][x]<2 && TYP(r) != parts[i].type && RNG::Ref().chance(1, 8) && (y > parts[ID(r)].y && RNG::Ref().chance(1, restrict_flt(sim->elements[i].Weight - pow(sim->elements[TYP(r)].Weight, 2) / 10.0f, 1, MAX_TEMP)) || y < parts[ID(r)].y && RNG::Ref().chance(1, 100)) && (sim->elements[TYP(r)].Properties & TYPE_PART || sim->elements[TYP(r)].Properties & TYPE_LIQUID) && !(sim->elements[TYP(r)].Properties & PROP_WATER|| TYP(r) == PT_HCL))
-				 	 	sim->better_do_swap(i, x, y, ID(r), parts[ID(r)].x, parts[ID(r)].y);
+			 		 if (sim->NoWeightSwitching && sim->pmap_count[y][x]<2 && TYP(r) != parts[i].type && sim->rng.chance(1, 8) && (y > parts[ID(r)].y && sim->rng.chance(1, restrict_flt(elements[parts[i].type].Weight - pow(elements[TYP(r)].Weight, 2) / 10.0f, 1, MAX_TEMP)) || y < parts[ID(r)].y && sim->rng.chance(1, 100)) && (elements[TYP(r)].Properties & TYPE_PART || elements[TYP(r)].Properties & TYPE_LIQUID) && TYP(r) != PT_HCL) {
+				 	 	float temp = parts[i].x;
+				 	 	parts[i].x = parts[ID(r)].x;
+				 	 	parts[ID(r)].x = temp;
+				 	 	temp = parts[i].y;
+				 	 	parts[i].y = parts[ID(r)].y;
+				 	 	parts[ID(r)].y = temp;
+				 	}
 		
 		
 		
 		
 		
-			//if (rt == PT_BLOD && parts[i].tmpville[3] > 2 && parts[ID(r)].tmpville[3] > 2 && parts[i].tmpville[3] > parts[ID(r)].tmpville[3] && RNG::Ref().chance(1, 80))
+			//if (rt == PT_BLOD && parts[i].tmpville[3] > 2 && parts[ID(r)].tmpville[3] > 2 && parts[i].tmpville[3] > parts[ID(r)].tmpville[3] && sim->rng.chance(1, 80))
 			//{
 			//	sim->better_do_swap(i, x, y, ID(r), parts[ID(r)].x, parts[ID(r)].y);
 			//	return 1;

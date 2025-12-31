@@ -9,7 +9,7 @@ void Element::Element_SPNG()
 	Name = "SPNG";
 	Colour = 0xFFBE30_rgb;
 	MenuVisible = 1;
-	MenuSection = SC_SOLIDS;
+	MenuSection = SC_ORGANIC;
 	Enabled = 1;
 
 	Advection = 0.00f;

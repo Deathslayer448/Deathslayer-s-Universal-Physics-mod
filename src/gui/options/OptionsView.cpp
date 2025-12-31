@@ -111,6 +111,14 @@ OptionsView::OptionsView() : ui::Window(ui::Point(-1, -1), ui::Point(320, 340))
 	waterEqualisation = addCheckbox(0, "Water equalisation \bgIntroduced in version 61", "May cause poor performance with a lot of water", [this] {
 		c->SetWaterEqualisation(waterEqualisation->GetChecked());
 	});
+	NoWeightSwitch = addCheckbox(0, "Disable weight-based particle switching", "Prevents particles from automatically swapping positions based on weight. More realistic physics but may cause stacking issues.", [this] {
+		if (c)
+			c->SetNoWeightSwitch(NoWeightSwitch->GetChecked());
+	});
+	BetterBurning = addCheckbox(0, "Better burning", "Improved burning mechanics with temperature-based ignition", [this] {
+		if (c)
+			c->SetBetterBurningEnable(BetterBurning->GetChecked());
+	});
 	airMode = addDropDown("Air simulation mode", {
 		{ "On", AIR_ON },
 		{ "Pressure off", AIR_PRESSUREOFF },
@@ -573,6 +581,10 @@ void OptionsView::NotifySettingsChanged(OptionsModel * sender)
 	ambientHeatSimulation->SetChecked(sender->GetAmbientHeatSimulation());
 	newtonianGravity->SetChecked(sender->GetNewtonianGravity());
 	waterEqualisation->SetChecked(sender->GetWaterEqualisation());
+	if (NoWeightSwitch)
+		NoWeightSwitch->SetChecked(sender->GetNoWeightSwitching());
+	if (BetterBurning)
+		BetterBurning->SetChecked(sender->GetBetterBurningEnable());
 	airMode->SetOption(sender->GetAirMode());
 	// Initialize air temp and preview only when the options menu is opened, and not when user is actively editing the textbox
 	if (!ambientAirTemp->IsFocused())

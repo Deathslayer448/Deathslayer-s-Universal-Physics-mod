@@ -50,6 +50,7 @@ void Element::Element_NBLE()
 static int update(UPDATE_FUNC_ARGS)
 {
 	auto &sd = SimulationData::CRef();
+	auto &elements = sd.elements;
 	auto &can_move = sd.can_move;
 	if (parts[i].temp > 5273.15 && sim->pv[y/CELL][x/CELL] > 100.0f)
 	{

@@ -74,10 +74,8 @@ static bool phot_data_type(int rt)
  */
 static bool accepted_conductor(Simulation* sim, int r)
 {
-	auto &sd = SimulationData::CRef();
-	auto &elements = sd.elements;
 	int rt = TYP(r);
-	return (elements[rt].Properties & PROP_CONDUCTS) &&
+	return (sim->elements()[rt].Properties & PROP_CONDUCTS) &&
 		!(rt == PT_WATR || rt == PT_SLTW || rt == PT_NTCT ||
 		rt == PT_PTCT || rt == PT_INWR) &&
 		sim->parts[ID(r)].life == 0;

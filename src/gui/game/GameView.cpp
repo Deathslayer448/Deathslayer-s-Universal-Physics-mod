@@ -394,7 +394,13 @@ void GameView::NotifyQuickOptionsChanged(GameModel * sender)
 
 void GameView::NotifyMenuListChanged(GameModel * sender)
 {
-	int currentY = WINDOWH-48;//-(sender->GetMenuList().size()*16);
+	// Calculate space needed for quick options to avoid overlap
+	int quickOptionsHeight = (int)(quickOptionButtons.size() * 16);
+	int menuStartY = WINDOWH - 48 - quickOptionsHeight - 8; // Leave 8px gap
+	// Ensure menu doesn't start too high (minimum 100px from top)
+	if (menuStartY < 100)
+		menuStartY = 100;
+	int currentY = menuStartY;
 	for (size_t i = 0; i < menuButtons.size(); i++)
 	{
 		RemoveComponent(menuButtons[i]);

@@ -8,7 +8,7 @@ void Element::Element_ANAR()
 	Name = "ANAR";
 	Colour = 0xFFFFEE_rgb;
 	MenuVisible = 1;
-	MenuSection = SC_POWDERS;
+	MenuSection = SC_SPECIAL;
 	Enabled = 1;
 
 	Advection = -0.7f;

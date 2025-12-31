@@ -50,8 +50,6 @@ void Element::Element_VSNS()
 
 static int update(UPDATE_FUNC_ARGS)
 {
-	auto &sd = SimulationData::CRef();
-	auto &elements = sd.elements;
 	int rd = parts[i].tmp2;
 	if (rd > 25) parts[i].tmp2 = rd = 25;
 	if (parts[i].life)
@@ -70,7 +68,7 @@ static int update(UPDATE_FUNC_ARGS)
 					auto pavg = sim->parts_avg(i, ID(r), PT_INSL);
 					if (pavg != PT_INSL && pavg != PT_RSSS)
 					{
-						if ((elements[rt].Properties &PROP_CONDUCTS) && !(rt == PT_WATR || rt == PT_SLTW || rt == PT_NTCT || rt == PT_PTCT || rt == PT_INWR) && parts[ID(r)].life == 0)
+						if ((sim->elements()[rt].Properties &PROP_CONDUCTS) && !(rt == PT_WATR || rt == PT_SLTW || rt == PT_NTCT || rt == PT_PTCT || rt == PT_INWR) && parts[ID(r)].life == 0)
 						{
 							parts[ID(r)].life = 4;
 							parts[ID(r)].ctype = rt;
@@ -101,7 +99,7 @@ static int update(UPDATE_FUNC_ARGS)
 				{
 				case 1:
 					// serialization
-					if (TYP(r) != PT_VSNS && TYP(r) != PT_FILT && !(elements[TYP(r)].Properties & TYPE_SOLID))
+					if (TYP(r) != PT_VSNS && TYP(r) != PT_FILT && !(sim->elements()[TYP(r)].Properties & TYPE_SOLID))
 					{
 						doSerialization = true;
 						Vs = Vm;
@@ -121,12 +119,12 @@ static int update(UPDATE_FUNC_ARGS)
 					break;
 				case 2:
 					// Invert mode
-					if (!(elements[TYP(r)].Properties & TYPE_SOLID) && Vm <= parts[i].temp - 273.15)
+					if (!(sim->elements()[TYP(r)].Properties & TYPE_SOLID) && Vm <= parts[i].temp - 273.15)
 						parts[i].life = 1;
 					break;
 				default:
 					// Normal mode
-					if (!(elements[TYP(r)].Properties & TYPE_SOLID) && Vm > parts[i].temp - 273.15)
+					if (!(sim->elements()[TYP(r)].Properties & TYPE_SOLID) && Vm > parts[i].temp - 273.15)
 						parts[i].life = 1;
 					break;
 				}
@@ -161,7 +159,7 @@ static int update(UPDATE_FUNC_ARGS)
 				//Deserialization.
 				if (doDeserialization)
 				{
-					if (TYP(r) != PT_FILT && !(elements[TYP(r)].Properties & TYPE_SOLID))
+					if (TYP(r) != PT_FILT && !(sim->elements()[TYP(r)].Properties & TYPE_SOLID))
 					{
 						float Vx = parts[ID(r)].vx;
 						float Vy = parts[ID(r)].vy;

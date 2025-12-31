@@ -6,7 +6,7 @@ static int update(UPDATE_FUNC_ARGS);
 void Element::Element_ALMN() {
 	Identifier = "DEFAULT_PT_ALMN";
 	Name = "ALMN";
-	Colour = PIXPACK(0xC0C0C0);
+	Colour = 0xC0C0C0_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_SOLIDS;
 	Enabled = 1;
@@ -51,7 +51,7 @@ static int update(UPDATE_FUNC_ARGS) {
 		sim->air->bmap_blockairh[y/CELL][x/CELL] = 0x8;
 	}
 
-	if (parts[i].tmp2 == 1 && RNG::Ref().chance(1, 100)) {
+	if (parts[i].tmp2 == 1 && sim->rng.chance(1, 100)) {
 		sim->kill_part(i);
 		return 1;
 	}
@@ -61,14 +61,14 @@ static int update(UPDATE_FUNC_ARGS) {
 	int rx, ry, r;
 	for (rx = -1; rx <= 1; ++rx)
 	for (ry = -1; ry <= 1; ++ry)
-		if (BOUNDS_CHECK && (rx || ry)) {
+		if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) {
 			r = pmap[y + ry][x + rx];
 			if (!r) {
 				if (parts[i].tmp2) {
 					int ni = sim->create_part(-1, x + rx, y + ry, PT_FIRE);
 					if (ni > -1) {
 						parts[ni].dcolour = 0xFFFFFFFF;
-						parts[ni].life = RNG::Ref().between(5, 20);
+						parts[ni].life = sim->rng.between(5, 20);
 						parts[ni].temp = parts[i].temp + 200.0f;
 					}
 				}
@@ -82,9 +82,9 @@ static int update(UPDATE_FUNC_ARGS) {
 				parts[i].ctype = PT_ALMN;
 				return 1;
 			}
-			else if ((TYP(r) == PT_FIRE || TYP(r) == PT_PLSM) && parts[i].tmp2 == 0 && RNG::Ref().chance(1, 2500)
+			else if ((TYP(r) == PT_FIRE || TYP(r) == PT_PLSM) && parts[i].tmp2 == 0 && sim->rng.chance(1, 2500)
 					&& parts[i].temp > 550.0f + 273.15f) {
-				parts[i].tmp2 = RNG::Ref().between(10, 2000);
+				parts[i].tmp2 = sim->rng.between(10, 2000);
 			}
 		}
 	return 0;

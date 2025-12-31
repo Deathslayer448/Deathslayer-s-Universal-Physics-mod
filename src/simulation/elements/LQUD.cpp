@@ -7,7 +7,7 @@ static void change_type(ELEMENT_CHANGETYPE_FUNC_ARGS);
 void Element::Element_LQUD() {
 	Identifier = "DEFAULT_PT_LQUD";
 	Name = "LQUD";
-	Colour = PIXPACK(0xFFFFFF);
+	Colour = 0xFFFFFF_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_SPECIAL;
 	Enabled = 1;
@@ -47,6 +47,7 @@ void Element::Element_LQUD() {
 }
 
 static int update(UPDATE_FUNC_ARGS) {
+	auto &elements = sim->elements();
 	if(parts[i].tmpcity[8] == 0 && parts[i].ctype > 0 && parts[i].ctype < PT_NUM)
 	{
 		sim->part_change_type(i, x, y, parts[i].ctype);
@@ -68,26 +69,26 @@ static int update(UPDATE_FUNC_ARGS) {
 
 	if (parts[i].ctype) {
 		// Pressure transitions override temperature
-		if (sim->elements[parts[i].ctype].HighPressureTransition == PT_LQUD &&
-			sim->pv[y / CELL][x / CELL] > sim->elements[parts[i].ctype].HighPressure &&
-			sim->elements[parts[i].ctype].HighPressure != IPH) {}
-		else if (sim->elements[parts[i].ctype].LowPressureTransition == PT_LQUD &&
-			sim->pv[y / CELL][x / CELL] > sim->elements[parts[i].ctype].LowPressure &&
-			sim->elements[parts[i].ctype].LowPressure != IPL) {}
+		if (elements[parts[i].ctype].HighPressureTransition == PT_LQUD &&
+			sim->pv[y / CELL][x / CELL] > elements[parts[i].ctype].HighPressure &&
+			elements[parts[i].ctype].HighPressure != IPH) {}
+		else if (elements[parts[i].ctype].LowPressureTransition == PT_LQUD &&
+			sim->pv[y / CELL][x / CELL] > elements[parts[i].ctype].LowPressure &&
+			elements[parts[i].ctype].LowPressure != IPL) {}
 
-		else if (parts[i].temp > sim->elements[parts[i].ctype].BoilingPoint &&
-				sim->elements[parts[i].ctype].BoilingPoint > 0) {
+		else if (parts[i].temp > elements[parts[i].ctype].BoilingPoint &&
+				elements[parts[i].ctype].BoilingPoint > 0) {
 			sim->part_change_type(i, x, y, parts[i].ctype);
 			parts[i].ctype = 0;
 			return 1;
 		}
-		else if (parts[i].temp < sim->elements[parts[i].ctype].MeltingPoint) {
+		else if (parts[i].temp < elements[parts[i].ctype].MeltingPoint) {
 			sim->part_change_type(i, x, y, PT_ICEI);
 			return 1;
 		}
 
-		if (sim->elements[parts[i].ctype].Update)
-			sim->elements[parts[i].ctype].Update(sim, i, x, y, surround_space, nt, parts, pmap);
+		if (elements[parts[i].ctype].Update)
+			elements[parts[i].ctype].Update(sim, i, x, y, surround_space, nt, parts, pmap);
 	}
 	return 0;
 }
@@ -96,12 +97,14 @@ static int graphics(GRAPHICS_FUNC_ARGS) {
 	*pixel_mode |= PMODE_BLUR;
 	
 	if (cpart->ctype > 0 && cpart->ctype < PT_NUM) {
-		*colr = PIXR(ren->sim->elements[cpart->ctype].Colour);
-		*colg = PIXG(ren->sim->elements[cpart->ctype].Colour);
-		*colb = PIXB(ren->sim->elements[cpart->ctype].Colour);
+		auto &elements = SimulationData::CRef().elements;
+		auto col = elements[cpart->ctype].Colour;
+		*colr = col.Red;
+		*colg = col.Green;
+		*colb = col.Blue;
 
-		if (ren->sim->elements[cpart->ctype].Graphics)
-			 ren->sim->elements[cpart->ctype].Graphics(ren, cpart, nx, ny, pixel_mode,
+		if (elements[cpart->ctype].Graphics)
+			 elements[cpart->ctype].Graphics(gfctx, cpart, nx, ny, pixel_mode,
 				cola, colr, colg, colb, firea, firer, fireg, fireb);
 	}
 	return 0;

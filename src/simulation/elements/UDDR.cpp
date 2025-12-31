@@ -6,7 +6,7 @@ int Element_FLSH_update(UPDATE_FUNC_ARGS);
 void Element::Element_UDDR() {
 	Identifier = "DEFAULT_PT_UDDR";
 	Name = "UDDR";
-	Colour = PIXPACK(0xFFADAD);
+	Colour = 0xFFADAD_rgb;
 	MenuVisible = 1;
 	MenuSection = SC_ORGANIC;
 	Enabled = 1;
@@ -31,7 +31,7 @@ void Element::Element_UDDR() {
 	HeatConduct = 104;
 	Description = "Udder. Makes milk when squeezed (pressure). Requires nutrients to make more milk.";
 
-	Properties = TYPE_SOLID | PROP_NEUTPENETRATE | PROP_EDIBLE | PROP_ORGANISM | PROP_ANIMAL;
+	Properties = TYPE_SOLID | PROP_NEUTPENETRATE;
 
 	DefaultProperties.oxygens = 100;
 	DefaultProperties.carbons = 100;
@@ -66,18 +66,18 @@ static int update(UPDATE_FUNC_ARGS) {
 	 * tmp3: Type 0 = inside, 1 = skin, 2 = dead
 	 */
 	Element_FLSH_update(sim, i, x, y, surround_space, nt, parts, pmap);
-	//if (parts[i].pavg[0] == 1) // Override skin formation
-		//parts[i].pavg[0] = 0;
+	//if (parts[i].tmp3 == 1) // Override skin formation
+		//parts[i].tmp3 = 0;
 
-	if (parts[i].pavg[0] != 2) {
+	if (parts[i].tmp3 != 2) {
 		int rx, ry, r;
 		for (rx = -1; rx < 2; ++rx)
 		for (ry = -1; ry < 2; ++ry)
-			if (BOUNDS_CHECK && (rx || ry)) {
+			if ((rx || ry) && x+rx>=0 && y+ry>=0 && x+rx<XRES && y+ry<YRES) {
 				r = pmap[y + ry][x + rx];
 				if (!r)
 				{
-					if (parts[i].carbons > 10 + 50 && parts[i].water > 10 + 50 && RNG::Ref().chance(1, 500)) {
+					if (parts[i].carbons > 10 + 50 && parts[i].water > 10 + 50 && sim->rng.chance(1, 500)) {
 						int melk = sim->create_part(-1, x + rx, y + ry, PT_MILK);
 							parts[melk].carbons += 50;
 							parts[melk].water += 50;
