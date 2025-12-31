@@ -88,9 +88,24 @@ static int update(UPDATE_FUNC_ARGS)
 	
 	if (ignited && parts[i].quantity > 0)
 	{
-		// Thermite is burning - consume quantity and produce heat/sparks
+		// Thermite is burning - consume quantity and continuously generate heat
 		parts[i].quantity--;
-		parts[i].temp = restrict_flt(parts[i].temp + 50.0f, MIN_TEMP, MAX_TEMP);
+		// Real thermite burns at 2000-2500°C (2273-2773K)
+		// Generate heat at realistic rate: ~15°C per frame = ~900°C per second at 60fps
+		// This allows it to reach and maintain burning temperature while heat conducts away
+		const float heatGeneration = 15.0f; // Heat generated per frame while burning
+		const float targetBurningTemp = 2473.15f; // ~2200°C - typical thermite burning temperature
+		
+		// Generate heat, but don't exceed realistic maximum
+		if (parts[i].temp < targetBurningTemp)
+		{
+			parts[i].temp = restrict_flt(parts[i].temp + heatGeneration, MIN_TEMP, targetBurningTemp);
+		}
+		else
+		{
+			// At or above burning temp, generate just enough to maintain it (accounting for heat loss)
+			parts[i].temp = restrict_flt(parts[i].temp + heatGeneration * 0.5f, MIN_TEMP, MAX_TEMP);
+		}
 		
 		// Spawn sparks periodically while burning (like C4 does)
 		if (sim->rng.chance(2, 3))

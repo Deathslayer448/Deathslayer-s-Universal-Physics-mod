@@ -2,7 +2,7 @@
 #include "SimulationConfig.h"
 #include <cstdint>
 
-constexpr float MAX_TEMP = 9999;
+constexpr float MAX_TEMP = 99990;
 constexpr float MIN_TEMP = 0;
 constexpr float O_MAX_TEMP = 3500;
 constexpr float O_MIN_TEMP = -273;
