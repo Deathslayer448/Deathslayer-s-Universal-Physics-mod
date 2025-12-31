@@ -119,6 +119,10 @@ OptionsView::OptionsView() : ui::Window(ui::Point(-1, -1), ui::Point(320, 340))
 		if (c)
 			c->SetBetterBurningEnable(BetterBurning->GetChecked());
 	});
+	atmosphericPressure = addCheckbox(0, "Atmospheric pressure", "Enables atmospheric pressure baseline. When enabled, pressure is relative to standard atmospheric pressure (101325 Pa). When disabled, pressure is absolute.", [this] {
+		if (c)
+			c->SetAtmosphericPressure(atmosphericPressure->GetChecked());
+	});
 	airMode = addDropDown("Air simulation mode", {
 		{ "On", AIR_ON },
 		{ "Pressure off", AIR_PRESSUREOFF },
@@ -585,6 +589,8 @@ void OptionsView::NotifySettingsChanged(OptionsModel * sender)
 		NoWeightSwitch->SetChecked(sender->GetNoWeightSwitching());
 	if (BetterBurning)
 		BetterBurning->SetChecked(sender->GetBetterBurningEnable());
+	if (atmosphericPressure)
+		atmosphericPressure->SetChecked(sender->GetAtmosphericPressure());
 	airMode->SetOption(sender->GetAirMode());
 	// Initialize air temp and preview only when the options menu is opened, and not when user is actively editing the textbox
 	if (!ambientAirTemp->IsFocused())

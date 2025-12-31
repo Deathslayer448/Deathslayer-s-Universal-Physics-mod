@@ -45,6 +45,7 @@ struct SnapshotDelta
 	HunkVector<float> AirVelocityX;
 	HunkVector<float> AirVelocityY;
 	HunkVector<float> AmbientHeat;
+	HunkVector<float> AirDensity;
 
 	HunkVector<uint32_t> commonParticles;
 	std::vector<Particle> extraPartsOld, extraPartsNew;

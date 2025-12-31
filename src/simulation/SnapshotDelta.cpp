@@ -204,6 +204,7 @@ std::unique_ptr<SnapshotDelta> SnapshotDelta::FromSnapshots(const Snapshot &oldS
 	auto ptr = std::make_unique<SnapshotDelta>();
 	auto &delta = *ptr;
 	FillHunkVector(oldSnap.AirPressure    , newSnap.AirPressure    , delta.AirPressure    );
+	FillHunkVector(oldSnap.AirDensity     , newSnap.AirDensity     , delta.AirDensity     );
 	FillHunkVector(oldSnap.AirVelocityX   , newSnap.AirVelocityX   , delta.AirVelocityX   );
 	FillHunkVector(oldSnap.AirVelocityY   , newSnap.AirVelocityY   , delta.AirVelocityY   );
 	FillHunkVector(oldSnap.AmbientHeat    , newSnap.AmbientHeat    , delta.AmbientHeat    );
@@ -241,6 +242,7 @@ std::unique_ptr<Snapshot> SnapshotDelta::Forward(const Snapshot &oldSnap)
 	auto ptr = std::make_unique<Snapshot>(oldSnap);
 	auto &newSnap = *ptr;
 	ApplyHunkVector<false>(AirPressure    , newSnap.AirPressure    );
+	ApplyHunkVector<false>(AirDensity     , newSnap.AirDensity     );
 	ApplyHunkVector<false>(AirVelocityX   , newSnap.AirVelocityX   );
 	ApplyHunkVector<false>(AirVelocityY   , newSnap.AirVelocityY   );
 	ApplyHunkVector<false>(AmbientHeat    , newSnap.AmbientHeat    );
@@ -276,6 +278,7 @@ std::unique_ptr<Snapshot> SnapshotDelta::Restore(const Snapshot &newSnap)
 	auto ptr = std::make_unique<Snapshot>(newSnap);
 	auto &oldSnap = *ptr;
 	ApplyHunkVector<true>(AirPressure    , oldSnap.AirPressure    );
+	ApplyHunkVector<true>(AirDensity     , oldSnap.AirDensity     );
 	ApplyHunkVector<true>(AirVelocityX   , oldSnap.AirVelocityX   );
 	ApplyHunkVector<true>(AirVelocityY   , oldSnap.AirVelocityY   );
 	ApplyHunkVector<true>(AmbientHeat    , oldSnap.AmbientHeat    );

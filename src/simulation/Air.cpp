@@ -43,9 +43,28 @@ float Air::vorticity(const RenderableSimulation & sm, int y, int x)
 
 void Air::Clear()
 {
-	std::fill(&sim.pv[0][0], &sim.pv[0][0]+NCELL, 0.0f);
 	std::fill(&sim.vy[0][0], &sim.vy[0][0]+NCELL, 0.0f);
 	std::fill(&sim.vx[0][0], &sim.vx[0][0]+NCELL, 0.0f);
+	// Initialize density to standard atmospheric density at ambient temperature
+	// Using ideal gas law: ρ = P/(RT), with P = 101325 Pa (1 atm), R = 287 J/(kg·K), T = ambientAirTemp
+	// Default density ≈ 1.225 kg/m³ at 15°C (288.15 K)
+	const float R_gas = 287.0f; // Specific gas constant for air (J/(kg·K))
+	const float P_atm = 101325.0f; // Standard atmospheric pressure (Pa)
+	const float P_scale = MAX_PRESSURE / P_atm;
+	float defaultDensity = P_atm / (R_gas * ambientAirTemp);
+	std::fill(&rho[0][0], &rho[0][0]+NCELL, defaultDensity);
+	// Initialize pressure to match initial density state (atmospheric pressure)
+	// This ensures consistency: P = ρRT at initialization
+	if (useAtmosphericPressure)
+	{
+		// Pressure difference is 0 at atmospheric conditions
+		std::fill(&sim.pv[0][0], &sim.pv[0][0]+NCELL, 0.0f);
+	}
+	else
+	{
+		// Absolute pressure = atmospheric pressure
+		std::fill(&sim.pv[0][0], &sim.pv[0][0]+NCELL, P_atm * P_scale);
+	}
 }
 
 void Air::ClearAirH()
@@ -216,6 +235,7 @@ void Air::update_air(void)
 	auto &vx = sim.vx;
 	auto &vy = sim.vy;
 	auto &pv = sim.pv;
+	auto &hv = sim.hv;
 	auto &fvx = sim.fvx;
 	auto &fvy = sim.fvy;
 	auto &bmap = sim.bmap;
@@ -268,15 +288,104 @@ void Air::update_air(void)
 			}
 		}
 
-		for (auto y=1; y<YCELLS-1; y++) //pressure adjustments from velocity
+		// Update density using continuity equation: ∂ρ/∂t + ∇·(ρv) = 0
+		// For compressible flow: ∂ρ/∂t = -∇·(ρv) ≈ -ρ∇·v (advection handled by existing code)
+		const float R_gas = 287.0f; // Specific gas constant for air (J/(kg·K))
+		const float gamma = 1.4f; // Adiabatic index for air (cp/cv)
+		const float dt = AIR_TSTEPP;
+		
+		for (auto y=1; y<YCELLS-1; y++)
 		{
 			for (auto x=1; x<XCELLS-1; x++)
 			{
-				auto dp = 0.0f;
-				dp += vx[y][x-1] - vx[y][x+1];
-				dp += vy[y-1][x] - vy[y+1][x];
-				pv[y][x] *= AIR_PLOSS;
-				pv[y][x] += dp*AIR_TSTEPP * 0.5f;;
+				if (!bmap_blockair[y][x])
+				{
+					// Calculate velocity divergence: ∇·v = ∂vx/∂x + ∂vy/∂y
+					float div_v = (vx[y][x+1] - vx[y][x-1]) + (vy[y+1][x] - vy[y-1][x]);
+					
+					// Update density: ∂ρ/∂t = -ρ∇·v
+					// When fluid compresses (div_v < 0), density increases
+					// When fluid expands (div_v > 0), density decreases
+					rho[y][x] -= rho[y][x] * div_v * dt;
+					
+					// Clamp density to prevent negative or extreme values
+					if (rho[y][x] < 0.01f) rho[y][x] = 0.01f;
+					if (rho[y][x] > 10.0f) rho[y][x] = 10.0f;
+				}
+			}
+		}
+		
+		// Update pressure using pressure evolution equation for compressible flow
+		// From ideal gas law and continuity: ∂P/∂t = -v·∇P - γP∇·v
+		// We use a hybrid approach: evolve pressure naturally, but keep it close to ideal gas law
+		const float P_atm = 101325.0f; // Standard atmospheric pressure (Pa)
+		const float P_scale = MAX_PRESSURE / P_atm; // Scale factor: game units per Pa
+		
+		for (auto y=1; y<YCELLS-1; y++)
+		{
+			for (auto x=1; x<XCELLS-1; x++)
+			{
+				if (!bmap_blockair[y][x])
+				{
+					// Get temperature from ambient heat field (in Kelvin)
+					float T = hv[y][x];
+					if (T < 0.0f) T = ambientAirTemp;
+					
+					// Ideal gas law: P = ρRT (what pressure should be)
+					float P_pa_ideal = rho[y][x] * R_gas * T;
+					
+					// Get current pressure in Pa (convert from game units)
+					float P_pa_current;
+					if (useAtmosphericPressure)
+					{
+						P_pa_current = pv[y][x] / P_scale + P_atm;
+					}
+					else
+					{
+						P_pa_current = pv[y][x] / P_scale;
+					}
+					
+					// Calculate velocity divergence
+					float div_v = (vx[y][x+1] - vx[y][x-1]) + (vy[y+1][x] - vy[y-1][x]);
+					
+					// Pressure evolution: ∂P/∂t = -γP∇·v (compressible flow)
+					// This naturally evolves pressure based on compression/expansion
+					float P_pa_evolved = P_pa_current - gamma * P_pa_current * div_v * dt;
+					
+					// Blend evolved pressure with ideal gas law
+					// Use a small correction to keep pressure close to ideal gas law
+					// This prevents drift while allowing natural evolution
+					const float ideal_correction = 0.02f; // Very small correction for stability
+					float P_pa_new = P_pa_evolved * (1.0f - ideal_correction) + P_pa_ideal * ideal_correction;
+					
+					// Ensure pressure doesn't go negative
+					if (P_pa_new < 100.0f) P_pa_new = 100.0f; // Minimum 100 Pa
+					
+					// Convert back to game units
+					float P_game;
+					if (useAtmosphericPressure)
+					{
+						P_game = (P_pa_new - P_atm) * P_scale;
+					}
+					else
+					{
+						P_game = P_pa_new * P_scale;
+					}
+					
+					// Apply damping and update pressure gradually
+					// Use very gradual update to prevent instability from large pressure differences
+					pv[y][x] *= AIR_PLOSS;
+					float pressure_diff = P_game - pv[y][x];
+					// Limit the maximum pressure change per frame to prevent explosions
+					const float max_change = 2.0f; // Maximum pressure change per frame
+					if (pressure_diff > max_change) pressure_diff = max_change;
+					if (pressure_diff < -max_change) pressure_diff = -max_change;
+					pv[y][x] += pressure_diff * AIR_TSTEPP * 0.3f; // Even slower update for stability
+					
+					// Clamp to game pressure limits
+					if (pv[y][x] > MAX_PRESSURE) pv[y][x] = MAX_PRESSURE;
+					if (pv[y][x] < MIN_PRESSURE) pv[y][x] = MIN_PRESSURE;
+				}
 			}
 		}
 
@@ -502,12 +611,20 @@ Air::Air(Simulation & simulation):
 	sim(simulation),
 	airMode(AIR_ON),
 	ambientAirTemp(R_TEMP + 273.15f),
-	vorticityCoeff(0.0f)
+	vorticityCoeff(0.0f),
+	useAtmosphericPressure(true) // Default: enabled
 {
 	//Simulation should do this.
 	make_kernel();
 	std::fill(&bmap_blockair [0][0], &bmap_blockair [0][0] + NCELL, 0);
 	std::fill(&bmap_blockairh[0][0], &bmap_blockairh[0][0] + NCELL, 0);
+	// Initialize density to standard atmospheric density at ambient temperature
+	// Using ideal gas law: ρ = P/(RT), with P = 101325 Pa (1 atm), R = 287 J/(kg·K), T = ambientAirTemp
+	// Default density ≈ 1.225 kg/m³ at 15°C (288.15 K)
+	const float R_gas = 287.0f; // Specific gas constant for air (J/(kg·K))
+	const float P_atm = 101325.0f; // Standard atmospheric pressure (Pa)
+	float defaultDensity = P_atm / (R_gas * ambientAirTemp);
+	std::fill(&rho[0][0], &rho[0][0] + NCELL, defaultDensity);
 	std::fill(&sim.vx[0][0], &sim.vx[0][0] + NCELL, 0.0f);
 	std::fill(&ovx   [0][0], &ovx   [0][0] + NCELL, 0.0f);
 	std::fill(&sim.vy[0][0], &sim.vy[0][0] + NCELL, 0.0f);

@@ -19,6 +19,7 @@ std::unique_ptr<Snapshot> Simulation::CreateSnapshot() const
 	snap->AirVelocityX   .insert   (snap->AirVelocityX   .begin(), &vx  [0][0]      , &vx  [0][0] + NCELL);
 	snap->AirVelocityY   .insert   (snap->AirVelocityY   .begin(), &vy  [0][0]      , &vy  [0][0] + NCELL);
 	snap->AmbientHeat    .insert   (snap->AmbientHeat    .begin(), &hv  [0][0]      , &hv  [0][0] + NCELL);
+	snap->AirDensity     .insert   (snap->AirDensity     .begin(), &air->rho[0][0]  , &air->rho[0][0] + NCELL);
 	snap->BlockMap       .insert   (snap->BlockMap       .begin(), &bmap[0][0]      , &bmap[0][0] + NCELL);
 	snap->ElecMap        .insert   (snap->ElecMap        .begin(), &emap[0][0]      , &emap[0][0] + NCELL);
 	snap->BlockAir       .insert   (snap->BlockAir       .begin(), &air->bmap_blockair[0][0] , &air->bmap_blockair[0][0]  + NCELL);
@@ -54,6 +55,41 @@ void Simulation::Restore(const Snapshot &snap)
 	std::copy(snap.AirVelocityX   .begin(), snap.AirVelocityX   .end(), &vx[0][0]        );
 	std::copy(snap.AirVelocityY   .begin(), snap.AirVelocityY   .end(), &vy[0][0]        );
 	std::copy(snap.AmbientHeat    .begin(), snap.AmbientHeat    .end(), &hv[0][0]        );
+	if (!snap.AirDensity.empty())
+	{
+		std::copy(snap.AirDensity     .begin(), snap.AirDensity     .end(), &air->rho[0][0]     );
+	}
+	else
+	{
+		// Legacy: calculate density from pressure and temperature using ideal gas law
+		const float R_gas = 287.0f;
+		const float P_atm = 101325.0f;
+		const float P_scale = MAX_PRESSURE / P_atm;
+		for (int i = 0; i < NCELL; i++)
+		{
+			float P_pa;
+			if (air->useAtmosphericPressure)
+			{
+				P_pa = pv[0][i] / P_scale + P_atm;
+			}
+			else
+			{
+				P_pa = pv[0][i] / P_scale;
+			}
+			float T = hv[0][i];
+			if (T < 0.0f) T = air->ambientAirTemp;
+			if (T > 0.0f && R_gas > 0.0f)
+			{
+				air->rho[0][i] = P_pa / (R_gas * T);
+				if (air->rho[0][i] < 0.01f) air->rho[0][i] = 0.01f;
+				if (air->rho[0][i] > 10.0f) air->rho[0][i] = 10.0f;
+			}
+			else
+			{
+				air->rho[0][i] = P_atm / (R_gas * air->ambientAirTemp);
+			}
+		}
+	}
 	std::copy(snap.BlockMap       .begin(), snap.BlockMap       .end(), &bmap[0][0]      );
 	std::copy(snap.ElecMap        .begin(), snap.ElecMap        .end(), &emap[0][0]      );
 	std::copy(snap.BlockAir       .begin(), snap.BlockAir       .end(), &air->bmap_blockair[0][0] );
@@ -140,7 +176,22 @@ SimulationSample Simulation::GetSample(int x, int y)
 		{
 			sample.WallType = bmap[y/CELL][x/CELL];
 		}
-		sample.AirPressure = pv[y/CELL][x/CELL];
+		// Display pressure: if atmospheric pressure is enabled, show relative pressure
+		// Otherwise, convert absolute pressure to relative for display consistency
+		if (air->useAtmosphericPressure)
+		{
+			// Pressure is already relative to atmospheric (in game units)
+			sample.AirPressure = pv[y/CELL][x/CELL];
+		}
+		else
+		{
+			// Pressure is absolute, convert to relative for display
+			const float P_atm = 101325.0f; // Standard atmospheric pressure (Pa)
+			const float P_scale = MAX_PRESSURE / P_atm;
+			// Convert back: P_pa = P_game / P_scale, then show relative to atmospheric
+			float P_pa = pv[y/CELL][x/CELL] / P_scale;
+			sample.AirPressure = (P_pa - P_atm) * P_scale; // Show as relative for consistency
+		}
 		sample.AirTemperature = hv[y/CELL][x/CELL];
 		sample.AirVelocityX = vx[y/CELL][x/CELL];
 		sample.AirVelocityY = vy[y/CELL][x/CELL];

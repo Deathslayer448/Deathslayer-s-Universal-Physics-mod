@@ -23,6 +23,7 @@ class OptionsView: public ui::Window
 	ui::Checkbox *waterEqualisation{};
 	ui::Checkbox *NoWeightSwitch{};
 	ui::Checkbox *BetterBurning{};
+	ui::Checkbox *atmosphericPressure{};
 	ui::DropDown *airMode{};
 	ui::Textbox *ambientAirTemp{};
 	ui::Button *ambientAirTempPreview{};

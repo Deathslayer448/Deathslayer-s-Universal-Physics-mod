@@ -26,6 +26,8 @@ public:
 	void SetNoWeightSwitching(bool state);
 	bool GetBetterBurningEnable();
 	void SetBetterBurningEnable(bool state);
+	bool GetAtmosphericPressure();
+	void SetAtmosphericPressure(bool state);
 	bool GetShowAvatars();
 	void SetShowAvatars(bool state);
 	int GetAirMode();

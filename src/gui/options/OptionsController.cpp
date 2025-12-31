@@ -47,6 +47,11 @@ void OptionsController::SetBetterBurningEnable(bool state)
 	model->SetBetterBurningEnable(state);
 }
 
+void OptionsController::SetAtmosphericPressure(bool state)
+{
+	model->SetAtmosphericPressure(state);
+}
+
 void OptionsController::SetGravityMode(int gravityMode)
 {
 	model->SetGravityMode(gravityMode);

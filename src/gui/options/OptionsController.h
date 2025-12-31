@@ -20,6 +20,7 @@ public:
 	void SetWaterEqualisation(bool state);
 	void SetNoWeightSwitch(bool state);
 	void SetBetterBurningEnable(bool state);
+	void SetAtmosphericPressure(bool state);
 	void SetGravityMode(int gravityMode);
 	void SetCustomGravityX(float x);
 	void SetCustomGravityY(float y);

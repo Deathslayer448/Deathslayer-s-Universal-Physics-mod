@@ -89,6 +89,15 @@ void OptionsModel::SetBetterBurningEnable(bool state)
 	sim->betterburning_enable = state ? 1 : 0;
 	notifySettingsChanged();
 }
+bool OptionsModel::GetAtmosphericPressure()
+{
+	return sim->air->useAtmosphericPressure;
+}
+void OptionsModel::SetAtmosphericPressure(bool state)
+{
+	sim->air->useAtmosphericPressure = state;
+	notifySettingsChanged();
+}
 
 
 int OptionsModel::GetAirMode()

@@ -15,6 +15,7 @@ public:
 	std::vector<float> AirVelocityX;
 	std::vector<float> AirVelocityY;
 	std::vector<float> AmbientHeat;
+	std::vector<float> AirDensity; // Density field for ideal gas law
 
 	std::vector<Particle> Particles;
 
