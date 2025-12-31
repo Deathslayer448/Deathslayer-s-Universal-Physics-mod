@@ -57,7 +57,7 @@ static int update(UPDATE_FUNC_ARGS)
 		}
 		else
 		{
-			parts[i].temp = restrict_flt((parts[i].temp*(1 + (sim->pv[y / CELL][x / CELL] / 2000))) + MIN_TEMP, MIN_TEMP, NORMAL_MAX_TEMP);
+			parts[i].temp = restrict_flt((parts[i].temp*(1 + (sim->pv[y / CELL][x / CELL] / 2000))) + MIN_TEMP, MIN_TEMP, MAX_TEMP);
 		}
 	}
 	return 0;

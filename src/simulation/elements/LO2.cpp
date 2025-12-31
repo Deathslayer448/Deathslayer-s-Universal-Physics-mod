@@ -1,7 +1,5 @@
 #include "simulation/ElementCommon.h"
 
-int Element_O2_update(UPDATE_FUNC_ARGS);
-
 void Element::Element_LO2()
 {
 	Identifier = "DEFAULT_PT_LO2";
@@ -21,7 +19,7 @@ void Element::Element_LO2()
 	HotAir = 0.000f	* CFDS;
 	Falldown = 2;
 
-	Flammable = 0;
+	Flammable = 5000;
 	Explosive = 0;
 	Meltable = 0;
 	Hardness = 0;
@@ -30,7 +28,7 @@ void Element::Element_LO2()
 
 	DefaultProperties.temp = 80.0f;
 	HeatConduct = 70;
-	Description = "Liquid Oxygen. Strong oxidizer. Reacts with fire.";
+	Description = "Liquid Oxygen. Very cold. Reacts with fire.";
 
 	Properties = TYPE_LIQUID;
 
@@ -42,6 +40,4 @@ void Element::Element_LO2()
 	LowTemperatureTransition = NT;
 	HighTemperature = 90.1f;
 	HighTemperatureTransition = PT_O2;
-
-	Update = &Element_O2_update;
 }
