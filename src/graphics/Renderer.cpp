@@ -933,21 +933,77 @@ void Renderer::draw_air()
 	auto *vx = sim->vx;
 	auto *vy = sim->vy;
 	auto c = 0x000000_rgb;
+
+	const float P_atm = 101325.0f;  // 1 atm in Pascals
+	// Fixed pressure range for consistent colors: same pressure = same color. Blue = weak, red = strong.
+	const float P_low  = 0.0f;           // vacuum (0 Pa)
+	const float P_high = 5.0f * P_atm;   // 5 atm (506625 Pa) - strong pressure
+	const float P_range = P_high - P_low;
+
 	for (y=0; y<YCELLS; y++)
 		for (x=0; x<XCELLS; x++)
 		{
 			if (displayMode & DISPLAY_AIRP)
 			{
-				if (pv[y][x] > 0.0f)
-					c = RGB(clamp_flt(pv[y][x], 0.0f, 8.0f), 0, 0);//positive pressure is red!
+				// Pressure is stored as absolute Pascals in pv
+				const float P_pa = pv[y][x];
+				const Simulation *simulation = static_cast<const Simulation*>(sim);
+				bool useAtm = simulation && simulation->air && simulation->air->useAtmosphericPressure;
+				
+				if (useAtm)
+				{
+					// Display mode: show pressure relative to atmospheric
+					// Atmospheric pressure (0 Pa relative) = gray/white (visible)
+					// Above atmospheric = red (positive pressure)
+					// Below atmospheric = blue (vacuum)
+					float P_rel = P_pa - P_atm; // Relative to atmospheric
+					if (std::abs(P_rel) < 100.0f)
+					{
+						// Very close to atmospheric: show as gray/white (visible)
+						c = RGB(4, 4, 4);
+					}
+					else if (P_rel > 0.0f)
+					{
+						// Above atmospheric: red, scale to 0-200000 Pa range
+						float intensity = clamp_flt(P_rel / 200000.0f * 8.0f, 0.0f, 8.0f);
+						c = RGB(intensity, 0, 0);
+					}
+					else
+					{
+						// Below atmospheric: blue (vacuum)
+						float intensity = clamp_flt(-P_rel / P_atm * 8.0f, 0.0f, 8.0f);
+						c = RGB(0, 0, intensity);
+					}
+				}
 				else
-					c = RGB(0, 0, clamp_flt(-pv[y][x], 0.0f, 8.0f));//negative pressure is blue!
+				{
+					// Display mode: show absolute pressure on fixed range. Blue = weak, red = strong.
+					float normalized = (P_pa - P_low) / P_range;
+					normalized = clamp_flt(normalized, 0.0f, 1.0f);
+					// RGB by strength: blue (0) -> cyan -> green -> yellow -> red (1)
+					int r = (int)(normalized * 255.0f);
+					int g = (int)((normalized < 0.5f ? normalized * 2.0f : 2.0f - normalized * 2.0f) * 255.0f);
+					int b = (int)((1.0f - normalized) * 255.0f);
+					r = (r < 0) ? 0 : (r > 255) ? 255 : r;
+					g = (g < 0) ? 0 : (g > 255) ? 255 : g;
+					b = (b < 0) ? 0 : (b > 255) ? 255 : b;
+					c = RGB(r, g, b);
+				}
 			}
 			else if (displayMode & DISPLAY_AIRV)
 			{
-				c = RGB(clamp_flt(fabsf(vx[y][x]), 0.0f, 8.0f),//vx adds red
-					clamp_flt(pv[y][x], 0.0f, 8.0f),//pressure adds green
-					clamp_flt(fabsf(vy[y][x]), 0.0f, 8.0f));//vy adds blue
+				const float P_pa = pv[y][x];
+				float normalized = (P_pa - P_low) / P_range;
+				normalized = clamp_flt(normalized, 0.0f, 1.0f);
+				// Pressure as color: blue (weak) -> red (strong). Velocity adds to brightness.
+				int pr = (int)(normalized * 255.0f);
+				int pg = (int)((normalized < 0.5f ? normalized * 2.0f : 2.0f - normalized * 2.0f) * 255.0f);
+				int pb = (int)((1.0f - normalized) * 255.0f);
+				float vscale = 0.3f + 0.7f * (clamp_flt(fabsf(vx[y][x]), 0.0f, 20.0f) + clamp_flt(fabsf(vy[y][x]), 0.0f, 20.0f)) / 20.0f;
+				pr = (int)(pr * vscale); pr = (pr < 0) ? 0 : (pr > 255) ? 255 : pr;
+				pg = (int)(pg * vscale); pg = (pg < 0) ? 0 : (pg > 255) ? 255 : pg;
+				pb = (int)(pb * vscale); pb = (pb < 0) ? 0 : (pb > 255) ? 255 : pb;
+				c = RGB(pr, pg, pb);
 			}
 			else if (displayMode & DISPLAY_AIRH)
 			{
@@ -958,35 +1014,19 @@ void Renderer::draw_air()
 			}
 			else if (displayMode & DISPLAY_AIRC)
 			{
-				int r;
-				int g;
-				int b;
-				// velocity adds grey
-				r = clamp_flt(fabsf(vx[y][x]), 0.0f, 24.0f) + clamp_flt(fabsf(vy[y][x]), 0.0f, 20.0f);
-				g = clamp_flt(fabsf(vx[y][x]), 0.0f, 20.0f) + clamp_flt(fabsf(vy[y][x]), 0.0f, 24.0f);
-				b = clamp_flt(fabsf(vx[y][x]), 0.0f, 24.0f) + clamp_flt(fabsf(vy[y][x]), 0.0f, 20.0f);
-				if (pv[y][x] > 0.0f)
-				{
-					r += clamp_flt(pv[y][x], 0.0f, 16.0f);//pressure adds red!
-					if (r>255)
-						r=255;
-					if (g>255)
-						g=255;
-					if (b>255)
-						b=255;
-					c = RGB(r, g, b);
-				}
-				else
-				{
-					b += clamp_flt(-pv[y][x], 0.0f, 16.0f);//pressure adds blue!
-					if (r>255)
-						r=255;
-					if (g>255)
-						g=255;
-					if (b>255)
-						b=255;
-					c = RGB(r, g, b);
-				}
+				const float P_pa = pv[y][x];
+				float normalized = (P_pa - P_low) / P_range;
+				normalized = clamp_flt(normalized, 0.0f, 1.0f);
+				// Pressure: blue (weak) -> red (strong). Velocity adds grey.
+				int r = (int)(normalized * 255.0f);
+				int g = (int)((normalized < 0.5f ? normalized * 2.0f : 2.0f - normalized * 2.0f) * 255.0f);
+				int b = (int)((1.0f - normalized) * 255.0f);
+				int vg = (int)(clamp_flt(fabsf(vx[y][x]), 0.0f, 20.0f) + clamp_flt(fabsf(vy[y][x]), 0.0f, 20.0f)) * 4;
+				vg = (vg > 255) ? 255 : vg;
+				r = (r + vg > 255) ? 255 : r + vg;
+				g = (g + vg > 255) ? 255 : g + vg;
+				b = (b + vg > 255) ? 255 : b + vg;
+				c = RGB(r, g, b);
 			}
 			else if (displayMode & DISPLAY_AIRW)
 			{

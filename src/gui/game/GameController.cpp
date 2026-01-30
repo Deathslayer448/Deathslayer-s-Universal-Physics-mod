@@ -55,6 +55,7 @@
 #include "gui/login/LoginController.h"
 #include "gui/login/LoginView.h"
 #include "gui/options/OptionsController.h"
+#include "gui/options/OptionsModel.h"
 #include "gui/options/OptionsView.h"
 #include "gui/preview/PreviewController.h"
 #include "gui/preview/PreviewView.h"
@@ -1759,4 +1760,19 @@ void GameController::SetToolIndex(ByteString identifier, std::optional<int> inde
 	{
 		commandInterface->SetToolIndex(identifier, index);
 	}
+}
+
+OptionsModel::PressureUnit GameController::GetPressureUnit()
+{
+	return gameModel->GetPressureUnit();
+}
+
+void GameController::SetPressureUnit(OptionsModel::PressureUnit unit)
+{
+	gameModel->SetPressureUnit(unit);
+}
+
+bool GameController::GetAtmosphericPressure()
+{
+	return gameModel->GetAtmosphericPressure();
 }

@@ -52,6 +52,16 @@ void OptionsController::SetAtmosphericPressure(bool state)
 	model->SetAtmosphericPressure(state);
 }
 
+void OptionsController::SetPressureUnit(OptionsModel::PressureUnit unit)
+{
+	model->SetPressureUnit(unit);
+}
+
+OptionsModel::PressureUnit OptionsController::GetPressureUnit()
+{
+	return model->GetPressureUnit();
+}
+
 void OptionsController::SetGravityMode(int gravityMode)
 {
 	model->SetGravityMode(gravityMode);

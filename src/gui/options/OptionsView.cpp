@@ -123,6 +123,13 @@ OptionsView::OptionsView() : ui::Window(ui::Point(-1, -1), ui::Point(320, 340))
 		if (c)
 			c->SetAtmosphericPressure(atmosphericPressure->GetChecked());
 	});
+	pressureUnit = addDropDown("Pressure unit", {
+		{ "Atmospheres (atm)", OptionsModel::PRESSURE_ATM },
+		{ "Kilopascals (kPa)", OptionsModel::PRESSURE_KPA },
+	}, [this] {
+		if (c)
+			c->SetPressureUnit(OptionsModel::PressureUnit(pressureUnit->GetOption().second));
+	});
 	airMode = addDropDown("Air simulation mode", {
 		{ "On", AIR_ON },
 		{ "Pressure off", AIR_PRESSUREOFF },

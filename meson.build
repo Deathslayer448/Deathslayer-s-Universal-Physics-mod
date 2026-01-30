@@ -205,6 +205,7 @@ if enable_http and host_platform != 'emscripten'
 endif
 
 project_link_args = []
+project_c_args = []
 project_cpp_args = []
 
 fftw_dep = dependency('fftw3f', static: is_static)
@@ -431,8 +432,10 @@ else
 		'-Wno-unused-parameter',
 	]
 endif
+# TPT integration: use Rusanov air solver API instead of standalone main()
+project_cpp_args += '-DTPT_INTEGRATION'
 
-project_inc = include_directories([ 'src', 'resources' ])
+project_inc = include_directories([ 'src', 'resources', 'src/simulation/air_solver' ])
 
 if host_platform == 'windows'
 	ident_platform = is_64bit ? 'WIN64' : 'WIN32'

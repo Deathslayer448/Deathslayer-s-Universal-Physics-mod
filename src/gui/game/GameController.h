@@ -6,6 +6,7 @@
 #include "gui/interface/Point.h"
 #include "gui/interface/Colour.h"
 #include "gui/SavePreviewType.h"
+#include "gui/options/OptionsModel.h"
 #include "simulation/Sign.h"
 #include "simulation/Particle.h"
 #include "simulation/SimulationSettings.h"
@@ -134,6 +135,9 @@ public:
 	TempScale GetTemperatureScale();
 	int GetEdgeMode();
 	void SetEdgeMode(int edgeMode);
+	OptionsModel::PressureUnit GetPressureUnit();
+	void SetPressureUnit(OptionsModel::PressureUnit unit);
+	bool GetAtmosphericPressure();
 	void SetDebugFlags(unsigned int flags) { debugFlags = flags; }
 	unsigned int GetDebugFlags() const { return debugFlags; }
 	void SetActiveMenu(int menuID);

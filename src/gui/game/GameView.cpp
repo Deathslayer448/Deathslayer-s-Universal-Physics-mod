@@ -2433,24 +2433,80 @@ void GameView::OnDraw()
 						|| type == PT_CONV || type == PT_ETRD)
 					sampleInfo << ", Tmp2: " << sample.particle.tmp2;
 
-				sampleInfo << ", Pressure: " << sample.AirPressure;
+				sampleInfo << ", Pressure: ";
+				// Display pressure in selected unit (atm or kPa) - just a unit conversion
+				// sample.AirPressure is absolute Pascals
+				OptionsModel::PressureUnit unit = c->GetPressureUnit();
+				if (unit == OptionsModel::PRESSURE_ATM)
+				{
+					// Convert Pa to atm (1 atm = 101325 Pa)
+					float atm = sample.AirPressure / 101325.0f;
+					sampleInfo << Format::Precision(3) << atm << " atm";
+				}
+				else
+				{
+					// Display in kPa
+					float kpa = sample.AirPressure / 1000.0f;
+					sampleInfo << Format::Precision(1) << kpa << " kPa";
+				}
 			}
 			else
 			{
 				sampleInfo << c->BasicParticleInfo(sample.particle);
 				sampleInfo << ", Temp: ";
 				format::RenderTemperature(sampleInfo, sample.particle.temp, c->GetTemperatureScale());
-				sampleInfo << ", Pressure: " << sample.AirPressure;
+				sampleInfo << ", Pressure: ";
+				// sample.AirPressure is absolute Pascals
+				// Display in selected unit (atm or kPa) - just a unit conversion
+				OptionsModel::PressureUnit unit = c->GetPressureUnit();
+				if (unit == OptionsModel::PRESSURE_ATM)
+				{
+					// Convert Pa to atm (1 atm = 101325 Pa)
+					float atm = sample.AirPressure / 101325.0f;
+					sampleInfo << Format::Precision(3) << atm << " atm";
+				}
+				else
+				{
+					// Display in kPa
+					float kpa = sample.AirPressure / 1000.0f;
+					sampleInfo << Format::Precision(1) << kpa << " kPa";
+				}
 			}
 		}
 		else if (sample.WallType)
 		{
 			sampleInfo << c->WallName(sample.WallType);
-			sampleInfo << ", Pressure: " << sample.AirPressure;
+			sampleInfo << ", Pressure: ";
+			// sample.AirPressure is absolute Pascals
+			// Display in selected unit (atm or kPa) - just a unit conversion
+			OptionsModel::PressureUnit unit = c->GetPressureUnit();
+			if (unit == OptionsModel::PRESSURE_ATM)
+			{
+				float atm = sample.AirPressure / 101325.0f;
+				sampleInfo << Format::Precision(3) << atm << " atm";
+			}
+			else
+			{
+				float kpa = sample.AirPressure / 1000.0f;
+				sampleInfo << Format::Precision(1) << kpa << " kPa";
+			}
 		}
 		else if (sample.isMouseInSim)
 		{
-			sampleInfo << "Empty, Pressure: " << sample.AirPressure;
+			sampleInfo << "Empty, Pressure: ";
+			// sample.AirPressure is absolute Pascals
+			// Display in selected unit (atm or kPa) - just a unit conversion
+			OptionsModel::PressureUnit unit = c->GetPressureUnit();
+			if (unit == OptionsModel::PRESSURE_ATM)
+			{
+				float atm = sample.AirPressure / 101325.0f;
+				sampleInfo << Format::Precision(3) << atm << " atm";
+			}
+			else
+			{
+				float kpa = sample.AirPressure / 1000.0f;
+				sampleInfo << Format::Precision(1) << kpa << " kPa";
+			}
 		}
 		else
 		{

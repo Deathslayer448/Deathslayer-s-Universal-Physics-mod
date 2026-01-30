@@ -1,9 +1,9 @@
 #pragma once
 #include <functional>
 #include "simulation/SimulationSettings.h"
+#include "OptionsModel.h"
 
 class GameModel;
-class OptionsModel;
 class OptionsView;
 class OptionsController
 {
@@ -21,6 +21,8 @@ public:
 	void SetNoWeightSwitch(bool state);
 	void SetBetterBurningEnable(bool state);
 	void SetAtmosphericPressure(bool state);
+	void SetPressureUnit(OptionsModel::PressureUnit unit);
+	OptionsModel::PressureUnit GetPressureUnit();
 	void SetGravityMode(int gravityMode);
 	void SetCustomGravityX(float x);
 	void SetCustomGravityY(float y);

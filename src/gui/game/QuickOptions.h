@@ -49,6 +49,14 @@ public:
 	void perform() override;
 };
 
+class PressureUnitOption: public QuickOption
+{
+public:
+	PressureUnitOption(GameModel * m);
+	bool GetToggle() override;
+	void perform() override;
+};
+
 class AHeatOption: public QuickOption
 {
 public:

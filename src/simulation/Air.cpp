@@ -2,6 +2,7 @@
 #include "Simulation.h"
 #include "ElementClasses.h"
 #include "common/tpt-rand.h"
+#include "AirSolverWrapper.h"
 #include <cmath>
 #include <algorithm>
 
@@ -45,26 +46,16 @@ void Air::Clear()
 {
 	std::fill(&sim.vy[0][0], &sim.vy[0][0]+NCELL, 0.0f);
 	std::fill(&sim.vx[0][0], &sim.vx[0][0]+NCELL, 0.0f);
-	// Initialize density to standard atmospheric density at ambient temperature
-	// Using ideal gas law: ρ = P/(RT), with P = 101325 Pa (1 atm), R = 287 J/(kg·K), T = ambientAirTemp
-	// Default density ≈ 1.225 kg/m³ at 15°C (288.15 K)
-	const float R_gas = 287.0f; // Specific gas constant for air (J/(kg·K))
-	const float P_atm = 101325.0f; // Standard atmospheric pressure (Pa)
-	const float P_scale = MAX_PRESSURE / P_atm;
-	float defaultDensity = P_atm / (R_gas * ambientAirTemp);
-	std::fill(&rho[0][0], &rho[0][0]+NCELL, defaultDensity);
-	// Initialize pressure to match initial density state (atmospheric pressure)
-	// This ensures consistency: P = ρRT at initialization
-	if (useAtmosphericPressure)
-	{
-		// Pressure difference is 0 at atmospheric conditions
-		std::fill(&sim.pv[0][0], &sim.pv[0][0]+NCELL, 0.0f);
-	}
-	else
-	{
-		// Absolute pressure = atmospheric pressure
-		std::fill(&sim.pv[0][0], &sim.pv[0][0]+NCELL, P_atm * P_scale);
-	}
+		// Initialize density to standard atmospheric density at ambient temperature
+		// Using ideal gas law: ρ = P/(RT), with P = 101325 Pa (1 atm), R = 287 J/(kg·K), T = ambientAirTemp
+		// Default density ≈ 1.225 kg/m³ at 15°C (288.15 K)
+		const float R_gas = 287.0f; // Specific gas constant for air (J/(kg·K))
+		const float P_atm = 101325.0f; // Standard atmospheric pressure (Pa)
+		float defaultDensity = P_atm / (R_gas * ambientAirTemp);
+		std::fill(&rho[0][0], &rho[0][0]+NCELL, defaultDensity);
+		// Initialize pressure to atmospheric pressure (absolute, in Pascals)
+		// pv stores absolute pressure directly in Pascals
+		std::fill(&sim.pv[0][0], &sim.pv[0][0]+NCELL, P_atm);
 }
 
 void Air::ClearAirH()
@@ -77,6 +68,9 @@ const float advDistanceMult = 0.7f;
 
 void Air::update_airh(void)
 {
+	// When using Rusanov solver, air temp (hv) is updated by the solver in update_air(); skip legacy hv advection.
+	if (rusanovSolver.has_state())
+		return;
 	auto &vx = sim.vx;
 	auto &vy = sim.vy;
 	auto &hv = sim.hv;
@@ -187,6 +181,10 @@ void Air::update_airh(void)
 
 			ohv[y][x] = dh;
 
+			// TEMPORARILY DISABLED: Air convection modifies velocity, interfering with our physics
+			// This is called AFTER update_air() and overwrites our velocity calculations
+			// TODO: Integrate heat effects properly into the physics system
+			/*
 			// Air convection.
 			// We use the Boussinesq approximation, i.e. we assume density to be nonconstant only
 			// near the gravity term of the fluid equation, and we suppose that it depends linearly on the
@@ -225,6 +223,7 @@ void Air::update_airh(void)
 
 			vx[y][x] = dvx;
 			vy[y][x] = dvy;
+			*/
 		}
 	}
 	memcpy(hv, ohv, sizeof(hv));
@@ -235,18 +234,86 @@ void Air::update_air(void)
 	auto &vx = sim.vx;
 	auto &vy = sim.vy;
 	auto &pv = sim.pv;
-	auto &hv = sim.hv;
-	auto &fvx = sim.fvx;
-	auto &fvy = sim.fvy;
-	auto &bmap = sim.bmap;
+	(void)sim.hv;
+	(void)sim.fvx;
+	(void)sim.fvy;
+	(void)sim.bmap;
 	if (airMode != AIR_NOUPDATE) //airMode 4 is no air/pressure update
 	{
-		for (auto i=0; i<YCELLS; i++) //reduces pressure/velocity on the edges every frame
+		// Rusanov solver path: conservative compressible gas + heat diffusion
+		// Air grid: CELL (4) particle units per air cell. Use effective dx so CFL gives usable dt:
+		// real 1 part = 1 mm => dx = 0.004 m => dt ~ 4 µs => 4000+ steps/frame (1 FPS).
+		// Use 1 air cell = 1 cm (CELL*0.0025) => dx=0.01 m => dt~10 µs; 8 steps => ~0.08 ms/frame.
+		// Use 1 air cell = 4 cm (CELL*0.01) => dx=0.04 m => dt~40 µs; 8 steps => ~0.32 ms/frame, pressure visible.
+		const double cell_size_m = CELL * 0.01;   // effective 4 cm per air cell for solver (CFL + visible pressure)
+		const double frame_dt = 1.0 / 60.0;       // target sim time per frame (60 fps)
+		rusanovSolver.ensure_created(YCELLS, XCELLS, cell_size_m);
+		rusanovSolver.set_boundary_walls();
+		rusanovSolver.sync_from_sim(sim, *this);
+		rusanovSolver.step(frame_dt);
+		rusanovSolver.sync_to_sim(sim, *this);
+		// Keep wall cells consistent: no velocity, pressure = adjacent (solver doesn't write to walls)
+		for (auto j = 1; j < YCELLS - 1; j++)
 		{
-			pv[i][0] = pv[i][0]*0.8f;
-			pv[i][1] = pv[i][1]*0.8f;
-			pv[i][XCELLS-2] = pv[i][XCELLS-2]*0.8f;
-			pv[i][XCELLS-1] = pv[i][XCELLS-1]*0.8f;
+			for (auto i = 1; i < XCELLS - 1; i++)
+			{
+				if (bmap_blockair[j][i])
+				{
+					vx[j][i] = 0.0f;
+					vy[j][i] = 0.0f;
+					if (!bmap_blockair[j][i-1])
+						pv[j][i] = pv[j][i-1];
+					else if (!bmap_blockair[j][i+1])
+						pv[j][i] = pv[j][i+1];
+					else if (!bmap_blockair[j-1][i])
+						pv[j][i] = pv[j-1][i];
+					else if (!bmap_blockair[j+1][i])
+						pv[j][i] = pv[j+1][i];
+					else
+						pv[j][i] = 101325.0f;
+				}
+			}
+		}
+		return;
+	}
+
+#if 0  // USE_LEGACY_AIR_PHYSICS — old pressure/velocity update (kept for reference/revert)
+	if (airMode != AIR_NOUPDATE)
+	{
+		// Boundary conditions: check if edges are void or solid
+		// Void (bmap_blockair == false): pressure can escape (open boundary)
+		// Solid (bmap_blockair == true): pressure is blocked (no-slip boundary, pressure contained)
+		const float P_atm = 101325.0f;
+		
+		// TEMPORARILY DISABLED: Boundary conditions that lose energy
+		// These were:
+		// 1. Forcing pressure to atmospheric at edges (losing pressure/energy)
+		// 2. Damping velocity at edges (losing energy)
+		//
+		// We need proper boundary conditions that conserve energy:
+		// - For solid walls: no-slip (v=0) but pressure should reflect, not be forced
+		// - For void edges: open boundary (pressure can escape naturally through physics)
+		//
+		// TODO: Implement proper boundary conditions that conserve energy
+		// For now, we disable these to let our physics work without interference
+		/*
+		for (auto i=0; i<YCELLS; i++)
+		{
+			// Left edge (x=0)
+			if (!bmap_blockair[i][0]) // Void - pressure can escape
+			{
+				pv[i][0] = pv[i][0] * 0.9f + P_atm * 0.1f; // Gradually restore to atmospheric
+			}
+			// else solid wall - pressure is blocked, don't modify
+			
+			// Right edge (x=XCELLS-1)
+			if (!bmap_blockair[i][XCELLS-1]) // Void - pressure can escape
+			{
+				pv[i][XCELLS-1] = pv[i][XCELLS-1] * 0.9f + P_atm * 0.1f;
+			}
+			// else solid wall - pressure is blocked, don't modify
+			
+			// Damp velocity at all edges (no-slip boundary)
 			vx[i][0] = vx[i][0]*0.9f;
 			vx[i][1] = vx[i][1]*0.9f;
 			vx[i][XCELLS-2] = vx[i][XCELLS-2]*0.9f;
@@ -256,12 +323,23 @@ void Air::update_air(void)
 			vy[i][XCELLS-2] = vy[i][XCELLS-2]*0.9f;
 			vy[i][XCELLS-1] = vy[i][XCELLS-1]*0.9f;
 		}
-		for (auto i=0; i<XCELLS; i++) //reduces pressure/velocity on the edges every frame
+		for (auto i=0; i<XCELLS; i++)
 		{
-			pv[0][i] = pv[0][i]*0.8f;
-			pv[1][i] = pv[1][i]*0.8f;
-			pv[YCELLS-2][i] = pv[YCELLS-2][i]*0.8f;
-			pv[YCELLS-1][i] = pv[YCELLS-1][i]*0.8f;
+			// Top edge (y=0)
+			if (!bmap_blockair[0][i]) // Void - pressure can escape
+			{
+				pv[0][i] = pv[0][i] * 0.9f + P_atm * 0.1f;
+			}
+			// else solid wall - pressure is blocked, don't modify
+			
+			// Bottom edge (y=YCELLS-1)
+			if (!bmap_blockair[YCELLS-1][i]) // Void - pressure can escape
+			{
+				pv[YCELLS-1][i] = pv[YCELLS-1][i] * 0.9f + P_atm * 0.1f;
+			}
+			// else solid wall - pressure is blocked, don't modify
+			
+			// Damp velocity at all edges (no-slip boundary)
 			vx[0][i] = vx[0][i]*0.9f;
 			vx[1][i] = vx[1][i]*0.9f;
 			vx[YCELLS-2][i] = vx[YCELLS-2][i]*0.9f;
@@ -271,55 +349,70 @@ void Air::update_air(void)
 			vy[YCELLS-2][i] = vy[YCELLS-2][i]*0.9f;
 			vy[YCELLS-1][i] = vy[YCELLS-1][i]*0.9f;
 		}
+		*/
 
-		for (auto j=1; j<YCELLS-1; j++) //clear some velocities near walls
+		// Initialize wall pressure and velocity FIRST, before any calculations
+		// This prevents uninitialized wall pressure from creating huge gradients
+		for (auto j=1; j<YCELLS-1; j++)
 		{
 			for (auto i=1; i<XCELLS-1; i++)
 			{
 				if (bmap_blockair[j][i])
 				{
+					// No-slip boundary: velocity at wall = 0
 					vx[j][i] = 0.0f;
-					vx[j][i-1] = 0.0f;
-					vx[j][i+1] = 0.0f;
 					vy[j][i] = 0.0f;
-					vy[j-1][i] = 0.0f;
-					vy[j+1][i] = 0.0f;
+					
+					// Initialize wall pressure to match adjacent air cell (reflection boundary condition)
+					// This MUST be done before any pressure/velocity calculations to prevent huge gradients
+					// Find the nearest air cell and use its pressure
+					if (!bmap_blockair[j][i-1])
+						pv[j][i] = pv[j][i-1];
+					else if (!bmap_blockair[j][i+1])
+						pv[j][i] = pv[j][i+1];
+					else if (!bmap_blockair[j-1][i])
+						pv[j][i] = pv[j-1][i];
+					else if (!bmap_blockair[j+1][i])
+						pv[j][i] = pv[j+1][i];
+					else
+					{
+						// If all neighbors are walls, use atmospheric pressure as fallback
+						const float P_atm = 101325.0f;
+						pv[j][i] = P_atm;
+					}
 				}
 			}
 		}
 
-		// Update density using continuity equation: ∂ρ/∂t + ∇·(ρv) = 0
-		// For compressible flow: ∂ρ/∂t = -∇·(ρv) ≈ -ρ∇·v (advection handled by existing code)
+		// SIMPLIFIED PHYSICS: Only pressure and velocity, no interference
+		// Use temporary arrays to avoid race conditions (checkerboard pattern)
+		// Read from vx/vy/pv, write to ovx/ovy/opv, then copy back
+		
 		const float R_gas = 287.0f; // Specific gas constant for air (J/(kg·K))
 		const float gamma = 1.4f; // Adiabatic index for air (cp/cv)
-		const float dt = AIR_TSTEPP;
+		const float dt_p = AIR_TSTEPP;
+		const float dt_v = AIR_TSTEPV;
+		const float frame_to_second = 1.0f / 60.0f;
+		const float cell_to_meter = CELL * 0.001f; // Cell size in meters
+		const float pixel_to_meter = 0.001f;
 		
-		for (auto y=1; y<YCELLS-1; y++)
+		// Initialize temporary arrays with current values
+		for (auto y=0; y<YCELLS; y++)
 		{
-			for (auto x=1; x<XCELLS-1; x++)
+			for (auto x=0; x<XCELLS; x++)
 			{
-				if (!bmap_blockair[y][x])
-				{
-					// Calculate velocity divergence: ∇·v = ∂vx/∂x + ∂vy/∂y
-					float div_v = (vx[y][x+1] - vx[y][x-1]) + (vy[y+1][x] - vy[y-1][x]);
-					
-					// Update density: ∂ρ/∂t = -ρ∇·v
-					// When fluid compresses (div_v < 0), density increases
-					// When fluid expands (div_v > 0), density decreases
-					rho[y][x] -= rho[y][x] * div_v * dt;
-					
-					// Clamp density to prevent negative or extreme values
-					if (rho[y][x] < 0.01f) rho[y][x] = 0.01f;
-					if (rho[y][x] > 10.0f) rho[y][x] = 10.0f;
-				}
+				ovx[y][x] = vx[y][x];
+				ovy[y][x] = vy[y][x];
+				opv[y][x] = pv[y][x];
 			}
 		}
 		
-		// Update pressure using pressure evolution equation for compressible flow
-		// From ideal gas law and continuity: ∂P/∂t = -v·∇P - γP∇·v
-		// We use a hybrid approach: evolve pressure naturally, but keep it close to ideal gas law
-		const float P_atm = 101325.0f; // Standard atmospheric pressure (Pa)
-		const float P_scale = MAX_PRESSURE / P_atm; // Scale factor: game units per Pa
+		// STEP 1: Update pressure and density from velocity divergence
+		// Iterate consistently: top to bottom, left to right
+		// DEBUG: Track stats
+		int cells_updated = 0;
+		float max_div = 0.0f;
+		float max_pressure = 0.0f;
 		
 		for (auto y=1; y<YCELLS-1; y++)
 		{
@@ -327,87 +420,293 @@ void Air::update_air(void)
 			{
 				if (!bmap_blockair[y][x])
 				{
-					// Get temperature from ambient heat field (in Kelvin)
-					float T = hv[y][x];
-					if (T < 0.0f) T = ambientAirTemp;
+					cells_updated++;
 					
-					// Ideal gas law: P = ρRT (what pressure should be)
-					float P_pa_ideal = rho[y][x] * R_gas * T;
+					// SIMPLIFIED: Use central differences, handle walls by using reflection
+					// Read from CURRENT arrays (vx/vy), write to TEMPORARY arrays (ovx/ovy/opv)
 					
-					// Get current pressure in Pa (convert from game units)
-					float P_pa_current;
-					if (useAtmosphericPressure)
+					// Clamp P and rho before using in calculations to prevent NaN/Inf
+					float rho_cell = rho[y][x];
+					if (rho_cell < 0.01f) rho_cell = 0.01f;
+					float P_cell = pv[y][x];
+					if (P_cell < 0.1f) P_cell = 0.1f;
+					
+					// Sound speed: c = sqrt(γ * P / ρ)
+					float c_sound = std::sqrt(gamma * P_cell / rho_cell); // m/s
+					
+					// Check for NaN/Inf in velocity BEFORE calculating divergence
+					// If velocity is already corrupted, reset it to prevent cascade
+					if (!std::isfinite(vx[y][x]) || !std::isfinite(vy[y][x]))
 					{
-						P_pa_current = pv[y][x] / P_scale + P_atm;
-					}
-					else
-					{
-						P_pa_current = pv[y][x] / P_scale;
-					}
-					
-					// Calculate velocity divergence
-					float div_v = (vx[y][x+1] - vx[y][x-1]) + (vy[y+1][x] - vy[y-1][x]);
-					
-					// Pressure evolution: ∂P/∂t = -γP∇·v (compressible flow)
-					// This naturally evolves pressure based on compression/expansion
-					float P_pa_evolved = P_pa_current - gamma * P_pa_current * div_v * dt;
-					
-					// Blend evolved pressure with ideal gas law
-					// Use a small correction to keep pressure close to ideal gas law
-					// This prevents drift while allowing natural evolution
-					const float ideal_correction = 0.02f; // Very small correction for stability
-					float P_pa_new = P_pa_evolved * (1.0f - ideal_correction) + P_pa_ideal * ideal_correction;
-					
-					// Ensure pressure doesn't go negative
-					if (P_pa_new < 100.0f) P_pa_new = 100.0f; // Minimum 100 Pa
-					
-					// Convert back to game units
-					float P_game;
-					if (useAtmosphericPressure)
-					{
-						P_game = (P_pa_new - P_atm) * P_scale;
-					}
-					else
-					{
-						P_game = P_pa_new * P_scale;
+						vx[y][x] = 0.0f;
+						vy[y][x] = 0.0f;
 					}
 					
-					// Apply damping and update pressure gradually
-					// Use very gradual update to prevent instability from large pressure differences
-					pv[y][x] *= AIR_PLOSS;
-					float pressure_diff = P_game - pv[y][x];
-					// Limit the maximum pressure change per frame to prevent explosions
-					const float max_change = 2.0f; // Maximum pressure change per frame
-					if (pressure_diff > max_change) pressure_diff = max_change;
-					if (pressure_diff < -max_change) pressure_diff = -max_change;
-					pv[y][x] += pressure_diff * AIR_TSTEPP * 0.3f; // Even slower update for stability
+					// Divergence: ∇·v = ∂vx/∂x + ∂vy/∂y
+					// Handle boundaries: if neighbor is wall or out of bounds, use reflection (0 velocity)
+					float vx_left = (x-1 < 0 || bmap_blockair[y][x-1]) ? 0.0f : vx[y][x-1];
+					float vx_right = (x+1 >= XCELLS || bmap_blockair[y][x+1]) ? 0.0f : vx[y][x+1];
+					float vy_up = (y-1 < 0 || bmap_blockair[y-1][x]) ? 0.0f : vy[y-1][x];
+					float vy_down = (y+1 >= YCELLS || bmap_blockair[y+1][x]) ? 0.0f : vy[y+1][x];
 					
-					// Clamp to game pressure limits
-					if (pv[y][x] > MAX_PRESSURE) pv[y][x] = MAX_PRESSURE;
-					if (pv[y][x] < MIN_PRESSURE) pv[y][x] = MIN_PRESSURE;
+					// Check neighbors for NaN/Inf
+					if (!std::isfinite(vx_left)) vx_left = 0.0f;
+					if (!std::isfinite(vx_right)) vx_right = 0.0f;
+					if (!std::isfinite(vy_up)) vy_up = 0.0f;
+					if (!std::isfinite(vy_down)) vy_down = 0.0f;
+					
+					float dvx_dx = (vx_right - vx_left) / (2.0f * CELL);
+					float dvy_dy = (vy_down - vy_up) / (2.0f * CELL);
+					float div_v_frame = dvx_dx + dvy_dy; // 1/frame
+					
+					if (std::abs(div_v_frame) > max_div) max_div = std::abs(div_v_frame);
+					
+					// PHYSICAL BOUND ON DIVERGENCE (Navier-Stokes constraint)
+					// In compressible flow, the maximum divergence is limited by the sound speed and cell size.
+					// For a cell of size dx, the maximum physically reasonable divergence is c_sound / dx.
+					// This represents the rate at which a pressure wave can expand at the speed of sound.
+					// This is NOT an arbitrary limit - it's a physical constraint from compressible flow theory.
+					float max_div_v_physical = c_sound / cell_to_meter; // Maximum divergence (1/s) physically possible
+					
+					// Convert divergence to 1/second
+					float div_v = div_v_frame / frame_to_second;
+					
+					// Apply physical bound: |div_v| <= c_sound / dx
+					// This ensures the divergence respects the physics of compressible flow
+					if (div_v > max_div_v_physical) div_v = max_div_v_physical;
+					if (div_v < -max_div_v_physical) div_v = -max_div_v_physical;
+					
+					// Velocity magnitude in m/s
+					float v_mag_mps = std::sqrt(vx[y][x]*vx[y][x] + vy[y][x]*vy[y][x]) * pixel_to_meter / frame_to_second;
+					
+					// CFL-limited time step: dt < dx / (c + |v|)
+					// This ensures information doesn't travel more than one cell per time step
+					float max_dt_cfl = cell_to_meter / (c_sound + v_mag_mps + 1.0f);
+					float dt_stable = std::min(dt_p * frame_to_second, max_dt_cfl);
+					
+					// CFL condition ensures stability: dt < dx/(c+|v|)
+					// Combined with physical bound on div_v, this ensures |div_v * dt| is bounded
+					float div_v_dt = div_v * dt_stable;
+					
+				// Update density: ∂ρ/∂t = -ρ∇·v
+				// Use exponential form: ρ(t+dt) = ρ(t) * exp(-div_v * dt)
+				// This is mathematically exact and stable for any div_v_dt
+				float rho_new = rho[y][x] * std::exp(-div_v_dt);
+				
+				// Clamp density to physical limits
+				if (rho_new < 0.01f) rho_new = 0.01f;
+				if (rho_new > 10.0f) rho_new = 10.0f;
+				rho[y][x] = rho_new;
+					
+				// Update pressure: ∂P/∂t = -γP∇·v (adiabatic process)
+				// Use exponential form: P(t+dt) = P(t) * exp(-γ * div_v * dt)
+				// This allows pressure to spread naturally through the pressure gradient → velocity → divergence feedback
+				// The adiabatic relationship P/ρ^γ = constant will be maintained approximately for adiabatic flow
+				// If we enforce it cell-by-cell, we prevent pressure from spreading (checkerboard pattern)
+				float P_new = P_cell * std::exp(-gamma * div_v_dt);
+				
+				// Clamp pressure to physical limits
+				if (P_new < 0.1f) P_new = 0.1f;
+				if (P_new > MAX_PRESSURE) P_new = MAX_PRESSURE;
+					
+					// Write to temporary array
+					opv[y][x] = P_new;
+					if (P_new > max_pressure) max_pressure = P_new;
+					
+					// TEMPORARILY DISABLED: Gravity effect on pressure (hydrostatic pressure)
+					// We're focusing on getting the core fluid dynamics (density, velocity, pressure) working first
+					// before adding gravity's effect on pressure
+					/*
+					// Add gravity effect on pressure (hydrostatic pressure: P = P0 + ρgh)
+					// Gravity creates a pressure gradient based on height from reference point
+					// This is an additional pressure contribution, not part of the adiabatic relationship
+					if (sim.grav && x >= 2 && x < XCELLS-2 && y >= 2 && y < YCELLS-2)
+					{
+						// Get gravity at this cell
+						float gravX, gravY;
+						sim.GetGravityField(x*CELL, y*CELL, 0.0f, 1.0f, gravX, gravY);
+						
+						// Hydrostatic pressure: P = P0 + ρgh
+						// Integrate from reference point (top of map, y=0) to current position
+						// Convert from game units to real units
+						const float pixel_to_meter = 0.001f; // Rough conversion: 1 pixel ≈ 1 mm
+						const float cell_size_m = CELL * pixel_to_meter;
+						
+						// Integrate gravity over height: P = P0 + ∫ρg·dh
+						// For constant density and gravity: P = P0 + ρg·Δh
+						float height_diff = (y - 0) * cell_size_m; // Height from top of map
+						float gravity_pressure = rho[y][x] * gravY * height_diff;
+						
+						// Also account for horizontal gravity component
+						float width_diff = (x - XCELLS/2) * cell_size_m; // Distance from center
+						gravity_pressure += rho[y][x] * gravX * width_diff;
+						
+						// Add gravity contribution to pressure
+						// This is a separate energy source (gravitational potential energy)
+						pv[y][x] += gravity_pressure;
+					}
+					*/
+					
+					// Clamp pressure
+					if (opv[y][x] > MAX_PRESSURE) opv[y][x] = MAX_PRESSURE;
+					if (opv[y][x] < MIN_PRESSURE) opv[y][x] = MIN_PRESSURE;
 				}
 			}
 		}
 
-		for (auto y=1; y<YCELLS-1; y++) //velocity adjustments from pressure
+		// DEBUG: Log pressure update stats
+		if (cells_updated > 0)
+		{
+			printf("[AIR DEBUG] Step 1: Updated %d cells, max_div=%.3f, max_pressure=%.1f Pa\n", 
+			       cells_updated, max_div, max_pressure);
+		}
+		
+		// STEP 2: Update velocity from pressure gradient
+		// Read from UPDATED pressure (opv), write to temporary velocity (ovx/ovy)
+		int vel_cells_updated = 0;
+		float max_accel = 0.0f;
+		float max_vel = 0.0f;
+		
+		for (auto y=1; y<YCELLS-1; y++)
 		{
 			for (auto x=1; x<XCELLS-1; x++)
 			{
-				auto dx = 0.0f;
-				auto dy = 0.0f;
-				dx += pv[y][x-1] - pv[y][x+1];
-				dy += pv[y-1][x] - pv[y+1][x];
-				vx[y][x] *= AIR_VLOSS;
-				vy[y][x] *= AIR_VLOSS;
-				vx[y][x] += dx*AIR_TSTEPV * 0.5f;
-				vy[y][x] += dy*AIR_TSTEPV * 0.5f;
+				if (bmap_blockair[y][x])
+				{
+					ovx[y][x] = 0.0f;
+					ovy[y][x] = 0.0f;
+					continue;
+				}
+				
+				vel_cells_updated++;
+				
+				// Calculate pressure gradient from UPDATED pressure (opv)
+				// Use reflection boundary condition at walls and boundaries
+				// Central difference: ∇P = (P[x+1] - P[x-1]) / (2*dx)
+				float p_left = (x-1 < 1 || bmap_blockair[y][x-1]) ? opv[y][x] : opv[y][x-1];
+				float p_right = (x+1 >= XCELLS-1 || bmap_blockair[y][x+1]) ? opv[y][x] : opv[y][x+1];
+				float p_up = (y-1 < 1 || bmap_blockair[y-1][x]) ? opv[y][x] : opv[y-1][x];
+				float p_down = (y+1 >= YCELLS-1 || bmap_blockair[y+1][x]) ? opv[y][x] : opv[y+1][x];
+				
+				// Pressure gradient in Pa/m
+				// If p_right > p_left, gradient points right (from low to high pressure)
+				// Force = -gradP points left (from high to low pressure) - CORRECT
+				float gradP_x = (p_right - p_left) / (2.0f * cell_to_meter);
+				float gradP_y = (p_down - p_up) / (2.0f * cell_to_meter);
+				
+				// Acceleration: a = -∇P / ρ
+				float rho_cell = rho[y][x];
+				if (rho_cell < 0.01f) rho_cell = 0.01f;
+				
+				// Pressure gradient force: a = -∇P / ρ (m/s²)
+				float accel_x_mps2 = -gradP_x / rho_cell;
+				float accel_y_mps2 = -gradP_y / rho_cell;
+				
+				// Add proper viscosity: ν∇²v (kinematic viscosity times Laplacian of velocity)
+				// Dynamic viscosity of air: μ ≈ 1.8e-5 Pa·s at 20°C
+				// Kinematic viscosity: ν = μ/ρ ≈ 1.5e-5 m²/s at standard conditions
+				const float mu = 1.8e-5f; // Dynamic viscosity (Pa·s)
+				const float nu = mu / rho_cell; // Kinematic viscosity (m²/s)
+				
+				// Laplacian of velocity: ∇²v = ∂²v/∂x² + ∂²v/∂y²
+				// Convert velocities to m/s for calculation
+				const float pixel_to_meter_vel = pixel_to_meter / frame_to_second;
+				float vx_mps = vx[y][x] * pixel_to_meter_vel;
+				float vy_mps = vy[y][x] * pixel_to_meter_vel;
+				
+				// Get neighbor velocities (in m/s), use 0 at walls
+				float vx_left_mps = (x-1 < 0 || bmap_blockair[y][x-1]) ? 0.0f : vx[y][x-1] * pixel_to_meter_vel;
+				float vx_right_mps = (x+1 >= XCELLS || bmap_blockair[y][x+1]) ? 0.0f : vx[y][x+1] * pixel_to_meter_vel;
+				float vx_up_mps = (y-1 < 0 || bmap_blockair[y-1][x]) ? 0.0f : vx[y-1][x] * pixel_to_meter_vel;
+				float vx_down_mps = (y+1 >= YCELLS || bmap_blockair[y+1][x]) ? 0.0f : vx[y+1][x] * pixel_to_meter_vel;
+				
+				float vy_left_mps = (x-1 < 0 || bmap_blockair[y][x-1]) ? 0.0f : vy[y][x-1] * pixel_to_meter_vel;
+				float vy_right_mps = (x+1 >= XCELLS || bmap_blockair[y][x+1]) ? 0.0f : vy[y][x+1] * pixel_to_meter_vel;
+				float vy_up_mps = (y-1 < 0 || bmap_blockair[y-1][x]) ? 0.0f : vy[y-1][x] * pixel_to_meter_vel;
+				float vy_down_mps = (y+1 >= YCELLS || bmap_blockair[y+1][x]) ? 0.0f : vy[y+1][x] * pixel_to_meter_vel;
+				
+				// Laplacian using central differences
+				float laplacian_vx = (vx_right_mps - 2.0f*vx_mps + vx_left_mps) / (cell_to_meter * cell_to_meter) +
+				                     (vx_down_mps - 2.0f*vx_mps + vx_up_mps) / (cell_to_meter * cell_to_meter);
+				float laplacian_vy = (vy_right_mps - 2.0f*vy_mps + vy_left_mps) / (cell_to_meter * cell_to_meter) +
+				                     (vy_down_mps - 2.0f*vy_mps + vy_up_mps) / (cell_to_meter * cell_to_meter);
+				
+				// Viscous acceleration: a_visc = ν∇²v (m/s²)
+				float accel_visc_x_mps2 = nu * laplacian_vx;
+				float accel_visc_y_mps2 = nu * laplacian_vy;
+				
+				// Total acceleration: a = -∇P/ρ + ν∇²v
+				float total_accel_x_mps2 = accel_x_mps2 + accel_visc_x_mps2;
+				float total_accel_y_mps2 = accel_y_mps2 + accel_visc_y_mps2;
+				
+				// CFL condition for velocity update: dt < dx / (c_sound + |v|)
+				float P_vel = opv[y][x];
+				if (P_vel < 0.1f) P_vel = 0.1f;
+				float c_sound_vel = std::sqrt(gamma * P_vel / rho_cell); // m/s
+				float v_mag_vel_mps = std::sqrt(vx[y][x]*vx[y][x] + vy[y][x]*vy[y][x]) * pixel_to_meter / frame_to_second;
+				float max_dt_vel_cfl = cell_to_meter / (c_sound_vel + v_mag_vel_mps + 1.0f);
+				float dt_vel_stable = std::min(dt_v * frame_to_second, max_dt_vel_cfl);
+				
+				// Convert to game units: pixels/frame²
+				const float unit_scale = pixel_to_meter / (frame_to_second * frame_to_second);
+				float accel_x = total_accel_x_mps2 * unit_scale;
+				float accel_y = total_accel_y_mps2 * unit_scale;
+				
+				float accel_mag = std::sqrt(accel_x*accel_x + accel_y*accel_y);
+				if (accel_mag > max_accel) max_accel = accel_mag;
+				
+				// Update velocity: read from CURRENT (vx/vy), write to TEMPORARY (ovx/ovy)
+				// Use CFL-limited time step to prevent instability
+				// NO ARTIFICIAL DAMPING - let proper viscosity handle energy dissipation
+				float dt_vel_game = dt_vel_stable / frame_to_second; // Convert back to game time units
+				float vx_new = vx[y][x] + accel_x * dt_vel_game;
+				float vy_new = vy[y][x] + accel_y * dt_vel_game;
+				
+				// Zero at walls
 				if (bmap_blockair[y][x-1] || bmap_blockair[y][x] || bmap_blockair[y][x+1])
-					vx[y][x] = 0;
+					vx_new = 0.0f;
 				if (bmap_blockair[y-1][x] || bmap_blockair[y][x] || bmap_blockair[y+1][x])
-					vy[y][x] = 0;
+					vy_new = 0.0f;
+				
+				ovx[y][x] = vx_new;
+				ovy[y][x] = vy_new;
+				
+				float vel_mag = std::sqrt(vx_new*vx_new + vy_new*vy_new);
+				if (vel_mag > max_vel) max_vel = vel_mag;
 			}
 		}
+		
+		// DEBUG: Log velocity update stats
+		if (vel_cells_updated > 0)
+		{
+			// Sample a few cells to see what's happening
+			int sample_y = YCELLS / 2;
+			int sample_x = XCELLS / 2;
+			if (!bmap_blockair[sample_y][sample_x])
+			{
+				float sample_p = opv[sample_y][sample_x];
+				float sample_vx = ovx[sample_y][sample_x];
+				float sample_vy = ovy[sample_y][sample_x];
+				printf("[AIR DEBUG] Step 2: Updated %d cells, max_accel=%.3f, max_vel=%.3f | Sample[%d,%d]: P=%.1f Pa, v=(%.3f,%.3f)\n",
+				       vel_cells_updated, max_accel, max_vel, sample_x, sample_y, sample_p, sample_vx, sample_vy);
+			}
+			else
+			{
+				printf("[AIR DEBUG] Step 2: Updated %d cells, max_accel=%.3f, max_vel=%.3f\n",
+				       vel_cells_updated, max_accel, max_vel);
+			}
+		}
+		
+		// STEP 3: Copy temporary arrays back to main arrays
+		// This completes the update without race conditions
+		// Use memcpy for efficiency - we've updated all cells that need updating
+		memcpy(vx, ovx, sizeof(vx));
+		memcpy(vy, ovy, sizeof(vy));
+		memcpy(pv, opv, sizeof(pv));
 
+		// DISABLED: Old advection step - we want real physics, not simplified smoothing
+		// The physics must be stable on its own
+		/*
 		for (auto y=0; y<YCELLS; y++) //update velocity and pressure
 		{
 			for (auto x=0; x<XCELLS; x++)
@@ -518,13 +817,15 @@ void Air::update_air(void)
 					dx += fvx[y][x];
 					dy += fvy[y][x];
 				}
-				// pressure/velocity caps
+				// pressure/velocity caps (pressure in Pascals, velocity in pixels/frame)
 				if (dp > MAX_PRESSURE) dp = MAX_PRESSURE;
 				if (dp < MIN_PRESSURE) dp = MIN_PRESSURE;
-				if (dx > MAX_PRESSURE) dx = MAX_PRESSURE;
-				if (dx < MIN_PRESSURE) dx = MIN_PRESSURE;
-				if (dy > MAX_PRESSURE) dy = MAX_PRESSURE;
-				if (dy < MIN_PRESSURE) dy = MIN_PRESSURE;
+				// Velocity limits (not pressure limits!)
+				const float MAX_VEL = 50.0f; // pixels/frame
+				if (dx > MAX_VEL) dx = MAX_VEL;
+				if (dx < -MAX_VEL) dx = -MAX_VEL;
+				if (dy > MAX_VEL) dy = MAX_VEL;
+				if (dy < -MAX_VEL) dy = -MAX_VEL;
 
 
 				switch (airMode)
@@ -556,7 +857,9 @@ void Air::update_air(void)
 		memcpy(vx, ovx, sizeof(vx));
 		memcpy(vy, ovy, sizeof(vy));
 		memcpy(pv, opv, sizeof(pv));
+		*/
 	}
+#endif  // USE_LEGACY_AIR_PHYSICS
 }
 
 void Air::Invert()
@@ -612,7 +915,7 @@ Air::Air(Simulation & simulation):
 	airMode(AIR_ON),
 	ambientAirTemp(R_TEMP + 273.15f),
 	vorticityCoeff(0.0f),
-	useAtmosphericPressure(true) // Default: enabled
+	useAtmosphericPressure(true) // Default: show relative pressure in UI
 {
 	//Simulation should do this.
 	make_kernel();
@@ -634,3 +937,4 @@ Air::Air(Simulation & simulation):
 	std::fill(&sim.pv[0][0], &sim.pv[0][0] + NCELL, 0.0f);
 	std::fill(&opv   [0][0], &opv   [0][0] + NCELL, 0.0f);
 }
+

@@ -14,6 +14,7 @@
 #include "QuickOptions.h"
 #include "lua/CommandInterface.h"
 #include "prefs/GlobalPrefs.h"
+#include "gui/options/OptionsModel.h"
 #include "client/Client.h"
 #include "client/GameSave.h"
 #include "client/SaveFile.h"
@@ -236,7 +237,7 @@ void GameModel::BuildQuickOptionMenu(GameController * controller)
 	// NGravityOption removed from sidebar - still available in options menu
 	quickOptions.push_back(new AHeatOption(this));
 	quickOptions.push_back(new BurningOption(this));
-	quickOptions.push_back(new NoWeightOption(this));
+	quickOptions.push_back(new PressureUnitOption(this));
 	quickOptions.push_back(new ConsoleShowOption(this, controller));
 
 	notifyQuickOptionsChanged();
@@ -1109,6 +1110,24 @@ bool GameModel::GetNoWeightSwitching()
 void GameModel::SetNoWeightSwitching(bool noWeight)
 {
 	sim->NoWeightSwitching = noWeight ? 1 : 0;
+}
+
+OptionsModel::PressureUnit GameModel::GetPressureUnit()
+{
+	// Access OptionsModel through GameController
+	// For now, use GlobalPrefs directly
+	int unit = GlobalPrefs::Ref().Get("Simulation.PressureUnit", int(OptionsModel::PRESSURE_ATM));
+	return OptionsModel::PressureUnit(unit);
+}
+
+void GameModel::SetPressureUnit(OptionsModel::PressureUnit unit)
+{
+	GlobalPrefs::Ref().Set("Simulation.PressureUnit", int(unit));
+}
+
+bool GameModel::GetAtmosphericPressure()
+{
+	return GlobalPrefs::Ref().Get("Simulation.AtmosphericPressure", true);
 }
 
 void GameModel::SetNewtonianGravity(bool newtonainGravity)

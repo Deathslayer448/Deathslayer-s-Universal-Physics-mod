@@ -34,8 +34,12 @@ constexpr float CFDS            = 4.0f / CELL;
 constexpr float MAX_VELOCITY = 1e4f;
 
 //Air constants
-constexpr float AIR_TSTEPP = 0.3f;
-constexpr float AIR_TSTEPV = 0.4f;
+// Time steps for real physics - must satisfy CFL condition: dt < dx / (c_sound + |v|)
+// With c_sound ≈ 343 m/s, dx ≈ 0.004 m, we need dt < 0.004/343 ≈ 0.000012 s
+// But we're using dimensionless multipliers, so we need reasonable values
+// The actual dt will be CFL-limited in the code
+constexpr float AIR_TSTEPP = 0.1f;  // Base time step multiplier for pressure
+constexpr float AIR_TSTEPV = 0.1f;  // Base time step multiplier for velocity
 constexpr float AIR_VADV   = 0.3f;
 constexpr float AIR_VLOSS  = 0.999f;
 constexpr float AIR_PLOSS  = 0.9999f;

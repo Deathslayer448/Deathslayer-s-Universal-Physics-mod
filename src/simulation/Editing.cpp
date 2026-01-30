@@ -62,23 +62,14 @@ void Simulation::Restore(const Snapshot &snap)
 	else
 	{
 		// Legacy: calculate density from pressure and temperature using ideal gas law
+		// pv stores absolute pressure directly in Pascals
 		const float R_gas = 287.0f;
-		const float P_atm = 101325.0f;
-		const float P_scale = MAX_PRESSURE / P_atm;
 		for (int i = 0; i < NCELL; i++)
 		{
-			float P_pa;
-			if (air->useAtmosphericPressure)
-			{
-				P_pa = pv[0][i] / P_scale + P_atm;
-			}
-			else
-			{
-				P_pa = pv[0][i] / P_scale;
-			}
+			float P_pa = pv[0][i]; // Already in Pascals (absolute)
 			float T = hv[0][i];
 			if (T < 0.0f) T = air->ambientAirTemp;
-			if (T > 0.0f && R_gas > 0.0f)
+			if (T > 0.0f && R_gas > 0.0f && P_pa > 0.0f)
 			{
 				air->rho[0][i] = P_pa / (R_gas * T);
 				if (air->rho[0][i] < 0.01f) air->rho[0][i] = 0.01f;
@@ -86,6 +77,7 @@ void Simulation::Restore(const Snapshot &snap)
 			}
 			else
 			{
+				const float P_atm = 101325.0f;
 				air->rho[0][i] = P_atm / (R_gas * air->ambientAirTemp);
 			}
 		}
@@ -176,22 +168,8 @@ SimulationSample Simulation::GetSample(int x, int y)
 		{
 			sample.WallType = bmap[y/CELL][x/CELL];
 		}
-		// Display pressure: if atmospheric pressure is enabled, show relative pressure
-		// Otherwise, convert absolute pressure to relative for display consistency
-		if (air->useAtmosphericPressure)
-		{
-			// Pressure is already relative to atmospheric (in game units)
-			sample.AirPressure = pv[y/CELL][x/CELL];
-		}
-		else
-		{
-			// Pressure is absolute, convert to relative for display
-			const float P_atm = 101325.0f; // Standard atmospheric pressure (Pa)
-			const float P_scale = MAX_PRESSURE / P_atm;
-			// Convert back: P_pa = P_game / P_scale, then show relative to atmospheric
-			float P_pa = pv[y/CELL][x/CELL] / P_scale;
-			sample.AirPressure = (P_pa - P_atm) * P_scale; // Show as relative for consistency
-		}
+		// Pressure is stored directly in Pascals (absolute)
+		sample.AirPressure = pv[y/CELL][x/CELL];
 		sample.AirTemperature = hv[y/CELL][x/CELL];
 		sample.AirVelocityX = vx[y/CELL][x/CELL];
 		sample.AirVelocityY = vy[y/CELL][x/CELL];

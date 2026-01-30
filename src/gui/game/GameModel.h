@@ -5,6 +5,7 @@
 #include "graphics/RendererSettings.h"
 #include "simulation/CustomGOLData.h"
 #include "simulation/SimulationSettings.h"
+#include "gui/options/OptionsModel.h"
 #include <vector>
 #include <deque>
 #include <memory>
@@ -253,6 +254,9 @@ public:
 	bool GetBetterBurningEnable();
 	void SetNoWeightSwitching(bool noWeight);
 	bool GetNoWeightSwitching();
+	OptionsModel::PressureUnit GetPressureUnit();
+	void SetPressureUnit(OptionsModel::PressureUnit unit);
+	bool GetAtmosphericPressure();
 	void ResetAHeat();
 	void SetNewtonianGravity(bool newtonainGravity);
 	bool GetNewtonianGrvity();

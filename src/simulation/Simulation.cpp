@@ -2291,39 +2291,105 @@ void Simulation::UpdateParticles(int start, int end)
 		if (bmap[y/CELL][x/CELL]==WL_DETECT && emap[y/CELL][x/CELL]<8)
 			set_emap(x/CELL, y/CELL);
 
+		// TEMPORARILY DISABLED: Particle velocity contributions to air velocity
+		// This was overwriting our physics-based velocity calculations
+		// We're using proper Navier-Stokes physics now, so particles should interact
+		// with the fluid through proper momentum exchange (to be implemented later)
+		// For now, we disable this to let our physics work exclusively
+		/*
 		//adding to velocity from the particle's velocity
 		vx[y/CELL][x/CELL] = vx[y/CELL][x/CELL]*elements[t].AirLoss + elements[t].AirDrag*parts[i].vx;
 		vy[y/CELL][x/CELL] = vy[y/CELL][x/CELL]*elements[t].AirLoss + elements[t].AirDrag*parts[i].vy;
+		*/
 
+		// TEMPORARILY DISABLED: HotAir (heat to pressure conversion)
+		// We're focusing on getting the core fluid dynamics (density, velocity, pressure) working first
+		// before adding external sources like heat-to-pressure conversion
+		/*
 		if (elements[t].HotAir)
 		{
 			if (t==PT_GAS||t==PT_NBLE)
 			{
-				if (pv[y/CELL][x/CELL]<3.5f)
-					pv[y/CELL][x/CELL] += elements[t].HotAir*(3.5f-pv[y/CELL][x/CELL]);
-				if (y+CELL<YRES && pv[y/CELL+1][x/CELL]<3.5f)
-					pv[y/CELL+1][x/CELL] += elements[t].HotAir*(3.5f-pv[y/CELL+1][x/CELL]);
+				// GAS and NBLE use a different pressure addition method
+				// Old code used old pressure scale (3.5f = old atmospheric)
+				// New: Convert to Pascals and use same method as other elements
+				const float old_atm_pressure = 3.5f; // Old scale atmospheric pressure
+				const float new_atm_pressure = 101325.0f; // New scale atmospheric pressure (Pa)
+				const float old_to_pascal = new_atm_pressure / old_atm_pressure; // ~28950 Pa per old unit
+				
+				// Convert old threshold to new scale
+				const float threshold_pa = old_atm_pressure * old_to_pascal;
+				
+				// Add pressure using same method as old code, but in Pascals
+				if (pv[y/CELL][x/CELL] < threshold_pa)
+				{
+					float pressure_add = elements[t].HotAir * (threshold_pa - pv[y/CELL][x/CELL]);
+					// Limit to prevent runaway
+					if (pressure_add > 1000.0f) pressure_add = 1000.0f;
+					pv[y/CELL][x/CELL] += pressure_add;
+				}
+				if (y+CELL<YRES && pv[y/CELL+1][x/CELL] < threshold_pa)
+				{
+					float pressure_add = elements[t].HotAir * (threshold_pa - pv[y/CELL+1][x/CELL]);
+					if (pressure_add > 1000.0f) pressure_add = 1000.0f;
+					pv[y/CELL+1][x/CELL] += pressure_add;
+				}
 				if (x+CELL<XRES)
 				{
-					if (pv[y/CELL][x/CELL+1]<3.5f)
-						pv[y/CELL][x/CELL+1] += elements[t].HotAir*(3.5f-pv[y/CELL][x/CELL+1]);
-					if (y+CELL<YRES && pv[y/CELL+1][x/CELL+1]<3.5f)
-						pv[y/CELL+1][x/CELL+1] += elements[t].HotAir*(3.5f-pv[y/CELL+1][x/CELL+1]);
+					if (pv[y/CELL][x/CELL+1] < threshold_pa)
+					{
+						float pressure_add = elements[t].HotAir * (threshold_pa - pv[y/CELL][x/CELL+1]);
+						if (pressure_add > 1000.0f) pressure_add = 1000.0f;
+						pv[y/CELL][x/CELL+1] += pressure_add;
+					}
+					if (y+CELL<YRES && pv[y/CELL+1][x/CELL+1] < threshold_pa)
+					{
+						float pressure_add = elements[t].HotAir * (threshold_pa - pv[y/CELL+1][x/CELL+1]);
+						if (pressure_add > 1000.0f) pressure_add = 1000.0f;
+						pv[y/CELL+1][x/CELL+1] += pressure_add;
+					}
 				}
 			}
 			else//add the hotair variable to the pressure map, like black hole, or white hole.
 			{
-				pv[y/CELL][x/CELL] += elements[t].HotAir;
-				if (y+CELL<YRES)
-					pv[y/CELL+1][x/CELL] += elements[t].HotAir;
-				if (x+CELL<XRES)
+				// HotAir was designed for old pressure scale
+				// Old scale: -256 = 0 bar (0 Pa), 0 = 1 bar (101325 Pa), 256 = 2 bar (202650 Pa)
+				// So: 1 old unit = (202650 - 0) / (256 - (-256)) = 202650 / 512 ≈ 395.5 Pa
+				// But HotAir values are already very small (0.001f * CFDS)
+				// CFDS = 4.0/CELL = 1.0 when CELL=4, so HotAir = 0.001f
+				// This represents 0.001 old units = 0.001 * 395.5 ≈ 0.4 Pa per frame
+				// This is tiny and should be fine, but we need to ensure it doesn't accumulate
+				const float old_to_pascal = 202650.0f / 512.0f; // ~395.5 Pa per old unit
+				float pressure_add = elements[t].HotAir * old_to_pascal;
+				
+				// Only add pressure if particle is actually hot (above ambient)
+				// This prevents cool particles from generating pressure
+				float ambient_temp = air->ambientAirTemp;
+				if (parts[i].temp > ambient_temp)
 				{
-					pv[y/CELL][x/CELL+1] += elements[t].HotAir;
+					// Scale by temperature difference - hotter = more pressure
+					float temp_factor = (parts[i].temp - ambient_temp) / (ambient_temp * 0.1f); // Normalize
+					if (temp_factor > 1.0f) temp_factor = 1.0f; // Cap at 1.0
+					pressure_add *= temp_factor;
+					
+					// Add pressure, but ensure it doesn't exceed reasonable limits
+					// Limit the pressure addition to prevent runaway feedback
+					const float max_pressure_add = 1000.0f; // Max 1 kPa per frame per particle
+					if (pressure_add > max_pressure_add) pressure_add = max_pressure_add;
+					
+					pv[y/CELL][x/CELL] += pressure_add;
 					if (y+CELL<YRES)
-						pv[y/CELL+1][x/CELL+1] += elements[t].HotAir;
+						pv[y/CELL+1][x/CELL] += pressure_add;
+					if (x+CELL<XRES)
+					{
+						pv[y/CELL][x/CELL+1] += pressure_add;
+						if (y+CELL<YRES)
+							pv[y/CELL+1][x/CELL+1] += pressure_add;
+					}
 				}
 			}
 		}
+		*/
 
 		auto neighbourhood = GetNeighbourhood(i);
 
@@ -2745,15 +2811,6 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 		}
 	}
 
-	//the basic explosion, from the .explosive variable
-	if ((elements[t].Explosive&2) && pv[y/CELL][x/CELL]>2.5f)
-	{
-		parts[i].life = rng.between(180, 259);
-		parts[i].temp = restrict_flt(elements[PT_FIRE].DefaultProperties.temp + (elements[t].Flammable/2), MIN_TEMP, MAX_TEMP);
-		t = PT_FIRE;
-		part_change_type(i,x,y,t);
-		pv[y/CELL][x/CELL] += 0.25f * CFDS;
-	}
 
 	{
 		auto s = 1;
@@ -3664,6 +3721,20 @@ void Simulation::BeforeSim(bool willUpdate)
 {
 	if (willUpdate)
 	{
+		// Update pressure block map from walls before air update so the solver sees current walls
+		for (int y = 0; y < YCELLS; y++)
+		{
+			for (int x = 0; x < XCELLS; x++)
+			{
+				if (emap[y][x])
+					emap[y][x] --;
+				air->bmap_blockair[y][x] = (bmap[y][x]==WL_WALL || bmap[y][x]==WL_WALLELEC || bmap[y][x]==WL_BLOCKAIR || (bmap[y][x]==WL_EWALL && !emap[y][x]));
+				air->bmap_blockairh[y][x] = (air->bmap_blockair[y][x] || bmap[y][x]==WL_GRAV) ? 0x8 : 0;
+			}
+		}
+		// Add particle-based blockers (TTAN, insulators, etc.) so pressure respects them
+		air->ApproximateBlockAirMaps();
+
 		air->update_air();
 
 		if(aheat_enable)
@@ -3704,18 +3775,6 @@ void Simulation::BeforeSim(bool willUpdate)
 
 	if (willUpdate)
 	{
-		// decrease wall conduction, make walls block air and ambient heat
-		for (int y = 0; y < YCELLS; y++)
-		{
-			for (int x = 0; x < XCELLS; x++)
-			{
-				if (emap[y][x])
-					emap[y][x] --;
-				air->bmap_blockair[y][x] = (bmap[y][x]==WL_WALL || bmap[y][x]==WL_WALLELEC || bmap[y][x]==WL_BLOCKAIR || (bmap[y][x]==WL_EWALL && !emap[y][x]));
-				air->bmap_blockairh[y][x] = (air->bmap_blockair[y][x] || bmap[y][x]==WL_GRAV) ? 0x8 : 0;
-			}
-		}
-
 		// check for stacking and create BHOL if found
 		if (force_stacking_check || rng.chance(1, 10))
 		{

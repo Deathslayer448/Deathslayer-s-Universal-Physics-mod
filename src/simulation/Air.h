@@ -1,5 +1,6 @@
 #pragma once
 #include "SimulationConfig.h"
+#include "AirSolverWrapper.h"
 
 class Simulation;
 struct RenderableSimulation;
@@ -8,10 +9,11 @@ class Air
 {
 public:
 	Simulation & sim;
+	AirSolverWrapper rusanovSolver;
 	int airMode;
 	float ambientAirTemp;
 	float vorticityCoeff;
-	bool useAtmosphericPressure; // If true, pressure includes atmospheric baseline (default: true)
+	bool useAtmosphericPressure; // UI display mode: if true, show pressure relative to atmospheric
 	float ovx[YCELLS][XCELLS];
 	float ovy[YCELLS][XCELLS];
 	float opv[YCELLS][XCELLS];

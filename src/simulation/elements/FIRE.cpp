@@ -130,7 +130,23 @@ int Element_FIRE_update(UPDATE_FUNC_ARGS)
 					parts[ID(r)].life = sim->rng.between(180, 259);
 					parts[ID(r)].tmp = parts[ID(r)].ctype = 0;
 					if (elements[rt].Explosive)
-						sim->pv[y/CELL][x/CELL] += 0.25f * CFDS;
+					{
+						// Add explosion pressure in Pascals when explosive burns
+						// Typical explosion creates 100-1000 kPa overpressure
+						// Using 500 kPa (500000 Pa) as a reasonable value
+						// Spread explosion pressure over multiple cells to prevent instability
+						const float explosion_pressure = 500000.0f;
+						const float cell_pressure = explosion_pressure / 4.0f;
+						sim->pv[y/CELL][x/CELL] += cell_pressure;
+						if (y+CELL < YRES)
+							sim->pv[(y+CELL)/CELL][x/CELL] += cell_pressure;
+						if (x+CELL < XRES)
+						{
+							sim->pv[y/CELL][(x+CELL)/CELL] += cell_pressure;
+							if (y+CELL < YRES)
+								sim->pv[(y+CELL)/CELL][(x+CELL)/CELL] += cell_pressure;
+						}
+					}
 				}
 			}
 		}

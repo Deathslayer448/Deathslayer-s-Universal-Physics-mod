@@ -62,43 +62,55 @@ static int update(UPDATE_FUNC_ARGS)
 					continue;
 				// Spark detection
 				if (TYP(r) == PT_SPRK) {
-					sim->pv[y / CELL][x / CELL] += 10;
-					sim->vx[(y) / CELL][(x) / CELL] *= 1.2;
-					sim->vy[(y) / CELL][(x) / CELL] *= 1.2;
+					// Add explosion pressure in Pascals (500 kPa = 500000 Pa)
+					sim->pv[y / CELL][x / CELL] += 500000.0f;
+					// TEMPORARILY DISABLED: Velocity multiplication that interferes with our physics
+					// Our Navier-Stokes physics will handle the velocity from pressure gradient
+					// sim->vx[(y) / CELL][(x) / CELL] *= 1.2;
+					// sim->vy[(y) / CELL][(x) / CELL] *= 1.2;
 
 					parts[i].life += 500;
 					parts[i].temp += 500;
 					sim->part_change_type(i, x, y, PT_EMBR);
 					return 1;
 				}
-				else if (TYP(r) == PT_EMBR || (TYP(r) == PT_FIRE && parts[i].temp > 800.0f - sim->pv[y / CELL][x / CELL] && sim->rng.chance(1, 20))) {
-					sim->pv[y / CELL][x / CELL] += 20;
-					sim->vx[(y) / CELL][(x) / CELL] *= 1.1;
-					sim->vy[(y) / CELL][(x) / CELL] *= 1.1;
+				else if (TYP(r) == PT_EMBR || (TYP(r) == PT_FIRE && parts[i].temp > 800.0f && sim->rng.chance(1, 20))) {
+					// Add explosion pressure in Pascals (200 kPa = 200000 Pa)
+					sim->pv[y / CELL][x / CELL] += 200000.0f;
+					// TEMPORARILY DISABLED: Velocity multiplication
+					// sim->vx[(y) / CELL][(x) / CELL] *= 1.1;
+					// sim->vy[(y) / CELL][(x) / CELL] *= 1.1;
 					parts[i].temp += 500;
 					parts[i].life += 100;
 					sim->part_change_type(i, x, y, sim->rng.chance(1, 5) ? PT_EMBR : PT_FIRE);
 					return 1;
 				}
 			}
-	if (parts[i].temp > 2000.0f - sim->pv[y / CELL][x / CELL]) {
-		sim->pv[y / CELL][x / CELL] += 5;
-		sim->vx[(y) / CELL][(x) / CELL] *= 1.1;
-		sim->vy[(y) / CELL][(x) / CELL] *= 1.1;
+	// High temperature explosion (pressure is in Pascals, so no need to subtract from temp)
+	if (parts[i].temp > 2000.0f) {
+		// Add explosion pressure in Pascals (100 kPa = 100000 Pa)
+		sim->pv[y / CELL][x / CELL] += 100000.0f;
+		// TEMPORARILY DISABLED: Velocity multiplication
+		// sim->vx[(y) / CELL][(x) / CELL] *= 1.1;
+		// sim->vy[(y) / CELL][(x) / CELL] *= 1.1;
 		parts[i].temp += 400;
 		parts[i].life += 100;
 
 		sim->part_change_type(i, x, y, sim->rng.chance(1, 5) ? PT_EMBR : PT_FIRE);
 		return 1;
 	}
-	if (parts[i].temp > 320.0f - sim->pv[y / CELL][x / CELL])
+	// Low pressure sensitivity (when pressure is very low, C4 is more sensitive)
+	const float P_atm = 101325.0f;
+	if (parts[i].temp > 320.0f && sim->pv[y / CELL][x / CELL] < P_atm * 0.5f)
 	{
 		parts[i].vx += restrict_flt(parts[i].temp / 1000.0f * sim->vx[y / CELL][x / CELL], 0.0f, 0.7f);
 		parts[i].vy += restrict_flt(parts[i].temp / 1000.0f * sim->vy[y / CELL][x / CELL], 0.0f, 0.7f);
 	}
-	if (sim->pv[y / CELL][x / CELL] - parts[i].temp / 10.0f > 150.0f)
+	// High pressure difference explosion (pressure difference > 150 kPa)
+	if (sim->pv[y / CELL][x / CELL] > P_atm + 150000.0f)
 	{
-		sim->pv[y / CELL][x / CELL] += 5;
+		// Add explosion pressure in Pascals (100 kPa = 100000 Pa)
+		sim->pv[y / CELL][x / CELL] += 100000.0f;
 		sim->vx[(y) / CELL][(x) / CELL] *= 1.5;
 		sim->vy[(y) / CELL][(x) / CELL] *= 1.5;
 		parts[i].temp += 500;

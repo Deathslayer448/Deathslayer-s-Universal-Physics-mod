@@ -28,6 +28,9 @@ public:
 	void SetBetterBurningEnable(bool state);
 	bool GetAtmosphericPressure();
 	void SetAtmosphericPressure(bool state);
+	enum PressureUnit { PRESSURE_ATM, PRESSURE_KPA };
+	PressureUnit GetPressureUnit();
+	void SetPressureUnit(PressureUnit unit);
 	bool GetShowAvatars();
 	void SetShowAvatars(bool state);
 	int GetAirMode();

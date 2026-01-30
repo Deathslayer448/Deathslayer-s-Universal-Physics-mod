@@ -2,6 +2,7 @@
 
 #include "GameModel.h"
 #include "GameController.h"
+#include "gui/options/OptionsModel.h"
 
 #include "simulation/Simulation.h"
 
@@ -93,6 +94,25 @@ bool NoWeightOption::GetToggle()
 void NoWeightOption::perform()
 {
 	m->SetNoWeightSwitching(!m->GetNoWeightSwitching());
+}
+
+PressureUnitOption::PressureUnitOption(GameModel* m):
+QuickOption("P", "Pressure unit: atm/kPa", m, Toggle)
+{
+
+}
+bool PressureUnitOption::GetToggle()
+{
+	// Toggle state: true = kPa, false = atm
+	return m->GetPressureUnit() == OptionsModel::PRESSURE_KPA;
+}
+void PressureUnitOption::perform()
+{
+	// Toggle between atm and kPa
+	if (m->GetPressureUnit() == OptionsModel::PRESSURE_ATM)
+		m->SetPressureUnit(OptionsModel::PRESSURE_KPA);
+	else
+		m->SetPressureUnit(OptionsModel::PRESSURE_ATM);
 }
 
 AHeatOption::AHeatOption(GameModel * m):
