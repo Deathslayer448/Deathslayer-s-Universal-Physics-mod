@@ -14,7 +14,8 @@ void SimTool::Tool_VAC()
 
 static int perform(SimTool *tool, Simulation * sim, Particle * cpart, int x, int y, int brushX, int brushY, float strength)
 {
-	sim->pv[y/CELL][x/CELL] -= strength*0.05f;
+	// Strength 1.0 removes ~0.05 atm per application (pv in Pascals).
+	sim->pv[y/CELL][x/CELL] -= strength * 5000.0f;
 
 	if (sim->pv[y/CELL][x/CELL] > MAX_PRESSURE)
 		sim->pv[y/CELL][x/CELL] = MAX_PRESSURE;
