@@ -940,10 +940,10 @@ void Renderer::draw_air()
 
 	// Match original TPT: values in 0-8 (pressure) or 0-8 per channel (velocity), then scale to 0-255.
 	static const float P_atm = 101325.0f;
-	// Pressure: 1 atm -> blue (0), 2 atm -> red (8). Velocity: 0-8 game units -> 0-8 (TPT range).
+	// Pressure: 0->blue, 1 atm->black, 4 atm->red. Velocity: 0-V_scale -> smooth hue fade.
 	static const float P_to_8 = 8.0f / P_atm;
 	static const float P_offset = P_atm;
-	static const float V_to_8 = 8.0f / 8.0f;               // velocity 0-8 game units -> 0-8
+	static const float V_scale = 25.0f;                     // velocity 0-V_scale -> 0-1 (gentle scale, smooth fade)
 	static const float display_scale = 255.0f / 8.0f;    // 0-8 -> 0-255
 
 	(void)0;
@@ -986,18 +986,18 @@ void Renderer::draw_air()
 
 			if (displayMode & DISPLAY_AIRP)
 			{
-				// 0 (vacuum) -> blue, 1 atm (ambient) -> black, 2 atm -> red. Hue blue->magenta->red only (no green).
-				const int sat = 230;
+				// 0 -> blue, 1 atm -> black, 4 atm -> red. Smooth value ramp (0-255), soft sat.
+				static const int sat = 200;
 				int h, v;
 				if (p_val <= P_offset) {
 					float t = (P_offset > 0.0f) ? clamp_flt(p_val / P_offset, 0.0f, 1.0f) : 0.0f;
 					h = 240;
-					v = (int)((1.0f - t) * 240.0f + 0.5f);
+					v = (int)((1.0f - t) * 255.0f + 0.5f);
 				} else {
-					float t = clamp_flt((p_val - P_offset) / P_offset, 0.0f, 1.0f);
-					h = (int)(240.0f + t * 120.0f + 0.5f);
-					if (h >= 360) h -= 360;
-					v = (int)(t * 240.0f + 0.5f);
+					float t = clamp_flt((p_val - P_offset) / (3.0f * P_offset), 0.0f, 1.0f);
+					h = (int)(240.0f * (1.0f - t) + 0.5f);
+					if (h < 0) h = 0;
+					v = (int)(t * 255.0f + 0.5f);
 					if (v > 255) v = 255;
 				}
 				if (v <= 0) {
@@ -1010,21 +1010,20 @@ void Renderer::draw_air()
 			}
 			else if (displayMode & DISPLAY_AIRV)
 			{
-				// Strength only: magnitude -> hue (blue 240 -> magenta 300 -> red 0), value capped to avoid max-sat primaries.
+				// Strength only: one smooth gradient blue -> magenta -> red (no green). Quantized t to reduce noise.
 				float mag = std::sqrt(vx_val * vx_val + vy_val * vy_val);
-				if (mag < 1e-6f) {
+				float t = clamp_flt(mag / V_scale, 0.0f, 1.0f);
+				if (t < 0.02f) {
 					c = RGB(0, 0, 0);
 				} else {
-					float t = clamp_flt(mag * V_to_8 / 8.0f, 0.0f, 1.0f);
-					float hue = 240.0f + t * 120.0f;
-					if (hue >= 360.0f) hue -= 360.0f;
+					t = std::floor(t * 64.0f + 0.5f) / 64.0f;
+					float hue = 240.0f - t * 240.0f;
+					if (hue < 0.0f) hue += 360.0f;
 					int h = (int)(hue + 0.5f);
 					if (h < 0) h = 0;
 					if (h > 359) h = 359;
-					int val = (int)(t * 240.0f + 0.5f);
-					if (val > 255) val = 255;
 					int r_, g_, b_;
-					HSV_to_RGB(h, 230, val, &r_, &g_, &b_);
+					HSV_to_RGB(h, 220, (int)(t * 255.0f + 0.5f), &r_, &g_, &b_);
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				}
 			}
@@ -1034,23 +1033,22 @@ void Renderer::draw_air()
 			}
 			else if (displayMode & DISPLAY_AIRC)
 			{
-				// Strength only (like AIRV): magnitude -> hue and brightness. Pressure scales brightness. Softer sat/value.
+				// Same as AIRV: strength -> blue/magenta/red gradient, quantized. Pressure scales t.
 				float mag = std::sqrt(vx_val * vx_val + vy_val * vy_val);
-				if (mag < 1e-6f) {
+				float t = clamp_flt(mag / V_scale, 0.0f, 1.0f);
+				t *= clamp_flt(p_val / P_offset, 0.5f, 1.5f);
+				if (t > 1.0f) t = 1.0f;
+				if (t < 0.02f) {
 					c = RGB(0, 0, 0);
 				} else {
-					float t = clamp_flt(mag * V_to_8 / 8.0f, 0.0f, 1.0f);
-					t *= clamp_flt(p_val / P_offset, 0.5f, 1.5f);
-					if (t > 1.0f) t = 1.0f;
-					float hue = 240.0f + t * 120.0f;
-					if (hue >= 360.0f) hue -= 360.0f;
+					t = std::floor(t * 64.0f + 0.5f) / 64.0f;
+					float hue = 240.0f - t * 240.0f;
+					if (hue < 0.0f) hue += 360.0f;
 					int h = (int)(hue + 0.5f);
 					if (h < 0) h = 0;
 					if (h > 359) h = 359;
-					int val = (int)(t * 240.0f + 0.5f);
-					if (val > 255) val = 255;
 					int r_, g_, b_;
-					HSV_to_RGB(h, 230, val, &r_, &g_, &b_);
+					HSV_to_RGB(h, 220, (int)(t * 255.0f + 0.5f), &r_, &g_, &b_);
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				}
 			}
