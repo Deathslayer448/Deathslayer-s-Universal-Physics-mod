@@ -986,18 +986,18 @@ void Renderer::draw_air()
 
 			if (displayMode & DISPLAY_AIRP)
 			{
-				// 0 (vacuum) -> blue, 1 atm (ambient) -> black, 2 atm -> red. HSV for proper hues, not max-sat R/B only.
-				static const int sat = 230;
+				// 0 (vacuum) -> blue, 1 atm (ambient) -> black, 2 atm -> red. Hue blue->magenta->red only (no green).
+				const int sat = 230;
 				int h, v;
 				if (p_val <= P_offset) {
 					float t = (P_offset > 0.0f) ? clamp_flt(p_val / P_offset, 0.0f, 1.0f) : 0.0f;
 					h = 240;
-					v = (int)((1.0f - t) * 235.0f + 0.5f);
+					v = (int)((1.0f - t) * 240.0f + 0.5f);
 				} else {
 					float t = clamp_flt((p_val - P_offset) / P_offset, 0.0f, 1.0f);
-					h = (int)(240.0f * (1.0f - t) + 0.5f);
-					if (h < 0) h = 0;
-					v = (int)(t * 235.0f + 0.5f);
+					h = (int)(240.0f + t * 120.0f + 0.5f);
+					if (h >= 360) h -= 360;
+					v = (int)(t * 240.0f + 0.5f);
 					if (v > 255) v = 255;
 				}
 				if (v <= 0) {
@@ -1010,7 +1010,7 @@ void Renderer::draw_air()
 			}
 			else if (displayMode & DISPLAY_AIRV)
 			{
-				// Strength only: magnitude -> hue (blue low, red high) and brightness. Softer sat/value to avoid max-sat primaries.
+				// Strength only: magnitude -> hue (blue 240 -> magenta 300 -> red 0), value capped to avoid max-sat primaries.
 				float mag = std::sqrt(vx_val * vx_val + vy_val * vy_val);
 				if (mag < 1e-6f) {
 					c = RGB(0, 0, 0);
@@ -1021,8 +1021,10 @@ void Renderer::draw_air()
 					int h = (int)(hue + 0.5f);
 					if (h < 0) h = 0;
 					if (h > 359) h = 359;
+					int val = (int)(t * 240.0f + 0.5f);
+					if (val > 255) val = 255;
 					int r_, g_, b_;
-					HSV_to_RGB(h, 230, (int)(t * 235.0f + 0.5f), &r_, &g_, &b_);
+					HSV_to_RGB(h, 230, val, &r_, &g_, &b_);
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				}
 			}
@@ -1045,8 +1047,10 @@ void Renderer::draw_air()
 					int h = (int)(hue + 0.5f);
 					if (h < 0) h = 0;
 					if (h > 359) h = 359;
+					int val = (int)(t * 240.0f + 0.5f);
+					if (val > 255) val = 255;
 					int r_, g_, b_;
-					HSV_to_RGB(h, 230, (int)(t * 235.0f + 0.5f), &r_, &g_, &b_);
+					HSV_to_RGB(h, 230, val, &r_, &g_, &b_);
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				}
 			}
