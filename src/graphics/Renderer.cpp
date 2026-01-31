@@ -14,6 +14,7 @@
 #include "simulation/orbitalparts.h"
 #include <cmath>
 #include <algorithm>
+#include <vector>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -943,8 +944,8 @@ void Renderer::draw_air()
 	// Pressure: 0->blue, 1 atm->black, 4 atm->red. Velocity: 0-V_scale -> smooth hue fade.
 	static const float P_to_8 = 8.0f / P_atm;
 	static const float P_offset = P_atm;
-	static const float V_scale = 25.0f;                     // velocity 0-V_scale -> 0-1 (gentle scale, smooth fade)
-	static const float display_scale = 255.0f / 8.0f;    // 0-8 -> 0-255
+	static const float V_scale = 80.0f;                     // fixed scale: mag 0–80 -> t 0–1, so we see full blue–magenta–red
+	static const float display_scale = 255.0f / 8.0f;
 
 	(void)0;
 	auto hue_to_rgb_UNUSED = [](float hue_deg, float sat, float val) -> RGB {
@@ -1010,15 +1011,14 @@ void Renderer::draw_air()
 			}
 			else if (displayMode & DISPLAY_AIRV)
 			{
-				// Strength only: one smooth gradient blue -> magenta -> red (no green). Quantized t to reduce noise.
+				// Strength only: hue blue -> magenta -> red (no green). Fixed scale, smooth gradient.
 				float mag = std::sqrt(vx_val * vx_val + vy_val * vy_val);
 				float t = clamp_flt(mag / V_scale, 0.0f, 1.0f);
 				if (t < 0.02f) {
 					c = RGB(0, 0, 0);
 				} else {
-					t = std::floor(t * 64.0f + 0.5f) / 64.0f;
-					float hue = 240.0f - t * 240.0f;
-					if (hue < 0.0f) hue += 360.0f;
+					float hue = 240.0f + t * 120.0f;
+					if (hue >= 360.0f) hue -= 360.0f;
 					int h = (int)(hue + 0.5f);
 					if (h < 0) h = 0;
 					if (h > 359) h = 359;
@@ -1033,7 +1033,7 @@ void Renderer::draw_air()
 			}
 			else if (displayMode & DISPLAY_AIRC)
 			{
-				// Same as AIRV: strength -> blue/magenta/red gradient, quantized. Pressure scales t.
+				// Same as AIRV: blue -> magenta -> red hue, fixed scale. Pressure scales brightness.
 				float mag = std::sqrt(vx_val * vx_val + vy_val * vy_val);
 				float t = clamp_flt(mag / V_scale, 0.0f, 1.0f);
 				t *= clamp_flt(p_val / P_offset, 0.5f, 1.5f);
@@ -1041,9 +1041,8 @@ void Renderer::draw_air()
 				if (t < 0.02f) {
 					c = RGB(0, 0, 0);
 				} else {
-					t = std::floor(t * 64.0f + 0.5f) / 64.0f;
-					float hue = 240.0f - t * 240.0f;
-					if (hue < 0.0f) hue += 360.0f;
+					float hue = 240.0f + t * 120.0f;
+					if (hue >= 360.0f) hue -= 360.0f;
 					int h = (int)(hue + 0.5f);
 					if (h < 0) h = 0;
 					if (h > 359) h = 359;
