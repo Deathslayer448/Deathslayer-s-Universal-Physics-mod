@@ -943,8 +943,7 @@ void Renderer::draw_air()
 	// Pressure: 1 atm -> blue (0), 2 atm -> red (8). Velocity: 0-8 game units -> 0-8 (TPT range).
 	static const float P_to_8 = 8.0f / P_atm;
 	static const float P_offset = P_atm;
-	static const float P_to_8_green = 4.0f / P_atm;        // 0..2 atm -> 0..8 for AIRV green
-	static const float V_to_8 = 8.0f / 8.0f;
+	static const float V_to_8 = 8.0f / 8.0f;               // velocity 0-8 game units -> 0-8
 	static const float display_scale = 255.0f / 8.0f;    // 0-8 -> 0-255
 
 	(void)0;
@@ -987,27 +986,45 @@ void Renderer::draw_air()
 
 			if (displayMode & DISPLAY_AIRP)
 			{
-				// TPT: positive pressure -> red, negative -> blue. 1 atm -> blue (0), 2 atm -> red (8).
-				float u = clamp_flt((p_val - P_offset) * P_to_8, 0.0f, 8.0f);
-				int r = (int)(u * display_scale + 0.5f);
-				int b = (int)((8.0f - u) * display_scale + 0.5f);
-				r = (r < 0) ? 0 : (r > 255) ? 255 : r;
-				b = (b < 0) ? 0 : (b > 255) ? 255 : b;
-				c = RGB((unsigned char)r, 0, (unsigned char)b);
+				// 0 (vacuum) -> blue, 1 atm (ambient) -> black, 2 atm -> red. HSV for proper hues, not max-sat R/B only.
+				static const int sat = 230;
+				int h, v;
+				if (p_val <= P_offset) {
+					float t = (P_offset > 0.0f) ? clamp_flt(p_val / P_offset, 0.0f, 1.0f) : 0.0f;
+					h = 240;
+					v = (int)((1.0f - t) * 235.0f + 0.5f);
+				} else {
+					float t = clamp_flt((p_val - P_offset) / P_offset, 0.0f, 1.0f);
+					h = (int)(240.0f * (1.0f - t) + 0.5f);
+					if (h < 0) h = 0;
+					v = (int)(t * 235.0f + 0.5f);
+					if (v > 255) v = 255;
+				}
+				if (v <= 0) {
+					c = RGB(0, 0, 0);
+				} else {
+					int r_, g_, b_;
+					HSV_to_RGB(h, sat, v, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				}
 			}
 			else if (displayMode & DISPLAY_AIRV)
 			{
-				// TPT: R = |vx|, G = pressure (0..2 atm -> 0..8), B = |vy|, scaled to 0-255.
-				float r8 = clamp_flt(std::fabs(vx_val) * V_to_8, 0.0f, 8.0f);
-				float g8 = clamp_flt(p_val * P_to_8_green, 0.0f, 8.0f);
-				float b8 = clamp_flt(std::fabs(vy_val) * V_to_8, 0.0f, 8.0f);
-				int r = (int)(r8 * display_scale + 0.5f);
-				int g = (int)(g8 * display_scale + 0.5f);
-				int b = (int)(b8 * display_scale + 0.5f);
-				r = (r < 0) ? 0 : (r > 255) ? 255 : r;
-				g = (g < 0) ? 0 : (g > 255) ? 255 : g;
-				b = (b < 0) ? 0 : (b > 255) ? 255 : b;
-				c = RGB((unsigned char)r, (unsigned char)g, (unsigned char)b);
+				// Strength only: magnitude -> hue (blue low, red high) and brightness. Softer sat/value to avoid max-sat primaries.
+				float mag = std::sqrt(vx_val * vx_val + vy_val * vy_val);
+				if (mag < 1e-6f) {
+					c = RGB(0, 0, 0);
+				} else {
+					float t = clamp_flt(mag * V_to_8 / 8.0f, 0.0f, 1.0f);
+					float hue = 240.0f + t * 120.0f;
+					if (hue >= 360.0f) hue -= 360.0f;
+					int h = (int)(hue + 0.5f);
+					if (h < 0) h = 0;
+					if (h > 359) h = 359;
+					int r_, g_, b_;
+					HSV_to_RGB(h, 230, (int)(t * 235.0f + 0.5f), &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				}
 			}
 			else if (displayMode & DISPLAY_AIRH)
 			{
@@ -1015,21 +1032,23 @@ void Renderer::draw_air()
 			}
 			else if (displayMode & DISPLAY_AIRC)
 			{
-				// TPT: velocity adds grey, pressure above 1 atm adds red, below adds blue.
-				float vel_sum = std::fabs(vx_val) + std::fabs(vy_val);
-				float grey8 = clamp_flt(vel_sum * V_to_8 * 0.5f, 0.0f, 24.0f);
-				float r8 = grey8, g8 = grey8, b8 = grey8;
-				if (p_val > P_offset)
-					r8 += clamp_flt((p_val - P_offset) * P_to_8, 0.0f, 16.0f);
-				else
-					b8 += clamp_flt((P_offset - p_val) * P_to_8, 0.0f, 16.0f);
-				int ri = (int)((r8 > 8.0f ? r8 * display_scale / 8.0f : r8 * display_scale) + 0.5f);
-				int gi = (int)((g8 > 8.0f ? g8 * display_scale / 8.0f : g8 * display_scale) + 0.5f);
-				int bi = (int)((b8 > 8.0f ? b8 * display_scale / 8.0f : b8 * display_scale) + 0.5f);
-				ri = (ri < 0) ? 0 : (ri > 255) ? 255 : ri;
-				gi = (gi < 0) ? 0 : (gi > 255) ? 255 : gi;
-				bi = (bi < 0) ? 0 : (bi > 255) ? 255 : bi;
-				c = RGB((unsigned char)ri, (unsigned char)gi, (unsigned char)bi);
+				// Strength only (like AIRV): magnitude -> hue and brightness. Pressure scales brightness. Softer sat/value.
+				float mag = std::sqrt(vx_val * vx_val + vy_val * vy_val);
+				if (mag < 1e-6f) {
+					c = RGB(0, 0, 0);
+				} else {
+					float t = clamp_flt(mag * V_to_8 / 8.0f, 0.0f, 1.0f);
+					t *= clamp_flt(p_val / P_offset, 0.5f, 1.5f);
+					if (t > 1.0f) t = 1.0f;
+					float hue = 240.0f + t * 120.0f;
+					if (hue >= 360.0f) hue -= 360.0f;
+					int h = (int)(hue + 0.5f);
+					if (h < 0) h = 0;
+					if (h > 359) h = 359;
+					int r_, g_, b_;
+					HSV_to_RGB(h, 230, (int)(t * 235.0f + 0.5f), &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				}
 			}
 			else if (displayMode & DISPLAY_AIRW)
 			{
