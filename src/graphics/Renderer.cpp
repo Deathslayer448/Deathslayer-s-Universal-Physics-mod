@@ -944,8 +944,26 @@ void Renderer::draw_air()
 	// Pressure: 0->blue, 1 atm->black, 4 atm->red. Velocity: 0-V_scale -> smooth hue fade.
 	static const float P_to_8 = 8.0f / P_atm;
 	static const float P_offset = P_atm;
-	static const float V_scale = 80.0f;                     // fixed scale: mag 0–80 -> t 0–1, so we see full blue–magenta–red
+	static const float V_scale = 80.0f;
 	static const float display_scale = 255.0f / 8.0f;
+
+	// Smoothed magnitude (3x3 box) for velocity display to avoid cell-to-cell flicker.
+	std::vector<float> mag_smooth(NCELL);
+	for (y = 0; y < YCELLS; y++)
+		for (x = 0; x < XCELLS; x++) {
+			float sum = 0.0f;
+			int n = 0;
+			for (int dy = -1; dy <= 1; dy++)
+				for (int dx = -1; dx <= 1; dx++) {
+					int ny = y + dy, nx = x + dx;
+					if (ny >= 0 && ny < YCELLS && nx >= 0 && nx < XCELLS) {
+						float vx_ = vx[ny][nx], vy_ = vy[ny][nx];
+						sum += std::sqrt(vx_ * vx_ + vy_ * vy_);
+						n++;
+					}
+				}
+			mag_smooth[y * XCELLS + x] = (n > 0) ? (sum / (float)n) : 0.0f;
+		}
 
 	(void)0;
 	auto hue_to_rgb_UNUSED = [](float hue_deg, float sat, float val) -> RGB {
