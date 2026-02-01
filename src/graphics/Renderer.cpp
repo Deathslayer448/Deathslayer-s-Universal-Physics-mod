@@ -964,6 +964,15 @@ void Renderer::draw_air()
 				}
 			mag_smooth[y * XCELLS + x] = (n > 0) ? (sum / (float)n) : 0.0f;
 		}
+	// Rank-based t so gradient is always spread (never "all red"): t = rank / (NCELL-1).
+	std::vector<float> vel_t(NCELL, 0.0f);
+	if (displayMode & (DISPLAY_AIRV | DISPLAY_AIRC)) {
+		std::vector<int> idx(NCELL);
+		for (int i = 0; i < NCELL; i++) idx[i] = i;
+		std::sort(idx.begin(), idx.end(), [&mag_smooth](int a, int b) { return mag_smooth[a] < mag_smooth[b]; });
+		for (int i = 0; i < NCELL; i++)
+			vel_t[idx[i]] = (NCELL > 1) ? ((float)i / (float)(NCELL - 1)) : 0.0f;
+	}
 
 	(void)0;
 	auto hue_to_rgb_UNUSED = [](float hue_deg, float sat, float val) -> RGB {
@@ -1028,19 +1037,31 @@ void Renderer::draw_air()
 			}
 			else if (displayMode & DISPLAY_AIRV)
 			{
-				// Strength only: hue blue -> magenta -> red (no green). Use smoothed mag so gradient shows waves.
+				// Strength only. Only R, G, B, black. t = rank so gradient is always spread (like original TPT per-channel).
 				float mag = mag_smooth[y * XCELLS + x];
-				float t = clamp_flt(mag / V_scale, 0.0f, 1.0f);
-				if (t < 0.02f) {
+				float t = vel_t[y * XCELLS + x];
+				if (mag < 0.02f) {
 					c = RGB(0, 0, 0);
-				} else {
-					float hue = 240.0f + t * 120.0f;
-					if (hue >= 360.0f) hue -= 360.0f;
-					int h = (int)(hue + 0.5f);
-					if (h < 0) h = 0;
-					if (h > 359) h = 359;
+				} else if (t < 0.333f) {
+					float t_local = t / 0.333f;
+					int sat = (int)(t_local * 255.0f + 0.5f);
+					if (sat > 255) sat = 255;
 					int r_, g_, b_;
-					HSV_to_RGB(h, 220, (int)(t * 255.0f + 0.5f), &r_, &g_, &b_);
+					HSV_to_RGB(240, sat, 255, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else if (t < 0.666f) {
+					float t_local = (t - 0.333f) / 0.333f;
+					int sat = (int)(t_local * 255.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(120, sat, 255, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else {
+					float t_local = (t - 0.666f) / 0.334f;
+					int sat = (int)(t_local * 255.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(0, sat, 255, &r_, &g_, &b_);
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				}
 			}
@@ -1050,21 +1071,33 @@ void Renderer::draw_air()
 			}
 			else if (displayMode & DISPLAY_AIRC)
 			{
-				// Same as AIRV: blue -> magenta -> red hue. Use smoothed mag; pressure scales brightness.
+				// Same as AIRV (rank-based t); pressure scales t.
 				float mag = mag_smooth[y * XCELLS + x];
-				float t = clamp_flt(mag / V_scale, 0.0f, 1.0f);
+				float t = vel_t[y * XCELLS + x];
 				t *= clamp_flt(p_val / P_offset, 0.5f, 1.5f);
 				if (t > 1.0f) t = 1.0f;
-				if (t < 0.02f) {
+				if (mag < 0.02f || t < 0.02f) {
 					c = RGB(0, 0, 0);
-				} else {
-					float hue = 240.0f + t * 120.0f;
-					if (hue >= 360.0f) hue -= 360.0f;
-					int h = (int)(hue + 0.5f);
-					if (h < 0) h = 0;
-					if (h > 359) h = 359;
+				} else if (t < 0.333f) {
+					float t_local = t / 0.333f;
+					int sat = (int)(t_local * 255.0f + 0.5f);
+					if (sat > 255) sat = 255;
 					int r_, g_, b_;
-					HSV_to_RGB(h, 220, (int)(t * 255.0f + 0.5f), &r_, &g_, &b_);
+					HSV_to_RGB(240, sat, 255, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else if (t < 0.666f) {
+					float t_local = (t - 0.333f) / 0.333f;
+					int sat = (int)(t_local * 255.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(120, sat, 255, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else {
+					float t_local = (t - 0.666f) / 0.334f;
+					int sat = (int)(t_local * 255.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(0, sat, 255, &r_, &g_, &b_);
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				}
 			}
