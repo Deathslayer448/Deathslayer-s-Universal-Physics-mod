@@ -954,22 +954,14 @@ void Renderer::draw_air()
 			float vx_ = vx[y][x], vy_ = vy[y][x];
 			mag_cell[y * XCELLS + x] = std::sqrt(vx_ * vx_ + vy_ * vy_);
 		}
-	// Rank-based t so gradient is always spread. Same for pressure.
+	// Rank-based t for velocity gradient. Pressure uses absolute Pa (no pressure_t).
 	std::vector<float> vel_t(NCELL, 0.0f);
-	std::vector<float> pressure_t(NCELL, 0.0f);
 	if (displayMode & (DISPLAY_AIRV | DISPLAY_AIRC)) {
 		std::vector<int> idx(NCELL);
 		for (int i = 0; i < NCELL; i++) idx[i] = i;
 		std::sort(idx.begin(), idx.end(), [&mag_cell](int a, int b) { return mag_cell[a] < mag_cell[b]; });
 		for (int i = 0; i < NCELL; i++)
 			vel_t[idx[i]] = (NCELL > 1) ? ((float)i / (float)(NCELL - 1)) : 0.0f;
-	}
-	if (displayMode & DISPLAY_AIRP) {
-		std::vector<int> idx(NCELL);
-		for (int i = 0; i < NCELL; i++) idx[i] = i;
-		std::sort(idx.begin(), idx.end(), [pv](int a, int b) { return pv[a / XCELLS][a % XCELLS] < pv[b / XCELLS][b % XCELLS]; });
-		for (int i = 0; i < NCELL; i++)
-			pressure_t[idx[i]] = (NCELL > 1) ? ((float)i / (float)(NCELL - 1)) : 0.0f;
 	}
 
 	(void)0;
@@ -1012,31 +1004,31 @@ void Renderer::draw_air()
 
 			if (displayMode & DISPLAY_AIRP)
 			{
-				// Rank-based: low pressure -> blue, mid -> grey, high -> red. Wide sat (100-255) for more gradient, value 180-220.
-				float t = pressure_t[y * XCELLS + x];
-				if (t < 0.333f) {
-					float t_local = t / 0.333f;
-					int sat = 100 + (int)(t_local * 155.0f + 0.5f);
+				// Deviation from 1 atm: black at ambient, blue = rarefaction (low), red = compression (high). Pressure waves visible.
+				const float delta = p_val - P_atm;
+				const float P_scale = 0.04f * P_atm;  // ~4% deviation = full blue/red so waves show
+				if (delta < -1.0f) {
+					float t_local = -delta / P_scale;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
 					if (sat > 255) sat = 255;
-					int val = 180 + (int)(t_local * 40.0f + 0.5f);
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
 					if (val > 255) val = 255;
 					int r_, g_, b_;
 					HSV_to_RGB(240, sat, val, &r_, &g_, &b_);
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
-				} else if (t < 0.666f) {
-					float t_local = (t - 0.333f) / 0.333f;
-					int v = 50 + (int)(t_local * 100.0f + 0.5f);
-					if (v > 255) v = 255;
-					c = RGB((unsigned char)v, (unsigned char)v, (unsigned char)v);
-				} else {
-					float t_local = (t - 0.666f) / 0.334f;
-					int sat = 100 + (int)(t_local * 155.0f + 0.5f);
+				} else if (delta > 1.0f) {
+					float t_local = delta / P_scale;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
 					if (sat > 255) sat = 255;
-					int val = 180 + (int)(t_local * 40.0f + 0.5f);
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
 					if (val > 255) val = 255;
 					int r_, g_, b_;
 					HSV_to_RGB(0, sat, val, &r_, &g_, &b_);
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else {
+					c = RGB(0, 0, 0);  // ~1 atm = black
 				}
 			}
 			else if (displayMode & DISPLAY_AIRV)
