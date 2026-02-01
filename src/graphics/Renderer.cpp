@@ -947,22 +947,12 @@ void Renderer::draw_air()
 	static const float V_scale = 80.0f;
 	static const float display_scale = 255.0f / 8.0f;
 
-	// Smoothed magnitude (3x3 box) for velocity display to avoid cell-to-cell flicker.
-	std::vector<float> mag_smooth(NCELL);
+	// Per-cell magnitude (no blur): pixel-by-pixel, each cell uses only its own velocity.
+	std::vector<float> mag_cell(NCELL);
 	for (y = 0; y < YCELLS; y++)
 		for (x = 0; x < XCELLS; x++) {
-			float sum = 0.0f;
-			int n = 0;
-			for (int dy = -1; dy <= 1; dy++)
-				for (int dx = -1; dx <= 1; dx++) {
-					int ny = y + dy, nx = x + dx;
-					if (ny >= 0 && ny < YCELLS && nx >= 0 && nx < XCELLS) {
-						float vx_ = vx[ny][nx], vy_ = vy[ny][nx];
-						sum += std::sqrt(vx_ * vx_ + vy_ * vy_);
-						n++;
-					}
-				}
-			mag_smooth[y * XCELLS + x] = (n > 0) ? (sum / (float)n) : 0.0f;
+			float vx_ = vx[y][x], vy_ = vy[y][x];
+			mag_cell[y * XCELLS + x] = std::sqrt(vx_ * vx_ + vy_ * vy_);
 		}
 	// Rank-based t so gradient is always spread. Same for pressure.
 	std::vector<float> vel_t(NCELL, 0.0f);
@@ -970,7 +960,7 @@ void Renderer::draw_air()
 	if (displayMode & (DISPLAY_AIRV | DISPLAY_AIRC)) {
 		std::vector<int> idx(NCELL);
 		for (int i = 0; i < NCELL; i++) idx[i] = i;
-		std::sort(idx.begin(), idx.end(), [&mag_smooth](int a, int b) { return mag_smooth[a] < mag_smooth[b]; });
+		std::sort(idx.begin(), idx.end(), [&mag_cell](int a, int b) { return mag_cell[a] < mag_cell[b]; });
 		for (int i = 0; i < NCELL; i++)
 			vel_t[idx[i]] = (NCELL > 1) ? ((float)i / (float)(NCELL - 1)) : 0.0f;
 	}
@@ -1022,11 +1012,11 @@ void Renderer::draw_air()
 
 			if (displayMode & DISPLAY_AIRP)
 			{
-				// Rank-based: low pressure -> blue, mid -> grey, high -> red. High sat (200-255) and moderate value (180-220) = no white.
+				// Rank-based: low pressure -> blue, mid -> grey, high -> red. Wide sat (100-255) for more gradient, value 180-220.
 				float t = pressure_t[y * XCELLS + x];
 				if (t < 0.333f) {
 					float t_local = t / 0.333f;
-					int sat = 200 + (int)(t_local * 55.0f + 0.5f);
+					int sat = 100 + (int)(t_local * 155.0f + 0.5f);
 					if (sat > 255) sat = 255;
 					int val = 180 + (int)(t_local * 40.0f + 0.5f);
 					if (val > 255) val = 255;
@@ -1040,7 +1030,7 @@ void Renderer::draw_air()
 					c = RGB((unsigned char)v, (unsigned char)v, (unsigned char)v);
 				} else {
 					float t_local = (t - 0.666f) / 0.334f;
-					int sat = 200 + (int)(t_local * 55.0f + 0.5f);
+					int sat = 100 + (int)(t_local * 155.0f + 0.5f);
 					if (sat > 255) sat = 255;
 					int val = 180 + (int)(t_local * 40.0f + 0.5f);
 					if (val > 255) val = 255;
@@ -1051,14 +1041,14 @@ void Renderer::draw_air()
 			}
 			else if (displayMode & DISPLAY_AIRV)
 			{
-				// Strength only. R, G, B, black. High sat (200-255) and value (180-220) = no white; same idea as pressure.
-				float mag = mag_smooth[y * XCELLS + x];
+				// Pixel-by-pixel: raw mag per cell. Wide sat (100-255) so saturation drives visible gradients.
+				float mag = mag_cell[y * XCELLS + x];
 				float t = vel_t[y * XCELLS + x];
 				if (mag < 0.02f) {
 					c = RGB(0, 0, 0);
 				} else if (t < 0.333f) {
 					float t_local = t / 0.333f;
-					int sat = 200 + (int)(t_local * 55.0f + 0.5f);
+					int sat = 100 + (int)(t_local * 155.0f + 0.5f);
 					if (sat > 255) sat = 255;
 					int val = 180 + (int)(t_local * 40.0f + 0.5f);
 					if (val > 255) val = 255;
@@ -1067,7 +1057,7 @@ void Renderer::draw_air()
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				} else if (t < 0.666f) {
 					float t_local = (t - 0.333f) / 0.333f;
-					int sat = 200 + (int)(t_local * 55.0f + 0.5f);
+					int sat = 100 + (int)(t_local * 155.0f + 0.5f);
 					if (sat > 255) sat = 255;
 					int val = 180 + (int)(t_local * 40.0f + 0.5f);
 					if (val > 255) val = 255;
@@ -1076,7 +1066,7 @@ void Renderer::draw_air()
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				} else {
 					float t_local = (t - 0.666f) / 0.334f;
-					int sat = 200 + (int)(t_local * 55.0f + 0.5f);
+					int sat = 100 + (int)(t_local * 155.0f + 0.5f);
 					if (sat > 255) sat = 255;
 					int val = 180 + (int)(t_local * 40.0f + 0.5f);
 					if (val > 255) val = 255;
@@ -1091,8 +1081,8 @@ void Renderer::draw_air()
 			}
 			else if (displayMode & DISPLAY_AIRC)
 			{
-				// Same as AIRV/AIRP: high sat (200-255), value (180-220), no white; pressure scales t.
-				float mag = mag_smooth[y * XCELLS + x];
+				// Pixel-by-pixel, same sat gradient as AIRV/AIRP: sat 100-255; pressure scales t.
+				float mag = mag_cell[y * XCELLS + x];
 				float t = vel_t[y * XCELLS + x];
 				t *= clamp_flt(p_val / P_offset, 0.5f, 1.5f);
 				if (t > 1.0f) t = 1.0f;
@@ -1100,7 +1090,7 @@ void Renderer::draw_air()
 					c = RGB(0, 0, 0);
 				} else if (t < 0.333f) {
 					float t_local = t / 0.333f;
-					int sat = 200 + (int)(t_local * 55.0f + 0.5f);
+					int sat = 100 + (int)(t_local * 155.0f + 0.5f);
 					if (sat > 255) sat = 255;
 					int val = 180 + (int)(t_local * 40.0f + 0.5f);
 					if (val > 255) val = 255;
@@ -1109,7 +1099,7 @@ void Renderer::draw_air()
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				} else if (t < 0.666f) {
 					float t_local = (t - 0.333f) / 0.333f;
-					int sat = 200 + (int)(t_local * 55.0f + 0.5f);
+					int sat = 100 + (int)(t_local * 155.0f + 0.5f);
 					if (sat > 255) sat = 255;
 					int val = 180 + (int)(t_local * 40.0f + 0.5f);
 					if (val > 255) val = 255;
@@ -1118,7 +1108,7 @@ void Renderer::draw_air()
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				} else {
 					float t_local = (t - 0.666f) / 0.334f;
-					int sat = 200 + (int)(t_local * 55.0f + 0.5f);
+					int sat = 100 + (int)(t_local * 155.0f + 0.5f);
 					if (sat > 255) sat = 255;
 					int val = 180 + (int)(t_local * 40.0f + 0.5f);
 					if (val > 255) val = 255;
