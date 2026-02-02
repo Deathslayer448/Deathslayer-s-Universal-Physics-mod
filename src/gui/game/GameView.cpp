@@ -2573,6 +2573,41 @@ void GameView::OnDraw()
 				format::RenderTemperature(sampleInfo, sample.AirTemperature, c->GetTemperatureScale());
 			}
 
+			// Second line: air energy (J) and/or particle energy (HC×T)
+			if (sample.isMouseInSim && sample.AirPressure > 0.f && sample.AirTemperature > 0.f)
+			{
+				const float R_gas = 287.0f;
+				const float gamma = 1.4f;
+				const float game_vel_scale = 0.06f;
+				const float cell_size_m = CELL * 0.01f;
+				const float volume = cell_size_m * cell_size_m;
+				float T_K = sample.AirTemperature;
+				float rho = sample.AirPressure / (R_gas * T_K);
+				float vx_mps = sample.AirVelocityX * game_vel_scale;
+				float vy_mps = sample.AirVelocityY * game_vel_scale;
+				float internal_per_vol = sample.AirPressure / (gamma - 1.0f);
+				float kinetic_per_vol = 0.5f * rho * (vx_mps * vx_mps + vy_mps * vy_mps);
+				float E_J = (internal_per_vol + kinetic_per_vol) * volume;
+				sampleInfo << " ";
+				if (E_J >= 1.0f)
+					sampleInfo << "E_air: " << Format::Precision(2) << E_J << " J";
+				else if (E_J >= 1e-3f)
+					sampleInfo << "E_air: " << Format::Precision(4) << (E_J * 1000.0f) << " mJ";
+				else
+					sampleInfo << "E_air: " << Format::Precision(2) << E_J << " J";
+			}
+			if (type > 0 && type < PT_NUM)
+			{
+				auto &sd = SimulationData::CRef();
+				if (sd.elements[type].Enabled)
+				{
+					float hc = sd.elements[type].HeatCapacity;
+					float T_K = sample.particle.temp;
+					float E_part = hc * T_K;
+					sampleInfo << " E_part: " << Format::Precision(2) << E_part << " (HC×T)";
+				}
+			}
+
 			auto textWidth = Graphics::TextSize(sampleInfo.Build()).X - 1;
 			g->BlendFilledRect(RectSized(Vec2{ XRES-20-textWidth, 27 }, Vec2{ textWidth+8, 14 }), 0x000000_rgb .WithAlpha(int(alpha*0.5f)));
 			g->BlendText({ XRES-16-textWidth, 30 }, sampleInfo.Build(), 0xFFFFFF_rgb .WithAlpha(int(alpha*0.75f)));
