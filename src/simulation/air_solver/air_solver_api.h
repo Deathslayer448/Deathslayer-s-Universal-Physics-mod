@@ -17,10 +17,10 @@ AirSolverState* air_solver_create(int ny, int nx, double dx);
 
 void air_solver_destroy(AirSolverState* state);
 
-/** Copy TPT arrays into solver. pv,vx,vy,rho,wall row-major; wall[i]!=0 means solid. */
+/** Copy TPT arrays into solver. pv,vx,vy,rho,wall row-major; wall[i]!=0 means solid. hv = air temp (K); if non-null, used to set internal energy so air temp affects pressure (Phase 2.4). */
 void air_solver_sync_from_tpt(AirSolverState* state,
     const float* pv, const float* vx, const float* vy, const float* rho, const unsigned char* wall,
-    float game_vel_scale);
+    const float* hv, float game_vel_scale);
 
 /** Copy solver primitives to TPT arrays (pv, vx, vy, hv, rho row-major). */
 void air_solver_sync_to_tpt(AirSolverState* state,

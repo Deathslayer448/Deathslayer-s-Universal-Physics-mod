@@ -34,14 +34,15 @@ void AirSolverWrapper::sync_from_sim(Simulation& sim, Air& air)
 {
 	if (!state)
 		return;
-	// TPT arrays are [y][x]; row-major flat is [iy*nx+ix]
+	// TPT arrays are [y][x]; row-major flat is [iy*nx+ix]. hv = air temp (K) so air temp affects pressure (Phase 2.4).
 	const float* pv = &sim.pv[0][0];
 	const float* vx = &sim.vx[0][0];
 	const float* vy = &sim.vy[0][0];
 	const float* rho = &air.rho[0][0];
 	const unsigned char* wall = &air.bmap_blockair[0][0];
+	const float* hv = &sim.hv[0][0];
 	air_solver_sync_from_tpt(static_cast<AirSolverState*>(state),
-		pv, vx, vy, rho, wall, (float)game_vel_scale);
+		pv, vx, vy, rho, wall, hv, (float)game_vel_scale);
 }
 
 void AirSolverWrapper::sync_to_sim(Simulation& sim, Air& air)

@@ -12,6 +12,9 @@ constexpr float O_MIN_TEMP = -273;
 constexpr float MAX_PRESSURE = 10000000.0f; // Maximum pressure: 100 atm (10 MPa) in Pascals
 constexpr float MIN_PRESSURE = 0.0f; // Minimum pressure: absolute vacuum (0 Pa)
 
+// Phase 1.3: Default particle heat capacity when element has none or zero (for custom heat transfer).
+constexpr float DEFAULT_PARTICLE_HEAT_CAPACITY = 1.0f;
+
 constexpr auto TYPE_PART          = UINT32_C(0x00000001);  //1 Powders
 constexpr auto TYPE_LIQUID        = UINT32_C(0x00000002);  //2 Liquids
 constexpr auto TYPE_SOLID         = UINT32_C(0x00000004);  //4 Solids

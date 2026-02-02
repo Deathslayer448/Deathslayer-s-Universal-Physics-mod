@@ -23,6 +23,8 @@ const double c_v = R_gas / (gamma_gas - 1.0);  // heat capacity at constant volu
 const double c_p = gamma_gas * R_gas / (gamma_gas - 1.0);  // at constant pressure
 const double rho_min = 1e-6;
 const double e_min = 1e-6;
+// Vacuum interface: below this density use one-sided flux (dense side only) so we don't dump huge momentum into vacuum.
+const double rho_vacuum = 0.01;
 const double CFL = 0.35;
 const double mu = 1.8e-5;             // dynamic viscosity Pa·s (air ~300 K)
 
@@ -111,6 +113,7 @@ struct State {
     }
 
     // Rusanov flux in x; uses reflective ghost when neighbor is wall.
+    // At vacuum interface (one side rho < rho_vacuum) use one-sided flux from dense side so we don't dump huge momentum into vacuum.
     void rusanov_x(int iy, int ixL, int ixR, double F[4]) const {
         double UL[4], UR[4];
         if (is_wall(iy, ixL)) get_U_ghost_x(U0, iy, ixR, UL); else for (int l = 0; l < 4; l++) UL[l] = U0[l][iy][ixL];
@@ -122,6 +125,26 @@ struct State {
         double FL[4], FR[4];
         flux_x(rL, uxL, uyL, pL, EL, FL);
         flux_x(rR, uxR, uyR, pR, ER, FR);
+        if (rL < rho_vacuum || rR < rho_vacuum) {
+            // One-sided flux from dense side; limit momentum flux so vacuum doesn't get unbounded velocity (no state clamp, fix at flux).
+            bool useL = (rL >= rR);
+            for (int l = 0; l < 4; l++) F[l] = useL ? FL[l] : FR[l];
+            double r_d = useL ? rL : rR, p_d = useL ? pL : pR, e_d = useL ? eL : eR;
+            double c_d = sound_speed(r_d, p_d);
+            double v_max = 3.0 * c_d;  // max flux velocity = 3× sound speed of dense side
+            if (F[0] * F[0] > 1e-20) {
+                double uf = F[1] / F[0], vf = F[2] / F[0];
+                double mag = std::sqrt(uf*uf + vf*vf);
+                if (mag > v_max && mag > 1e-12) {
+                    double scale = v_max / mag;
+                    F[1] = F[0] * uf * scale;
+                    F[2] = F[0] * vf * scale;
+                    uf *= scale; vf *= scale;
+                    F[3] = F[0] * (e_d + 0.5 * (uf*uf + vf*vf)) + p_d * uf;  // energy flux consistent with limited momentum
+                }
+            }
+            return;
+        }
         double sL = std::abs(uxL) + sound_speed(rL, pL);
         double sR = std::abs(uxR) + sound_speed(rR, pR);
         double s_max = std::max(sL, sR);
@@ -140,6 +163,25 @@ struct State {
         double GL[4], GR[4];
         flux_y(rL, uxL, uyL, pL, EL, GL);
         flux_y(rR, uxR, uyR, pR, ER, GR);
+        if (rL < rho_vacuum || rR < rho_vacuum) {
+            bool useL = (rL >= rR);
+            for (int l = 0; l < 4; l++) G[l] = useL ? GL[l] : GR[l];
+            double r_d = useL ? rL : rR, p_d = useL ? pL : pR, e_d = useL ? eL : eR;
+            double c_d = sound_speed(r_d, p_d);
+            double v_max = 3.0 * c_d;
+            if (G[0] * G[0] > 1e-20) {
+                double uf = G[1] / G[0], vf = G[2] / G[0];
+                double mag = std::sqrt(uf*uf + vf*vf);
+                if (mag > v_max && mag > 1e-12) {
+                    double scale = v_max / mag;
+                    G[1] = G[0] * uf * scale;
+                    G[2] = G[0] * vf * scale;
+                    uf *= scale; vf *= scale;
+                    G[3] = G[0] * (e_d + 0.5 * (uf*uf + vf*vf)) + p_d * vf;  // y-flux: energy has p*v
+                }
+            }
+            return;
+        }
         double sL = std::abs(uyL) + sound_speed(rL, pL);
         double sR = std::abs(uyR) + sound_speed(rR, pR);
         double s_max = std::max(sL, sR);
@@ -147,7 +189,9 @@ struct State {
             G[l] = 0.5 * (GL[l] + GR[l]) - 0.5 * s_max * (UR[l] - UL[l]);
     }
 
+    // CFL: lam = max over cells of (|u| + c). Cap velocity contribution so one bad cell can't collapse dt (0-pressure safety).
     double max_lambda() const {
+        const double v_max_mult = 5.0;  // max |u| contribution = this many × sound speed
         double lam = 0.0;
         for (int iy = 0; iy < ny; iy++) {
             for (int ix = 0; ix < nx; ix++) {
@@ -155,7 +199,10 @@ struct State {
                 double r, ux, uy, e, p;
                 primitives(iy, ix, r, ux, uy, e, p);
                 double c = sound_speed(r, p);
-                lam = std::max(lam, std::abs(ux) + std::abs(uy) + c);
+                double v_mag = std::abs(ux) + std::abs(uy);
+                double v_capped = std::min(v_mag, v_max_mult * c);
+                double v_contrib = v_capped + c;
+                lam = std::max(lam, v_contrib);
             }
         }
         return (lam > 1e-12) ? lam : 1.0;
@@ -335,9 +382,11 @@ AirSolverState* air_solver_create(int ny, int nx, double dx) {
 void air_solver_destroy(AirSolverState* state) {
     delete S(state);
 }
+// Use both pv and hv for internal energy: e = max(e_from_pressure, e_from_temperature).
+// So direct air-tool pressure is preserved, and particle heating (hv) still adds pressure — no source ignored.
 void air_solver_sync_from_tpt(AirSolverState* state,
     const float* pv, const float* vx, const float* vy, const float* rho, const unsigned char* wall,
-    float game_vel_scale) {
+    const float* hv, float game_vel_scale) {
     State* s = S(state);
     for (int iy = 0; iy < s->ny; iy++)
         for (int ix = 0; ix < s->nx; ix++) {
@@ -350,7 +399,12 @@ void air_solver_sync_from_tpt(AirSolverState* state,
             double uy = (double)vy[i] * (double)game_vel_scale;
             double p = (double)pv[i];
             if (p < 1e-10) p = 1e-10;
-            double e = p / ((gamma_gas - 1.0) * r);
+            double e_from_p = p / ((gamma_gas - 1.0) * r);
+            double e_from_T = e_min;
+            if (hv && hv[i] > 1.0)
+                e_from_T = c_v * (double)hv[i];
+            double e = std::max(e_from_p, e_from_T);
+            if (e < e_min) e = e_min;
             double E = r * e + 0.5 * r * (ux*ux + uy*uy);
             s->U0[0][iy][ix] = r;
             s->U0[1][iy][ix] = r * ux;

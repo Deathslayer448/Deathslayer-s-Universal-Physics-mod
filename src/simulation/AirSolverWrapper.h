@@ -6,9 +6,13 @@ class Air;
 /**
  * Wrapper around the Rusanov air solver for TPT.
  * Grid = XCELLS × YCELLS; dx = CELL * (meter per pixel).
- * sync_from_sim: copy pv, vx, vy, rho, bmap_blockair → solver.
+ * sync_from_sim: copy pv, vx, vy, rho, bmap_blockair, hv → solver.
  * sync_to_sim: copy solver primitives → pv, vx, vy, hv, rho.
  * step(dt_frame): advance solver (and heat) so total time ≈ dt_frame, then sync_to_sim.
+ *
+ * Units: TPT vx/vy are in game velocity (effectively pixels per frame). Solver uses m/s.
+ * game_vel_scale converts: v_mps = v_game * game_vel_scale; v_game = v_mps / game_vel_scale.
+ * Default 0.06 gives 1 game unit ≈ 0.06 m/s.
  */
 class AirSolverWrapper
 {
@@ -16,7 +20,8 @@ class AirSolverWrapper
 	int ny = 0;
 	int nx = 0;
 	double dx_m = 0.0;
-	double game_vel_scale = 0.06;  // TPT velocity (pixels/frame) to m/s: 0.001 * 60
+	// Larger value = same solver m/s becomes smaller game velocity. 0.6 keeps fire/smoke from spreading map-wide.
+	double game_vel_scale = 0.6;
 
 public:
 	AirSolverWrapper() = default;

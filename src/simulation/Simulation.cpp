@@ -2399,9 +2399,12 @@ void Simulation::UpdateParticles(int start, int end)
 			parts[i].vx *= elements[t].Loss;
 			parts[i].vy *= elements[t].Loss;
 		}
-		//particle gets velocity from the vx and vy maps
-		parts[i].vx += elements[t].Advection*vx[y/CELL][x/CELL] + neighbourhood.pGravX;
-		parts[i].vy += elements[t].Advection*vy[y/CELL][x/CELL] + neighbourhood.pGravY;
+		// Drag coupling: v += alpha*(v_air - v). Small alpha = heavy particles (lava) barely move; no cap, proper relaxation.
+		constexpr float AIR_TO_PARTICLE_ALPHA = 0.002f;  // Relaxation rate toward v_air per frame (alpha in v += alpha*(v_air - v)).
+		float alpha = AIR_TO_PARTICLE_ALPHA * elements[t].Advection;
+		float v_air_x = vx[y/CELL][x/CELL], v_air_y = vy[y/CELL][x/CELL];
+		parts[i].vx += alpha * (v_air_x - parts[i].vx) + neighbourhood.pGravX;
+		parts[i].vy += alpha * (v_air_y - parts[i].vy) + neighbourhood.pGravY;
 
 
 		if (elements[t].Diffusion)//the random diffusion that gasses have
@@ -2485,15 +2488,25 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 		// Heat transfer code
 		if (t && !sd.IsHeatInsulator(parts[i]) && rng.chance(int(elements[t].HeatConduct*gel_scale), 250))
 		{
-			// Heat transfer with air
+			// Heat transfer with air (Phase 2.6: heat-capacity-aware; Phase 1.3: default particle HC fallback)
 			if (aheat_enable && !(elements[t].Properties&PROP_NOAMBHEAT))
 			{
+				float hc_part = (elements[t].HeatCapacity > 0.0f) ? elements[t].HeatCapacity : DEFAULT_PARTICLE_HEAT_CAPACITY;
 				auto dtemp = hv[y/CELL][x/CELL] - parts[i].temp; // Temperature difference
-				auto alpha = std::min(0.04f, 0.4f * elements[t].HeatCapacity); // alpha / heat_capacity must be < 1
+				auto alpha = std::min(0.04f, 0.4f * hc_part); // alpha / heat_capacity must be < 1
 
-				// Here we completely ignore that there are CELL^2 "air pixels" in a cell, and the heat capacity of air
-				parts[i].temp = restrict_flt(parts[i].temp + alpha*dtemp / elements[t].HeatCapacity, MIN_TEMP, MAX_TEMP);
-				hv[y/CELL][x/CELL] = restrict_flt(hv[y/CELL][x/CELL] - alpha*dtemp, MIN_TEMP, MAX_TEMP);
+				// Air heat capacity (J/K) per cell: rho * c_v * area; rho = p/(R*T), area = (CELL*0.01)^2 m²
+				constexpr float R_air = 287.0f;   // J/(kg·K)
+				constexpr float c_v_air = 717.0f; // J/(kg·K)
+				float T_air = std::max(hv[y/CELL][x/CELL], 1.0f);
+				float rho_air = pv[y/CELL][x/CELL] / (R_air * T_air);
+				float cell_area_m2 = (float)(CELL * 0.01) * (float)(CELL * 0.01);
+				float C_air = rho_air * c_v_air * cell_area_m2;
+				float C_air_safe = std::max(C_air, 0.1f);
+
+				// Q = alpha*dtemp (same units as heat capacity × dT). Part: dT = Q/hc_part; air: dT = -Q/C_air
+				parts[i].temp = restrict_flt(parts[i].temp + alpha*dtemp / hc_part, MIN_TEMP, MAX_TEMP);
+				hv[y/CELL][x/CELL] = restrict_flt(hv[y/CELL][x/CELL] - alpha*dtemp / C_air_safe, MIN_TEMP, MAX_TEMP);
 			}
 
 			// Heat transfer with other elements
@@ -2521,31 +2534,33 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 				        || (t == PT_FILT && rt == PT_HSWC && parts[ID(r)].tmp == 1))
 					continue;
 
+				auto hc_r = (elements[rt].HeatCapacity > 0.0f) ? elements[rt].HeatCapacity : DEFAULT_PARTICLE_HEAT_CAPACITY;
 				surround_hconduct[j] = ID(r);
-				c_heat += parts[ID(r)].temp*elements[rt].HeatCapacity;
-				hc_total += elements[rt].HeatCapacity;
+				c_heat += parts[ID(r)].temp * hc_r;
+				hc_total += hc_r;
 
 				// Double count the particle to account for the heat capacity of both the PIPE/PPIP and its contents
 				if ((rt == PT_PIPE || rt == PT_PPIP) && parts[ID(r)].ctype != 0)
 				{
-					c_heat += parts[ID(r)].temp*elements[rt].HeatCapacity;
-					hc_total += elements[rt].HeatCapacity;
+					c_heat += parts[ID(r)].temp * hc_r;
+					hc_total += hc_r;
 				}
 			}
 
-			// Add the current particle
-			c_heat += parts[i].temp*elements[t].HeatCapacity;
-			hc_total += elements[t].HeatCapacity;
+			// Add the current particle (Phase 1.3: default HC fallback)
+			float hc_t = (elements[t].HeatCapacity > 0.0f) ? elements[t].HeatCapacity : DEFAULT_PARTICLE_HEAT_CAPACITY;
+			c_heat += parts[i].temp * hc_t;
+			hc_total += hc_t;
 
 			// Double count the current particle to account for the heat capacity of both the PIPE/PPIP and its contents
 			if ((t == PT_PIPE || t == PT_PPIP) && parts[i].ctype != 0)
 			{
-				c_heat += parts[i].temp*elements[t].HeatCapacity;
-				hc_total += elements[t].HeatCapacity;
+				c_heat += parts[i].temp * hc_t;
+				hc_total += hc_t;
 			}
 
 			// Equilibrium temperature
-			float pt = restrict_flt(c_heat / hc_total, MIN_TEMP, MAX_TEMP);
+			float pt = restrict_flt(c_heat / std::max(hc_total, 0.001f), MIN_TEMP, MAX_TEMP);
 
 			parts[i].temp = pt;
 			for (auto j=0; j<8; j++)
