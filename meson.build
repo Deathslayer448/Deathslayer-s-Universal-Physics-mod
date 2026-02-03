@@ -434,6 +434,9 @@ else
 endif
 # TPT integration: use Rusanov air solver API instead of standalone main()
 project_cpp_args += '-DTPT_INTEGRATION'
+if get_option('air_solver_debug')
+	project_cpp_args += '-DAIR_SOLVER_DEBUG'
+endif
 
 project_inc = include_directories([ 'src', 'resources', 'src/simulation/air_solver' ])
 

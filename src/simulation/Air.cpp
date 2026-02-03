@@ -5,6 +5,7 @@
 #include "AirSolverWrapper.h"
 #include <cmath>
 #include <algorithm>
+#include <cstdio>
 
 void Air::make_kernel(void) //used for velocity
 {
@@ -250,6 +251,7 @@ void Air::update_air(void)
 		rusanovSolver.ensure_created(YCELLS, XCELLS, cell_size_m);
 		rusanovSolver.set_boundary_walls();
 		rusanovSolver.sync_from_sim(sim, *this);
+		{ static bool once = false; if (!once) { std::fprintf(stderr, "[AIR] update_air: Rusanov path active (run from terminal to see logs)\n"); std::fflush(stderr); once = true; } }
 		rusanovSolver.step(frame_dt);
 		rusanovSolver.sync_to_sim(sim, *this);
 		// Keep wall cells consistent: no velocity, pressure = adjacent (solver doesn't write to walls)

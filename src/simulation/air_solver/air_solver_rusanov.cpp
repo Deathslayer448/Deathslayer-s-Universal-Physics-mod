@@ -17,12 +17,15 @@
 #include <cstdio>
 #include <algorithm>
 
+// Debug: print to stderr when solver gets stuck (always on; flush so it appears in terminal).
+#define AIR_DBG(...) do { std::fprintf(stderr, "[AIR] " __VA_ARGS__); std::fflush(stderr); } while (0)
+
 const double gamma_gas = 1.4;
 const double R_gas = 287.0;           // J/(kg·K) dry air
 const double c_v = R_gas / (gamma_gas - 1.0);  // heat capacity at constant volume
 const double c_p = gamma_gas * R_gas / (gamma_gas - 1.0);  // at constant pressure
 const double rho_min = 1e-6;
-const double e_min = 1e-6;
+const double e_min = 0.01;  // minimum allowed internal energy (no flooring: enforce via flux cap)
 // Vacuum interface: below this density use one-sided flux (dense side only) so we don't dump huge momentum into vacuum.
 const double rho_vacuum = 0.01;
 const double CFL = 0.35;
@@ -60,21 +63,22 @@ struct State {
     void primitives(int iy, int ix, double& rho, double& ux, double& uy, double& e, double& p) const {
         primitives_from(U0, iy, ix, rho, ux, uy, e, p);
     }
-    // T = e/c_v (Kelvin)
+    // T = e/c_v (Kelvin); clamp only for display/output so we never show invalid T.
     double temperature_from_e(double e) const { return std::max(e, e_min) / c_v; }
     double temperature(int iy, int ix) const {
         double r, ux, uy, e, p;
         primitives(iy, ix, r, ux, uy, e, p);
         return temperature_from_e(e);
     }
+    // Use raw e = E/r - ke (no floor). Here ke is KE per unit mass: 0.5*(u^2+v^2).
     void primitives_from(const std::array<Mat2, 4>& U, int iy, int ix, double& rho, double& ux, double& uy, double& e, double& p) const {
         double r = std::max(U[0][iy][ix], rho_min);
         rho = r;
         ux = U[1][iy][ix] / r;
         uy = U[2][iy][ix] / r;
         double E = U[3][iy][ix];
-        double ke = 0.5 * (U[1][iy][ix]*U[1][iy][ix] + U[2][iy][ix]*U[2][iy][ix]) / r;
-        e = std::max(E / r - ke, e_min);
+        double ke = 0.5 * (U[1][iy][ix]*U[1][iy][ix] + U[2][iy][ix]*U[2][iy][ix]) / (r * r);
+        e = E / r - ke;
         p = (gamma_gas - 1.0) * r * e;
     }
 
@@ -105,11 +109,14 @@ struct State {
     void get_U_ghost_y(const std::array<Mat2, 4>& U, int iy, int ix, double Ughost[4]) const {
         Ughost[0] = U[0][iy][ix]; Ughost[1] = U[1][iy][ix]; Ughost[2] = -U[2][iy][ix]; Ughost[3] = U[3][iy][ix];
     }
+    // Raw e (no floor) so Rusanov flux uses real pressure and does not over-drain.
     void primitives_from_U4(double U4[4], double& rho, double& ux, double& uy, double& e, double& p) const {
         double r = std::max(U4[0], rho_min);
         rho = r; ux = U4[1] / r; uy = U4[2] / r;
-        double E = U4[3], ke = 0.5 * (U4[1]*U4[1] + U4[2]*U4[2]) / r;
-        e = std::max(E / r - ke, e_min); p = (gamma_gas - 1.0) * r * e;
+        double E = U4[3];
+        double ke = 0.5 * (U4[1]*U4[1] + U4[2]*U4[2]) / (r * r);
+        e = E / r - ke;
+        p = (gamma_gas - 1.0) * r * e;
     }
 
     // Rusanov flux in x; uses reflective ghost when neighbor is wall.
@@ -126,21 +133,34 @@ struct State {
         flux_x(rL, uxL, uyL, pL, EL, FL);
         flux_x(rR, uxR, uyR, pR, ER, FR);
         if (rL < rho_vacuum || rR < rho_vacuum) {
-            // One-sided flux from dense side; limit momentum flux so vacuum doesn't get unbounded velocity (no state clamp, fix at flux).
-            bool useL = (rL >= rR);
-            for (int l = 0; l < 4; l++) F[l] = useL ? FL[l] : FR[l];
-            double r_d = useL ? rL : rR, p_d = useL ? pL : pR, e_d = useL ? eL : eR;
-            double c_d = sound_speed(r_d, p_d);
-            double v_max = 3.0 * c_d;  // max flux velocity = 3× sound speed of dense side
-            if (F[0] * F[0] > 1e-20) {
-                double uf = F[1] / F[0], vf = F[2] / F[0];
-                double mag = std::sqrt(uf*uf + vf*vf);
-                if (mag > v_max && mag > 1e-12) {
-                    double scale = v_max / mag;
-                    F[1] = F[0] * uf * scale;
-                    F[2] = F[0] * vf * scale;
-                    uf *= scale; vf *= scale;
-                    F[3] = F[0] * (e_d + 0.5 * (uf*uf + vf*vf)) + p_d * uf;  // energy flux consistent with limited momentum
+            // Euler flux has F[0]=rho*u: when dense cell is at rest (u=0) we get F[0]=0 but F[1]=p (pressure).
+            // That dumps momentum into vacuum without mass → velocity explodes. Use outflow flux: mass and momentum
+            // together with velocity = sound speed (rarefaction into vacuum).
+            bool L_is_vacuum = (rL < rho_vacuum && rR >= rho_vacuum);
+            bool R_is_vacuum = (rR < rho_vacuum && rL >= rho_vacuum);
+            double c_d;
+            if (L_is_vacuum) {
+                c_d = sound_speed(rR, pR);
+                // Flow R→L (into vacuum): F[0]<0. Mass flux = rR*cR, velocity = -cR.
+                F[0] = -rR * c_d;
+                F[1] = rR * c_d * c_d;           // F[0]*u_flow with u_flow = -cR gives momentum flux
+                F[2] = -rR * c_d * uyR;
+                F[3] = -(ER + pR) * c_d;
+            } else if (R_is_vacuum) {
+                c_d = sound_speed(rL, pL);
+                // Flow L→R (into vacuum): F[0]>0. Mass flux = rL*cL, velocity = +cL.
+                F[0] = rL * c_d;
+                F[1] = rL * c_d * c_d;
+                F[2] = rL * c_d * uyL;
+                F[3] = (EL + pL) * c_d;
+            } else {
+                // Both vacuum: use denser side outflow, direction into the other.
+                if (rL >= rR) {
+                    c_d = sound_speed(rL, pL);
+                    F[0] = rL * c_d; F[1] = rL * c_d * c_d; F[2] = rL * c_d * uyL; F[3] = (EL + pL) * c_d;
+                } else {
+                    c_d = sound_speed(rR, pR);
+                    F[0] = -rR * c_d; F[1] = rR * c_d * c_d; F[2] = -rR * c_d * uyR; F[3] = -(ER + pR) * c_d;
                 }
             }
             return;
@@ -164,20 +184,29 @@ struct State {
         flux_y(rL, uxL, uyL, pL, EL, GL);
         flux_y(rR, uxR, uyR, pR, ER, GR);
         if (rL < rho_vacuum || rR < rho_vacuum) {
-            bool useL = (rL >= rR);
-            for (int l = 0; l < 4; l++) G[l] = useL ? GL[l] : GR[l];
-            double r_d = useL ? rL : rR, p_d = useL ? pL : pR, e_d = useL ? eL : eR;
-            double c_d = sound_speed(r_d, p_d);
-            double v_max = 3.0 * c_d;
-            if (G[0] * G[0] > 1e-20) {
-                double uf = G[1] / G[0], vf = G[2] / G[0];
-                double mag = std::sqrt(uf*uf + vf*vf);
-                if (mag > v_max && mag > 1e-12) {
-                    double scale = v_max / mag;
-                    G[1] = G[0] * uf * scale;
-                    G[2] = G[0] * vf * scale;
-                    uf *= scale; vf *= scale;
-                    G[3] = G[0] * (e_d + 0.5 * (uf*uf + vf*vf)) + p_d * vf;  // y-flux: energy has p*v
+            // Outflow flux (mass + momentum at sound speed), same idea as x.
+            bool L_is_vacuum = (rL < rho_vacuum && rR >= rho_vacuum);
+            bool R_is_vacuum = (rR < rho_vacuum && rL >= rho_vacuum);
+            double c_d;
+            if (L_is_vacuum) {
+                c_d = sound_speed(rR, pR);
+                G[0] = -rR * c_d;
+                G[1] = -rR * c_d * uxR;
+                G[2] = rR * c_d * c_d;
+                G[3] = -(ER + pR) * c_d;
+            } else if (R_is_vacuum) {
+                c_d = sound_speed(rL, pL);
+                G[0] = rL * c_d;
+                G[1] = rL * c_d * uxL;
+                G[2] = rL * c_d * c_d;
+                G[3] = (EL + pL) * c_d;
+            } else {
+                if (rL >= rR) {
+                    c_d = sound_speed(rL, pL);
+                    G[0] = rL * c_d; G[1] = rL * c_d * uxL; G[2] = rL * c_d * c_d; G[3] = (EL + pL) * c_d;
+                } else {
+                    c_d = sound_speed(rR, pR);
+                    G[0] = -rR * c_d; G[1] = -rR * c_d * uxR; G[2] = rR * c_d * c_d; G[3] = -(ER + pR) * c_d;
                 }
             }
             return;
@@ -270,16 +299,59 @@ struct State {
         heat::heat_diffusion_step(ny, nx, dx, dt, U0[0], U0[1], U0[2], U0[3], &wall);
     }
 
-    bool state_valid() const {
+    bool state_valid(int* out_iy, int* out_ix, double* out_rho, double* out_e) const {
         for (int iy = 0; iy < ny; iy++)
             for (int ix = 0; ix < nx; ix++) {
                 if (is_wall(iy, ix)) continue;
-                if (U0[0][iy][ix] < rho_min) return false;
+                if (U0[0][iy][ix] < rho_min) {
+                    if (out_iy) *out_iy = iy;
+                    if (out_ix) *out_ix = ix;
+                    if (out_rho) *out_rho = U0[0][iy][ix];
+                    if (out_e) *out_e = -1.0;
+                    return false;
+                }
                 double r = U0[0][iy][ix], E = U0[3][iy][ix];
-                double ke = 0.5 * (U0[1][iy][ix]*U0[1][iy][ix] + U0[2][iy][ix]*U0[2][iy][ix]) / r;
-                if (E / r - ke < e_min) return false;
+                double ke = 0.5 * (U0[1][iy][ix]*U0[1][iy][ix] + U0[2][iy][ix]*U0[2][iy][ix]) / (r * r);
+                double e_int = E / r - ke;
+                if (e_int < e_min) {
+                    if (out_iy) *out_iy = iy;
+                    if (out_ix) *out_ix = ix;
+                    if (out_rho) *out_rho = r;
+                    if (out_e) *out_e = e_int;
+                    return false;
+                }
             }
         return true;
+    }
+    bool state_valid() const { return state_valid(nullptr, nullptr, nullptr, nullptr); }
+
+    // Try to repair cells with e_int < e_min by dissipating kinetic energy into internal energy (E stays constant).
+    // This avoids creating energy: we only scale down momentum so that e_int >= e_min where possible.
+    void fix_invalid_cells_dissipative() {
+        for (int iy = 0; iy < ny; ++iy) {
+            for (int ix = 0; ix < nx; ++ix) {
+                if (is_wall(iy, ix)) continue;
+                double r = std::max(U0[0][iy][ix], rho_min);
+                double mx = U0[1][iy][ix];
+                double my = U0[2][iy][ix];
+                double E = U0[3][iy][ix];
+                double M2 = mx * mx + my * my;
+                if (M2 <= 0.0) continue;
+                double ke = 0.5 * M2 / (r * r);
+                double e_int = E / r - ke;
+                if (e_int >= e_min) continue;
+                double e_tot = E / r;              // e + ke
+                double ke_max = e_tot - e_min;     // max KE so that e_int >= e_min
+                if (ke_max <= 0.0) continue;       // cannot fix without adding energy; leave for validity check
+                if (ke <= 0.0) continue;
+                double f = ke_max / ke;
+                if (f >= 1.0) continue;            // already fine numerically
+                if (f < 0.0) f = 0.0;
+                double s = std::sqrt(f);
+                U0[1][iy][ix] = mx * s;
+                U0[2][iy][ix] = my * s;
+            }
+        }
     }
 
     // One step (convection + viscosity); returns dt used. Heat diffusion is separate (apply_heat_diffusion).
@@ -287,7 +359,10 @@ struct State {
         double lam = max_lambda();
         double dt_cfl = CFL * dx / lam;
         double dt_diff = max_diffusion_dt();
-        double dt = std::min(dt_cfl, dt_diff);
+        double dt = std::min({ dt_cfl, dt_diff, 0.01 });
+
+        if (dt < 1e-3)
+            AIR_DBG("dt tiny: lam=%.6e dt_cfl=%.6e dt=%.6e (frame advance tiny => stuck)\n", lam, dt_cfl, dt);
 
         for (int iy = 0; iy < ny; iy++) {
             for (int ix = 0; ix < nx; ix++) {
@@ -304,13 +379,34 @@ struct State {
                 rusanov_y(iy, iyp, ix, Gp);
                 rusanov_y(iym, iy, ix, Gm);
 
+                // Cap net outgoing energy flux so this cell never drops below e_int >= e_min (no flooring = no energy creation).
+                double r, ux, uy, e, p;
+                primitives_from(U0, iy, ix, r, ux, uy, e, p);
+                double ke = 0.5 * (U0[1][iy][ix]*U0[1][iy][ix] + U0[2][iy][ix]*U0[2][iy][ix]) / r;
+                double E_min_cell = r * e_min + ke;
+                double net_E_flux_out = (Fp[3] - Fm[3] + Gp[3] - Gm[3]);
+                if (net_E_flux_out > 0) {
+                    double max_E_out = (U0[3][iy][ix] - E_min_cell) * (dx / dt);
+                    if (max_E_out <= 0) {
+                        Fp[3] = Fm[3] = Gp[3] = Gm[3] = 0;
+                    } else if (net_E_flux_out > max_E_out) {
+                        double factor = max_E_out / net_E_flux_out;
+                        Fp[3] *= factor; Fm[3] *= factor; Gp[3] *= factor; Gm[3] *= factor;
+                    }
+                }
+
                 for (int l = 0; l < 4; l++)
                     U1[l][iy][ix] = U0[l][iy][ix] - (dt / dx) * (Fp[l] - Fm[l] + Gp[l] - Gm[l]);
             }
         }
         apply_viscous(U1, dt);
         std::swap(U0, U1);
-        if (!state_valid()) {
+        // First try a local, dissipative repair: reduce KE where e_int < e_min without changing E.
+        fix_invalid_cells_dissipative();
+        int bad_iy = -1, bad_ix = -1;
+        double bad_rho = 0, bad_e = 0;
+        if (!state_valid(&bad_iy, &bad_ix, &bad_rho, &bad_e)) {
+            AIR_DBG("state INVALID at iy=%d ix=%d rho=%.6e e_int=%.6e (e_min=%.6e) => reject step\n", bad_iy, bad_ix, bad_rho, bad_e, e_min);
             std::swap(U0, U1);
             return 0.0;
         }
@@ -383,7 +479,7 @@ void air_solver_destroy(AirSolverState* state) {
     delete S(state);
 }
 // Use both pv and hv for internal energy: e = max(e_from_pressure, e_from_temperature).
-// So direct air-tool pressure is preserved, and particle heating (hv) still adds pressure — no source ignored.
+// Ensure stored E is valid: E >= r*e_min + KE so we never inject invalid state (no hidden floors on e).
 void air_solver_sync_from_tpt(AirSolverState* state,
     const float* pv, const float* vx, const float* vy, const float* rho, const unsigned char* wall,
     const float* hv, float game_vel_scale) {
@@ -398,20 +494,22 @@ void air_solver_sync_from_tpt(AirSolverState* state,
             double ux = (double)vx[i] * (double)game_vel_scale;
             double uy = (double)vy[i] * (double)game_vel_scale;
             double p = (double)pv[i];
-            if (p < 1e-10) p = 1e-10;
             double e_from_p = p / ((gamma_gas - 1.0) * r);
             double e_from_T = e_min;
             if (hv && hv[i] > 1.0)
                 e_from_T = c_v * (double)hv[i];
             double e = std::max(e_from_p, e_from_T);
-            if (e < e_min) e = e_min;
-            double E = r * e + 0.5 * r * (ux*ux + uy*uy);
+            double ke = 0.5 * r * (ux*ux + uy*uy);
+            double E = r * e + ke;
+            double E_min_valid = r * e_min + ke;
+            if (E < E_min_valid) E = E_min_valid;
             s->U0[0][iy][ix] = r;
             s->U0[1][iy][ix] = r * ux;
             s->U0[2][iy][ix] = r * uy;
             s->U0[3][iy][ix] = E;
         }
 }
+// Output: clamp p and T only for display so TPT never sees negative pressure or invalid T.
 void air_solver_sync_to_tpt(AirSolverState* state,
     float* pv, float* vx, float* vy, float* hv, float* rho,
     float game_vel_scale) {
@@ -423,7 +521,7 @@ void air_solver_sync_to_tpt(AirSolverState* state,
             if (s->is_wall(iy, ix)) continue;
             double r, ux, uy, e, p;
             s->primitives(iy, ix, r, ux, uy, e, p);
-            pv[i] = (float)p;
+            pv[i] = (float)std::max(p, 1e-10);
             vx[i] = (float)(ux * inv_scale);
             vy[i] = (float)(uy * inv_scale);
             hv[i] = (float)s->temperature_from_e(e);

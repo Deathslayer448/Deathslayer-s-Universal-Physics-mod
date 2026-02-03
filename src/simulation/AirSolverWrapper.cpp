@@ -5,6 +5,10 @@
 #include "air_solver_api.h"
 #include <cmath>
 #include <algorithm>
+#include <cstdio>
+
+// Debug: print to stderr when stuck (always on; flush so it appears in terminal).
+#define AIR_WRAP_DBG(...) do { std::fprintf(stderr, "[AIR-WRAP] " __VA_ARGS__); std::fflush(stderr); } while (0)
 
 AirSolverWrapper::~AirSolverWrapper()
 {
@@ -62,6 +66,11 @@ void AirSolverWrapper::step(double dt_frame)
 {
 	if (!state)
 		return;
+	static bool first = true;
+	if (first) {
+		AIR_WRAP_DBG("air solver step() active (stderr is working)\n");
+		first = false;
+	}
 	AirSolverState* s = static_cast<AirSolverState*>(state);
 	double advance = 0.0;
 	// One step per frame keeps 60 FPS even in debug builds. Use -Dbuildtype=release for full speed + more steps.
@@ -74,8 +83,12 @@ void AirSolverWrapper::step(double dt_frame)
 		if (dt <= 0.0)
 		{
 			reject++;
+			AIR_WRAP_DBG("step returned dt=0 (reject #%d)\n", reject);
 			if (reject > 5)
+			{
+				AIR_WRAP_DBG("too many rejects, breaking (advance=%.6e)\n", advance);
 				break;
+			}
 			continue;
 		}
 		reject = 0;
@@ -83,6 +96,8 @@ void AirSolverWrapper::step(double dt_frame)
 		advance += dt;
 		steps++;
 	}
+	if (advance < dt_frame * 0.5 && steps >= max_steps)
+		AIR_WRAP_DBG("stuck: advance=%.6e over %d steps (dt_frame=%.6e) => sim crawls\n", advance, steps, dt_frame);
 }
 
 void AirSolverWrapper::set_boundary_walls()

@@ -299,3 +299,9 @@ option(
 	value: false,
 	description: 'Run clang-tidy to lint programming issues'
 )
+option(
+	'air_solver_debug',
+	type: 'boolean',
+	value: false,
+	description: 'Print air solver debug to stderr when stuck (dt tiny, state invalid, rejects)'
+)
