@@ -25,7 +25,11 @@ const double R_gas = 287.0;           // J/(kg·K) dry air
 const double c_v = R_gas / (gamma_gas - 1.0);  // heat capacity at constant volume
 const double c_p = gamma_gas * R_gas / (gamma_gas - 1.0);  // at constant pressure
 const double rho_min = 1e-6;
-const double e_min = 0.01;  // minimum allowed internal energy (no flooring: enforce via flux cap)
+// Minimum allowed internal energy per unit mass used only for validity checks / flux caps.
+// Keep this very small so VAC can still produce (near) 0 kPa without triggering floors.
+const double e_min = 1e-6;
+// Clamp extreme pressures passed from TPT into the solver so CFL timestep does not collapse for crazy-high tool values.
+const double p_max_solver = 1e6;      // ±10 atm inside the solver (visual pv can exceed this).
 // Vacuum interface: below this density use one-sided flux (dense side only) so we don't dump huge momentum into vacuum.
 const double rho_vacuum = 0.01;
 const double CFL = 0.35;
@@ -478,7 +482,9 @@ AirSolverState* air_solver_create(int ny, int nx, double dx) {
 void air_solver_destroy(AirSolverState* state) {
     delete S(state);
 }
-// Use both pv and hv for internal energy: e = max(e_from_pressure, e_from_temperature).
+// Use pv (pressure) from TPT as the primary source of internal energy via ideal gas law: p = (γ−1)ρe.
+// hv (air temperature) is driven by the solver; we don't treat it as an independent energy source here so that tools
+// like VAC which edit pv directly have an immediate effect on the solver state.
 // Ensure stored E is valid: E >= r*e_min + KE so we never inject invalid state (no hidden floors on e).
 void air_solver_sync_from_tpt(AirSolverState* state,
     const float* pv, const float* vx, const float* vy, const float* rho, const unsigned char* wall,
@@ -493,12 +499,10 @@ void air_solver_sync_from_tpt(AirSolverState* state,
             if (r < rho_min) r = rho_min;
             double ux = (double)vx[i] * (double)game_vel_scale;
             double uy = (double)vy[i] * (double)game_vel_scale;
-            double p = (double)pv[i];
-            double e_from_p = p / ((gamma_gas - 1.0) * r);
-            double e_from_T = e_min;
-            if (hv && hv[i] > 1.0)
-                e_from_T = c_v * (double)hv[i];
-            double e = std::max(e_from_p, e_from_T);
+            // Clamp extreme pressures for stability inside solver; visual pv can still show the full range.
+            double p = std::clamp((double)pv[i], -p_max_solver, p_max_solver);
+            // Ideal gas: p = (γ−1)ρe  => e = p /((γ−1)ρ).
+            double e = p / ((gamma_gas - 1.0) * r);
             double ke = 0.5 * r * (ux*ux + uy*uy);
             double E = r * e + ke;
             double E_min_valid = r * e_min + ke;
