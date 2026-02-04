@@ -981,7 +981,6 @@ void Renderer::draw_air()
 		if (p_range >= 1.0f) {
 			std::vector<int> idx(NCELL);
 			for (int i = 0; i < NCELL; i++) idx[i] = i;
-			// Sort by pressure, then by index so equal pressures get deterministic order (no random stripes).
 			std::sort(idx.begin(), idx.end(), [pv](int a, int b) {
 				int ay = a / XCELLS, ax = a % XCELLS;
 				int by = b / XCELLS, bx = b % XCELLS;
@@ -989,8 +988,18 @@ void Renderer::draw_air()
 				if (pa != pb) return pa < pb;
 				return a < b;
 			});
-			for (int i = 0; i < NCELL; i++)
-				pressure_rank[idx[i]] = (NCELL > 1) ? ((float)i / (float)(NCELL - 1)) : 0.5f;
+			// Assign same rank to all cells with the same pressure (runs), so uniform regions stay solid.
+			int i = 0;
+			while (i < NCELL) {
+				int i_start = i;
+				float p_run = pv[idx[i] / XCELLS][idx[i] % XCELLS];
+				while (i < NCELL && pv[idx[i] / XCELLS][idx[i] % XCELLS] == p_run)
+					i++;
+				int i_end = i - 1;
+				float mid_rank = (NCELL > 1) ? (0.5f * (float)(i_start + i_end) / (float)(NCELL - 1)) : 0.5f;
+				for (int j = i_start; j <= i_end; j++)
+					pressure_rank[idx[j]] = mid_rank;
+			}
 		}
 	}
 
