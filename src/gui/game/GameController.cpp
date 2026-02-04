@@ -882,6 +882,11 @@ void GameController::LoadRenderPreset(int presetNum)
 	settings.wantHdispLimitMax = preset.wantHdispLimitMax;
 }
 
+void GameController::SetInfoTip(String text)
+{
+	gameModel->SetInfoTip(text);
+}
+
 void GameController::Update()
 {
 	auto &sd = SimulationData::CRef();

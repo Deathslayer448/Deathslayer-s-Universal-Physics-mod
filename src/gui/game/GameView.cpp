@@ -27,6 +27,7 @@
 #include "gui/Style.h"
 #include "simulation/ElementClasses.h"
 #include "simulation/ElementDefs.h"
+#include "simulation/ElementGraphics.h"
 #include "simulation/SaveRenderer.h"
 #include "simulation/SimulationData.h"
 #include "simulation/Simulation.h"
@@ -1657,6 +1658,32 @@ void GameView::OnKeyPress(int key, int scan, bool repeat, bool shift, bool ctrl,
 	if (shift && showDebug && key == '1')
 	{
 		c->LoadRenderPreset(10);
+	}
+	else if (shift && key == '2')
+	{
+		// Toggle normalized pressure view
+		if (rendererSettings)
+		{
+			uint32_t displayMode = rendererSettings->displayMode;
+			// Air display modes are mutually exclusive
+			if (displayMode & DISPLAY_AIR)
+			{
+				displayMode &= ~DISPLAY_AIR;
+			}
+			if (displayMode & DISPLAY_AIRPN)
+			{
+				// Turn off normalized pressure view
+				displayMode &= ~DISPLAY_AIRPN;
+				c->SetInfoTip("");
+			}
+			else
+			{
+				// Turn on normalized pressure view
+				displayMode |= DISPLAY_AIRPN;
+				c->SetInfoTip("Pressure (normalized to map)");
+			}
+			rendererSettings->displayMode = displayMode;
+		}
 	}
 	else if (shift && key == '6')
 	{

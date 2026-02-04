@@ -15,6 +15,7 @@
 #include <cmath>
 #include <algorithm>
 #include <vector>
+#include <limits>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -964,6 +965,35 @@ void Renderer::draw_air()
 			vel_t[idx[i]] = (NCELL > 1) ? ((float)i / (float)(NCELL - 1)) : 0.0f;
 	}
 
+	// Rank-based pressure for normalized view (same idea as vel_t: rank by value, then same blue/black/red logic)
+	std::vector<float> pressure_rank(NCELL, 0.5f);
+	if (displayMode & DISPLAY_AIRPN) {
+		float p_min = std::numeric_limits<float>::max();
+		float p_max = std::numeric_limits<float>::lowest();
+		for (int i = 0; i < NCELL; i++) {
+			int ay = i / XCELLS, ax = i % XCELLS;
+			float p = pv[ay][ax];
+			if (p < p_min) p_min = p;
+			if (p > p_max) p_max = p;
+		}
+		const float p_range = p_max - p_min;
+		// No meaningful differential: show uniform black (avoids stripes from arbitrary sort order).
+		if (p_range >= 1.0f) {
+			std::vector<int> idx(NCELL);
+			for (int i = 0; i < NCELL; i++) idx[i] = i;
+			// Sort by pressure, then by index so equal pressures get deterministic order (no random stripes).
+			std::sort(idx.begin(), idx.end(), [pv](int a, int b) {
+				int ay = a / XCELLS, ax = a % XCELLS;
+				int by = b / XCELLS, bx = b % XCELLS;
+				float pa = pv[ay][ax], pb = pv[by][bx];
+				if (pa != pb) return pa < pb;
+				return a < b;
+			});
+			for (int i = 0; i < NCELL; i++)
+				pressure_rank[idx[i]] = (NCELL > 1) ? ((float)i / (float)(NCELL - 1)) : 0.5f;
+		}
+	}
+
 	(void)0;
 	auto hue_to_rgb_UNUSED = [](float hue_deg, float sat, float val) -> RGB {
 		// Hue 0–360 (0=red, 120=green, 240=blue, 300=magenta). Saturate and value 0–1.
@@ -1029,6 +1059,38 @@ void Renderer::draw_air()
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				} else {
 					c = RGB(0, 0, 0);  // ~1 atm = black
+				}
+			}
+			else if (displayMode & DISPLAY_AIRPN)
+			{
+				// Same logic as DISPLAY_AIRP but in rank space: bottom (lowest pressure) = blue, middle = black, top (highest) = red.
+				float rank = pressure_rank[y * XCELLS + x];
+				const float rank_center = 0.5f;
+				const float rank_half_scale = 0.5f;  // so rank 0 → delta -0.5, rank 1 → delta +0.5
+				const float rank_black_eps = 0.01f;  // black band around middle
+				float delta_rank = rank - rank_center;
+				if (delta_rank < -rank_black_eps) {
+					float t_local = -delta_rank / rank_half_scale;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
+					if (val > 255) val = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(240, sat, val, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else if (delta_rank > rank_black_eps) {
+					float t_local = delta_rank / rank_half_scale;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
+					if (val > 255) val = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(0, sat, val, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else {
+					c = RGB(0, 0, 0);  // middle rank = black
 				}
 			}
 			else if (displayMode & DISPLAY_AIRV)
