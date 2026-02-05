@@ -96,8 +96,9 @@ void AirSolverWrapper::step(double dt_frame)
 		advance += dt;
 		steps++;
 	}
-	if (advance < dt_frame * 0.5 && steps >= max_steps)
-		AIR_WRAP_DBG("stuck: advance=%.6e over %d steps (dt_frame=%.6e) => sim crawls\n", advance, steps, dt_frame);
+	// Only warn when we actually had rejects (dt=0); small advance with no rejects is normal when CFL dt is tiny.
+	if (reject > 0 && advance < dt_frame * 0.5)
+		AIR_WRAP_DBG("rejects=%d advance=%.6e (dt_frame=%.6e) => sim crawls\n", reject, advance, dt_frame);
 }
 
 void AirSolverWrapper::set_boundary_walls()

@@ -28,6 +28,8 @@ const double rho_min = 1e-6;
 // Minimum allowed internal energy per unit mass used only for validity checks / flux caps.
 // Keep this very small so VAC can still produce (near) 0 kPa without triggering floors.
 const double e_min = 1e-6;
+// When clamping/nudging cells, set e_int = e_min + e_nudge so float rounding doesn't leave us just below e_min.
+const double e_nudge = 1e-8;
 // Clamp extreme pressures passed from TPT into the solver so CFL timestep does not collapse for crazy-high tool values.
 const double p_max_solver = 1e6;      // ±10 atm inside the solver (visual pv can exceed this).
 // Vacuum interface: below this density use one-sided flux (dense side only) so we don't dump huge momentum into vacuum.
@@ -329,6 +331,28 @@ struct State {
     }
     bool state_valid() const { return state_valid(nullptr, nullptr, nullptr, nullptr); }
 
+    // Set a cell's internal energy to e_min + e_nudge (tiny add so we stay above e_min after float rounding).
+    void nudge_cell_e_min(int iy, int ix) {
+        if (is_wall(iy, ix)) return;
+        double r = std::max(U0[0][iy][ix], rho_min);
+        double ke = 0.5 * (U0[1][iy][ix]*U0[1][iy][ix] + U0[2][iy][ix]*U0[2][iy][ix]) / (r * r);
+        U0[3][iy][ix] = r * (e_min + e_nudge) + r * ke;
+    }
+
+    // Clamp every fluid cell with e_int < e_min to e_int = e_min + e_nudge (VAC/walls; tiny energy add so we don't reject forever).
+    void clamp_near_e_min_all() {
+        for (int iy = 0; iy < ny; ++iy)
+            for (int ix = 0; ix < nx; ++ix) {
+                if (is_wall(iy, ix)) continue;
+                double r = std::max(U0[0][iy][ix], rho_min);
+                double E = U0[3][iy][ix];
+                double ke = 0.5 * (U0[1][iy][ix]*U0[1][iy][ix] + U0[2][iy][ix]*U0[2][iy][ix]) / (r * r);
+                double e_int = E / r - ke;
+                if (e_int < e_min)
+                    U0[3][iy][ix] = r * (e_min + e_nudge) + r * ke;
+            }
+    }
+
     // Try to repair cells with e_int < e_min by dissipating kinetic energy into internal energy (E stays constant).
     // This avoids creating energy: we only scale down momentum so that e_int >= e_min where possible.
     void fix_invalid_cells_dissipative() {
@@ -407,6 +431,8 @@ struct State {
         std::swap(U0, U1);
         // First try a local, dissipative repair: reduce KE where e_int < e_min without changing E.
         fix_invalid_cells_dissipative();
+        // Then clamp every cell with e_int just below e_min (roundoff / walls+VAC) so we don't reject forever.
+        clamp_near_e_min_all();
         int bad_iy = -1, bad_ix = -1;
         double bad_rho = 0, bad_e = 0;
         if (!state_valid(&bad_iy, &bad_ix, &bad_rho, &bad_e)) {
