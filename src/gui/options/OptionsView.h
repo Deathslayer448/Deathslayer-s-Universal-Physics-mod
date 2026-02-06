@@ -26,6 +26,7 @@ class OptionsView: public ui::Window
 	ui::Checkbox *atmosphericPressure{};
 	ui::DropDown *pressureUnit{};
 	ui::DropDown *airMode{};
+	ui::Textbox *simulationSpeed{};
 	ui::Textbox *ambientAirTemp{};
 	ui::Button *ambientAirTempPreview{};
 	ui::Textbox *vorticityCoeff{};
@@ -57,6 +58,8 @@ class OptionsView: public ui::Window
 	void UpdateAmbientAirTempPreview(float airTemp, bool isValid);
 	void AmbientAirTempToTextBox(float airTemp);
 	void UpdateAirTemp(String temp, bool isDefocus);
+	void SimulationSpeedToTextBox(int value);
+	void UpdateSimulationSpeed(String text, bool isDefocus);
 	void VorticityCoeffToTextBox(float vorticity);
 	void UpdateVorticityCoeff(String cort, bool isDefocus);
 	void UpdateStartupRequestStatus();

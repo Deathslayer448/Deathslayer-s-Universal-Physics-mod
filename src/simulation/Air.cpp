@@ -252,7 +252,7 @@ void Air::update_air(void)
 		rusanovSolver.set_boundary_walls();
 		rusanovSolver.sync_from_sim(sim, *this);
 		{ static bool once = false; if (!once) { std::fprintf(stderr, "[AIR] update_air: Rusanov path active (run from terminal to see logs)\n"); std::fflush(stderr); once = true; } }
-		rusanovSolver.step(frame_dt);
+		rusanovSolver.step(frame_dt, airSolverStepsPerFrame);
 		rusanovSolver.sync_to_sim(sim, *this);
 		// Keep wall cells consistent: no velocity, pressure = adjacent (solver doesn't write to walls)
 		for (auto j = 1; j < YCELLS - 1; j++)
@@ -915,6 +915,7 @@ void Air::ApproximateBlockAirMaps()
 Air::Air(Simulation & simulation):
 	sim(simulation),
 	airMode(AIR_ON),
+	airSolverStepsPerFrame(1),
 	ambientAirTemp(R_TEMP + 273.15f),
 	vorticityCoeff(0.0f),
 	useAtmosphericPressure(true) // Default: show relative pressure in UI

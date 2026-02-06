@@ -62,7 +62,7 @@ void AirSolverWrapper::sync_to_sim(Simulation& sim, Air& air)
 		pv, vx, vy, hv, rho, (float)game_vel_scale);
 }
 
-void AirSolverWrapper::step(double dt_frame)
+void AirSolverWrapper::step(double dt_frame, int max_steps)
 {
 	if (!state)
 		return;
@@ -73,8 +73,7 @@ void AirSolverWrapper::step(double dt_frame)
 	}
 	AirSolverState* s = static_cast<AirSolverState*>(state);
 	double advance = 0.0;
-	// One step per frame keeps 60 FPS even in debug builds. Use -Dbuildtype=release for full speed + more steps.
-	const int max_steps = 1;
+	if (max_steps < 1) max_steps = 1;
 	int steps = 0;
 	int reject = 0;
 	while (advance < dt_frame && steps < max_steps)

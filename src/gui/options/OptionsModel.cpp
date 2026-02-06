@@ -146,6 +146,18 @@ void OptionsModel::SetAirMode(int airMode)
 	notifySettingsChanged();
 }
 
+int OptionsModel::GetAirSolverStepsPerFrame()
+{
+	return sim->air->airSolverStepsPerFrame;
+}
+void OptionsModel::SetAirSolverStepsPerFrame(int steps)
+{
+	if (steps < 1) steps = 1;
+	if (steps > 128) steps = 128;
+	sim->air->airSolverStepsPerFrame = steps;
+	notifySettingsChanged();
+}
+
 int OptionsModel::GetEdgeMode()
 {
 	return gModel->GetSimulation()->edgeMode;

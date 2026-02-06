@@ -763,6 +763,8 @@ void GameModel::SaveToSimParameters(const GameSave &saveData)
 	sim->customGravityX = saveData.customGravityX;
 	sim->customGravityY = saveData.customGravityY;
 	sim->air->airMode = saveData.airMode;
+	if (saveData.airSolverStepsPerFrame >= 1 && saveData.airSolverStepsPerFrame <= 64)
+		sim->air->airSolverStepsPerFrame = saveData.airSolverStepsPerFrame;
 	sim->air->ambientAirTemp = saveData.ambientAirTemp;
 	sim->air->vorticityCoeff = saveData.vorticityCoeff;
 	sim->edgeMode = saveData.edgeMode;

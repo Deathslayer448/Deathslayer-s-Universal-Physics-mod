@@ -617,6 +617,7 @@ void GameSave::readOPS(const std::vector<char> &data)
 	copyIfFloat(b, "customGravityX", customGravityX);
 	copyIfFloat(b, "customGravityY", customGravityY);
 	copyIfInt32(b, "airMode", airMode);
+	copyIfInt32(b, "airSolverStepsPerFrame", airSolverStepsPerFrame);
 	copyIfFloat(b, "ambientAirTemp", ambientAirTemp);
 	copyIfFloat(b, "vorticityCoeff", vorticityCoeff);
 	copyIfInt32(b, "edgeMode", edgeMode);
@@ -2482,6 +2483,8 @@ std::pair<bool, std::vector<char>> GameSave::serialiseOPS() const
 	b["paused"] = paused;
 	b["gravityMode"] = gravityMode;
 	b["airMode"] = airMode;
+	if (airSolverStepsPerFrame != 1)
+		b["airSolverStepsPerFrame"] = airSolverStepsPerFrame;
 	if (fabsf(ambientAirTemp - (R_TEMP + 273.15f)) > 0.0001f)
 	{
 		b["ambientAirTemp"] = double(ambientAirTemp);

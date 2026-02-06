@@ -35,6 +35,8 @@ public:
 	void SetShowAvatars(bool state);
 	int GetAirMode();
 	void SetAirMode(int airMode);
+	int GetAirSolverStepsPerFrame();
+	void SetAirSolverStepsPerFrame(int steps);
 	float GetAmbientAirTemperature();
 	void SetAmbientAirTemperature(float ambientAirTemp);
 	float GetVorticityCoeff();

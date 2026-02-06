@@ -106,6 +106,7 @@ public:
 	float customGravityX = 0.0f;
 	float customGravityY = 0.0f;
 	int airMode = 0;
+	int airSolverStepsPerFrame = 1;
 	float ambientAirTemp = R_TEMP + 273.15f;
 	float vorticityCoeff = 0.0f;
 	int edgeMode = 0;

@@ -11,6 +11,7 @@ public:
 	Simulation & sim;
 	AirSolverWrapper rusanovSolver;
 	int airMode;
+	int airSolverStepsPerFrame;  // max steps per display frame (1 = slow/stable, higher = faster sim)
 	float ambientAirTemp;
 	float vorticityCoeff;
 	bool useAtmosphericPressure; // UI display mode: if true, show pressure relative to atmospheric

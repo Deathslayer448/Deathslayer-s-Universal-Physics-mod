@@ -130,6 +130,15 @@ OptionsView::OptionsView() : ui::Window(ui::Point(-1, -1), ui::Point(320, 340))
 		if (c)
 			c->SetPressureUnit(OptionsModel::PressureUnit(pressureUnit->GetOption().second));
 	});
+	addSeparator();
+	{
+		auto *sectionLabel = new ui::Label(ui::Point(8, currentY), ui::Point(Size.X - 16, 18), "Solver and air");
+		sectionLabel->SetTextColour(style::Colour::InformationTitle);
+		sectionLabel->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
+		sectionLabel->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
+		scrollPanel->AddChild(sectionLabel);
+		currentY += 20;
+	}
 	airMode = addDropDown("Air simulation mode", {
 		{ "On", AIR_ON },
 		{ "Pressure off", AIR_PRESSUREOFF },
@@ -139,6 +148,23 @@ OptionsView::OptionsView() : ui::Window(ui::Point(-1, -1), ui::Point(320, 340))
 	}, [this] {
 		c->SetAirMode(airMode->GetOption().second);
 	});
+	{
+		simulationSpeed = new ui::Textbox(ui::Point(Size.X - 95, currentY), ui::Point(80, 16));
+		simulationSpeed->SetActionCallback({ [this] {
+			UpdateSimulationSpeed(simulationSpeed->GetText(), false);
+		} });
+		simulationSpeed->SetDefocusCallback({ [this] {
+			UpdateSimulationSpeed(simulationSpeed->GetText(), true);
+		} });
+		simulationSpeed->SetLimit(8);
+		scrollPanel->AddChild(simulationSpeed);
+		auto *label = new ui::Label(ui::Point(8, currentY), ui::Point(Size.X - 105, 16), "Simulation speed (steps per frame)");
+		label->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
+		label->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
+		scrollPanel->AddChild(label);
+		autoWidth(label, 85);
+		currentY += 20;
+	}
 	{
 		ambientAirTemp = new ui::Textbox(ui::Point(Size.X-95, currentY), ui::Point(60, 16));
 		ambientAirTemp->SetActionCallback({ [this] {
@@ -544,6 +570,51 @@ void OptionsView::UpdateAirTemp(String temp, bool isDefocus)
 	UpdateAmbientAirTempPreview(airTemp, isValid);
 }
 
+void OptionsView::SimulationSpeedToTextBox(int value)
+{
+	simulationSpeed->SetText(String::Build(value));
+}
+
+void OptionsView::UpdateSimulationSpeed(String text, bool isDefocus)
+{
+	float value = 1.0f;
+	bool isValid = false;
+	try
+	{
+		value = text.ToNumber<float>();
+		isValid = true;
+	}
+	catch (const std::exception &)
+	{
+		isValid = false;
+	}
+	if (isValid && value < 0.0f)
+		value = 0.0f;
+	if (isDefocus)
+	{
+		if (text.empty())
+		{
+			value = 1.0f;
+			isValid = true;
+		}
+		else if (isValid)
+		{
+			if (value < 1.0f)
+				value = 1.0f;
+			else if (value > 128.0f)
+				value = 128.0f;
+		}
+		SimulationSpeedToTextBox((int)(value + 0.5f));
+	}
+	if (isValid && value >= 1.0f)
+	{
+		int steps = (int)(value + 0.5f);
+		if (steps > 128) steps = 128;
+		if (c)
+			c->SetAirSolverStepsPerFrame(steps);
+	}
+}
+
 void OptionsView::UpdateVorticityCoeff(String vort, bool isDefocus)
 {
 	// Parse vorticity and determine validity
@@ -599,6 +670,8 @@ void OptionsView::NotifySettingsChanged(OptionsModel * sender)
 	if (atmosphericPressure)
 		atmosphericPressure->SetChecked(sender->GetAtmosphericPressure());
 	airMode->SetOption(sender->GetAirMode());
+	if (simulationSpeed && !simulationSpeed->IsFocused())
+		SimulationSpeedToTextBox(sender->GetAirSolverStepsPerFrame());
 	// Initialize air temp and preview only when the options menu is opened, and not when user is actively editing the textbox
 	if (!ambientAirTemp->IsFocused())
 	{

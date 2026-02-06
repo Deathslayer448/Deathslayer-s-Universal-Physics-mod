@@ -82,6 +82,11 @@ void OptionsController::SetAirMode(int airMode)
 	model->SetAirMode(airMode);
 }
 
+void OptionsController::SetAirSolverStepsPerFrame(int steps)
+{
+	model->SetAirSolverStepsPerFrame(steps);
+}
+
 void OptionsController::SetAmbientAirTemperature(float ambientAirTemp)
 {
 	model->SetAmbientAirTemperature(ambientAirTemp);
