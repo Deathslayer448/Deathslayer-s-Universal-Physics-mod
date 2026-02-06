@@ -25,11 +25,18 @@ const double R_gas = 287.0;           // J/(kg·K) dry air
 const double c_v = R_gas / (gamma_gas - 1.0);  // heat capacity at constant volume
 const double c_p = gamma_gas * R_gas / (gamma_gas - 1.0);  // at constant pressure
 const double rho_min = 1e-6;
+// Cap density so vacuum–vacuum connection or bad fluxes cannot produce rho=1e9 blow-up.
+const double rho_max = 1e4;   // ~1e4× normal air; only clips obvious blow-ups
+// Upper bound for treating a cell as "vacuum-like" for last-resort repair.
+// Only cells with rho << typical air density are ever zeroed out and nudged.
+const double rho_vacuum_max = 1e-4;
 // Minimum allowed internal energy per unit mass used only for validity checks / flux caps.
 // Keep this very small so VAC can still produce (near) 0 kPa without triggering floors.
 const double e_min = 1e-6;
 // When clamping/nudging cells, set e_int = e_min + e_nudge so float rounding doesn't leave us just below e_min.
 const double e_nudge = 1e-8;
+// In state_valid, accept e_int >= e_min_accept so rounding/clamp slip (e.g. 4.76e-7) doesn't stuck forever.
+const double e_min_accept = e_min * 0.4;
 // Clamp extreme pressures passed from TPT into the solver so CFL timestep does not collapse for crazy-high tool values.
 const double p_max_solver = 1e6;      // ±10 atm inside the solver (visual pv can exceed this).
 // Vacuum interface: below this density use one-sided flux (dense side only) so we don't dump huge momentum into vacuum.
@@ -85,7 +92,7 @@ struct State {
         double E = U[3][iy][ix];
         double ke = 0.5 * (U[1][iy][ix]*U[1][iy][ix] + U[2][iy][ix]*U[2][iy][ix]) / (r * r);
         e = E / r - ke;
-        p = (gamma_gas - 1.0) * r * e;
+        p = (gamma_gas - 1.0) * r * std::max(e, e_min);
     }
 
     // Euler x-flux F(U) = [rho*u, rho*u^2+p, rho*u*v, (E+p)*u]
@@ -122,7 +129,7 @@ struct State {
         double E = U4[3];
         double ke = 0.5 * (U4[1]*U4[1] + U4[2]*U4[2]) / (r * r);
         e = E / r - ke;
-        p = (gamma_gas - 1.0) * r * e;
+        p = (gamma_gas - 1.0) * r * std::max(e, e_min);
     }
 
     // Rusanov flux in x; uses reflective ghost when neighbor is wall.
@@ -224,9 +231,10 @@ struct State {
             G[l] = 0.5 * (GL[l] + GR[l]) - 0.5 * s_max * (UR[l] - UL[l]);
     }
 
-    // CFL: lam = max over cells of (|u| + c). Cap velocity contribution so one bad cell can't collapse dt (0-pressure safety).
+    // CFL: lam = max over cells of (|u| + c). Cap so one runaway cell doesn't collapse dt; floor so we always advance.
     double max_lambda() const {
         const double v_max_mult = 5.0;  // max |u| contribution = this many × sound speed
+        const double dt_min = 1e-5;     // minimum dt so sim always advances (cap lam = CFL*dx/dt_min)
         double lam = 0.0;
         for (int iy = 0; iy < ny; iy++) {
             for (int ix = 0; ix < nx; ix++) {
@@ -240,6 +248,8 @@ struct State {
                 lam = std::max(lam, v_contrib);
             }
         }
+        double lam_cap = (dx > 1e-30 && dt_min > 0) ? (CFL * dx / dt_min) : 1e10;
+        lam = std::min(lam, lam_cap);
         return (lam > 1e-12) ? lam : 1.0;
     }
 
@@ -319,7 +329,9 @@ struct State {
                 double r = U0[0][iy][ix], E = U0[3][iy][ix];
                 double ke = 0.5 * (U0[1][iy][ix]*U0[1][iy][ix] + U0[2][iy][ix]*U0[2][iy][ix]) / (r * r);
                 double e_int = E / r - ke;
-                if (e_int < e_min) {
+                // Treat any negative internal energy as invalid, but allow e_int >= 0
+                // (we no longer enforce a strict e_min_accept threshold here).
+                if (e_int < 0.0) {
                     if (out_iy) *out_iy = iy;
                     if (out_ix) *out_ix = ix;
                     if (out_rho) *out_rho = r;
@@ -339,6 +351,72 @@ struct State {
         U0[3][iy][ix] = r * (e_min + e_nudge) + r * ke;
     }
 
+    // Force one bad cell valid: prefer dissipative fix (scale down momentum); only add energy when e_tot < e_min then zero velocity to avoid KE bomb and pressure blow-up.
+    void repair_cell(int iy, int ix) {
+        if (is_wall(iy, ix)) return;
+        U0[0][iy][ix] = std::max(U0[0][iy][ix], rho_min);
+        double r = U0[0][iy][ix];
+        double mx = U0[1][iy][ix];
+        double my = U0[2][iy][ix];
+        double E = U0[3][iy][ix];
+        double ke = 0.5 * (mx*mx + my*my) / (r * r);
+        double e_tot = E / r;
+        double e_int = e_tot - ke;
+        if (e_int >= e_min_accept) return;  // already valid
+        bool fixed = false;
+        if (e_tot >= e_min) {
+            // Dissipative fix: scale momentum so e_int = e_min + e_nudge (no energy added).
+            double ke_max = e_tot - (e_min + e_nudge);
+            if (ke_max > 0.0 && ke > 0.0) {
+                double s = std::sqrt(ke_max / ke);
+                if (s < 1.0) {
+                    U0[1][iy][ix] = mx * s;
+                    U0[2][iy][ix] = my * s;
+                    fixed = true;
+                }
+            }
+            if (fixed) return;
+            // Didn't scale; if already valid (e.g. s >= 1) return.
+            e_int = e_tot - ke;
+            if (e_int >= e_min_accept) return;
+        }
+        // e_tot < e_min or couldn't fix without adding energy: set cell to rest so we don't create high-KE bomb.
+        U0[1][iy][ix] = 0.0;
+        U0[2][iy][ix] = 0.0;
+        U0[3][iy][ix] = r * (e_min + e_nudge);
+    }
+
+    // After convective update: clamp rho to [rho_min, rho_max] and fix negative e_int so blow-up never enters U0.
+    void clamp_rho_after_update(std::array<Mat2, 4>& U) {
+        for (int iy = 0; iy < ny; ++iy)
+            for (int ix = 0; ix < nx; ++ix) {
+                if (is_wall(iy, ix)) continue;
+                double r = U[0][iy][ix];
+                if (r < rho_min) {
+                    U[0][iy][ix] = rho_min;
+                    U[1][iy][ix] = 0.0;
+                    U[2][iy][ix] = 0.0;
+                    U[3][iy][ix] = rho_min * (e_min + e_nudge);
+                    continue;
+                }
+                if (r > rho_max || !std::isfinite(r)) {
+                    U[0][iy][ix] = rho_max;
+                    U[1][iy][ix] = 0.0;
+                    U[2][iy][ix] = 0.0;
+                    U[3][iy][ix] = rho_max * (e_min + e_nudge);
+                    continue;
+                }
+                double E = U[3][iy][ix];
+                double ke = 0.5 * (U[1][iy][ix]*U[1][iy][ix] + U[2][iy][ix]*U[2][iy][ix]) / (r * r);
+                double e_int = E / r - ke;
+                if (e_int < 0.0 || !std::isfinite(E)) {
+                    U[1][iy][ix] = 0.0;
+                    U[2][iy][ix] = 0.0;
+                    U[3][iy][ix] = r * (e_min + e_nudge);
+                }
+            }
+    }
+
     // Clamp every fluid cell with e_int < e_min to e_int = e_min + e_nudge (VAC/walls; tiny energy add so we don't reject forever).
     void clamp_near_e_min_all() {
         for (int iy = 0; iy < ny; ++iy)
@@ -350,6 +428,34 @@ struct State {
                 double e_int = E / r - ke;
                 if (e_int < e_min)
                     U0[3][iy][ix] = r * (e_min + e_nudge) + r * ke;
+            }
+    }
+
+    // Replace any cell that is NaN/inf, rho>rho_max, or e_int<0 so fluxes never see invalid and it cannot spread.
+    void sanitize_U0() {
+        for (int iy = 0; iy < ny; ++iy)
+            for (int ix = 0; ix < nx; ++ix) {
+                if (is_wall(iy, ix)) continue;
+                bool bad = false;
+                for (int l = 0; l < 4; l++)
+                    if (!std::isfinite(U0[l][iy][ix])) { bad = true; break; }
+                if (!bad) {
+                    double r = U0[0][iy][ix];
+                    if (r > rho_max) bad = true;
+                    else {
+                        r = std::max(r, rho_min);
+                        double E = U0[3][iy][ix];
+                        double ke = 0.5 * (U0[1][iy][ix]*U0[1][iy][ix] + U0[2][iy][ix]*U0[2][iy][ix]) / (r * r);
+                        double e_int = E / r - ke;
+                        if (e_int < 0.0) bad = true;
+                    }
+                }
+                if (bad) {
+                    U0[0][iy][ix] = rho_min;
+                    U0[1][iy][ix] = 0.0;
+                    U0[2][iy][ix] = 0.0;
+                    U0[3][iy][ix] = rho_min * (e_min + e_nudge);
+                }
             }
     }
 
@@ -392,55 +498,84 @@ struct State {
         if (dt < 1e-3)
             AIR_DBG("dt tiny: lam=%.6e dt_cfl=%.6e dt=%.6e (frame advance tiny => stuck)\n", lam, dt_cfl, dt);
 
-        for (int iy = 0; iy < ny; iy++) {
-            for (int ix = 0; ix < nx; ix++) {
-                if (is_wall(iy, ix)) {
-                    for (int l = 0; l < 4; l++) U1[l][iy][ix] = U0[l][iy][ix];
-                    continue;
-                }
-                int ixp = (ix + 1) % nx, ixm = (ix - 1 + nx) % nx;
-                int iyp = (iy + 1) % ny, iym = (iy - 1 + ny) % ny;
-
-                double Fp[4], Fm[4], Gp[4], Gm[4];
-                rusanov_x(iy, ix, ixp, Fp);
-                rusanov_x(iy, ixm, ix, Fm);
-                rusanov_y(iy, iyp, ix, Gp);
-                rusanov_y(iym, iy, ix, Gm);
-
-                // Cap net outgoing energy flux so this cell never drops below e_int >= e_min (no flooring = no energy creation).
-                double r, ux, uy, e, p;
-                primitives_from(U0, iy, ix, r, ux, uy, e, p);
-                double ke = 0.5 * (U0[1][iy][ix]*U0[1][iy][ix] + U0[2][iy][ix]*U0[2][iy][ix]) / r;
-                double E_min_cell = r * e_min + ke;
-                double net_E_flux_out = (Fp[3] - Fm[3] + Gp[3] - Gm[3]);
-                if (net_E_flux_out > 0) {
-                    double max_E_out = (U0[3][iy][ix] - E_min_cell) * (dx / dt);
-                    if (max_E_out <= 0) {
-                        Fp[3] = Fm[3] = Gp[3] = Gm[3] = 0;
-                    } else if (net_E_flux_out > max_E_out) {
-                        double factor = max_E_out / net_E_flux_out;
-                        Fp[3] *= factor; Fm[3] *= factor; Gp[3] *= factor; Gm[3] *= factor;
+        const int max_retries = 4;  // fix bad cell in pre-step state and re-step instead of stuck reject loop
+        for (int retry = 0; retry < max_retries; retry++) {
+            sanitize_U0();  // never compute fluxes from NaN/inf so invalid state cannot spread
+            for (int iy = 0; iy < ny; iy++) {
+                for (int ix = 0; ix < nx; ix++) {
+                    if (is_wall(iy, ix)) {
+                        for (int l = 0; l < 4; l++) U1[l][iy][ix] = U0[l][iy][ix];
+                        continue;
                     }
-                }
+                    int ixp = (ix + 1) % nx, ixm = (ix - 1 + nx) % nx;
+                    int iyp = (iy + 1) % ny, iym = (iy - 1 + ny) % ny;
 
-                for (int l = 0; l < 4; l++)
-                    U1[l][iy][ix] = U0[l][iy][ix] - (dt / dx) * (Fp[l] - Fm[l] + Gp[l] - Gm[l]);
+                    double Fp[4], Fm[4], Gp[4], Gm[4];
+                    rusanov_x(iy, ix, ixp, Fp);
+                    rusanov_x(iy, ixm, ix, Fm);
+                    rusanov_y(iy, iyp, ix, Gp);
+                    rusanov_y(iym, iy, ix, Gm);
+
+                    // Cap net outgoing energy flux so this cell never drops below e_int >= e_min (no flooring = no energy creation).
+                    double r, ux, uy, e, p;
+                    primitives_from(U0, iy, ix, r, ux, uy, e, p);
+                    double ke = 0.5 * (U0[1][iy][ix]*U0[1][iy][ix] + U0[2][iy][ix]*U0[2][iy][ix]) / r;
+                    double E_min_cell = r * e_min + ke;
+                    double net_E_flux_out = (Fp[3] - Fm[3] + Gp[3] - Gm[3]);
+                    if (net_E_flux_out > 0) {
+                        double max_E_out = (U0[3][iy][ix] - E_min_cell) * (dx / dt);
+                        if (max_E_out <= 0) {
+                            Fp[3] = Fm[3] = Gp[3] = Gm[3] = 0;
+                        } else if (net_E_flux_out > max_E_out) {
+                            double factor = max_E_out / net_E_flux_out;
+                            Fp[3] *= factor; Fm[3] *= factor; Gp[3] *= factor; Gm[3] *= factor;
+                        }
+                    }
+
+                    for (int l = 0; l < 4; l++)
+                        U1[l][iy][ix] = U0[l][iy][ix] - (dt / dx) * (Fp[l] - Fm[l] + Gp[l] - Gm[l]);
+                }
             }
-        }
-        apply_viscous(U1, dt);
-        std::swap(U0, U1);
-        // First try a local, dissipative repair: reduce KE where e_int < e_min without changing E.
-        fix_invalid_cells_dissipative();
-        // Then clamp every cell with e_int just below e_min (roundoff / walls+VAC) so we don't reject forever.
-        clamp_near_e_min_all();
-        int bad_iy = -1, bad_ix = -1;
-        double bad_rho = 0, bad_e = 0;
-        if (!state_valid(&bad_iy, &bad_ix, &bad_rho, &bad_e)) {
-            AIR_DBG("state INVALID at iy=%d ix=%d rho=%.6e e_int=%.6e (e_min=%.6e) => reject step\n", bad_iy, bad_ix, bad_rho, bad_e, e_min);
+apply_viscous(U1, dt);
+            clamp_rho_after_update(U1);
             std::swap(U0, U1);
-            return 0.0;
+            // Dissipative-only fix: reduce KE where e_int < e_min (no energy injection).
+            fix_invalid_cells_dissipative();
+            // Nudge any cell with e_int just below e_min (roundoff / walls+VAC) so we don't reject forever.
+            clamp_near_e_min_all();
+
+            int bad_iy = -1, bad_ix = -1;
+            double bad_rho = 0.0, bad_e = 0.0;
+            if (!state_valid(&bad_iy, &bad_ix, &bad_rho, &bad_e)) {
+                // Vacuum-like: fix in place and re-check.
+                if (bad_iy >= 0 && bad_ix >= 0 && bad_rho <= rho_vacuum_max) {
+                    AIR_DBG("state INVALID at iy=%d ix=%d rho=%.6e e_int=%.6e => local VAC reset\n",
+                            bad_iy, bad_ix, bad_rho, bad_e);
+                    U0[0][bad_iy][bad_ix] = rho_min;
+                    U0[1][bad_iy][bad_ix] = 0.0;
+                    U0[2][bad_iy][bad_ix] = 0.0;
+                    U0[3][bad_iy][bad_ix] = rho_min * (e_min + e_nudge);
+
+                    bad_iy = bad_ix = -1;
+                    bad_rho = bad_e = 0.0;
+                    if (!state_valid(&bad_iy, &bad_ix, &bad_rho, &bad_e)) {
+                        AIR_DBG("state still INVALID after VAC reset => reject step\n");
+                        std::swap(U0, U1);
+                        return 0.0;
+                    }
+                    return dt;
+                }
+                // Non-vacuum invalid: reject, sanitize entire pre-step state (neighbors may be bad too), retry.
+                AIR_DBG("state INVALID at iy=%d ix=%d rho=%.6e e_int=%.6e => revert, sanitize all, retry %d/%d\n",
+                        bad_iy, bad_ix, bad_rho, bad_e, retry + 1, max_retries);
+                std::swap(U0, U1);  // U0 = state before this step
+                sanitize_U0();      // fix every bad cell so fluxes cannot recreate invalid (e.g. vacuum–vacuum connect)
+                continue;
+            }
+            return dt;
         }
-        return dt;
+        AIR_DBG("state INVALID after %d retries => reject step\n", max_retries);
+        return 0.0;
     }
 
     double total_mass() const {
@@ -508,27 +643,36 @@ AirSolverState* air_solver_create(int ny, int nx, double dx) {
 void air_solver_destroy(AirSolverState* state) {
     delete S(state);
 }
-// Use pv (pressure) from TPT as the primary source of internal energy via ideal gas law: p = (γ−1)ρe.
-// hv (air temperature) is driven by the solver; we don't treat it as an independent energy source here so that tools
-// like VAC which edit pv directly have an immediate effect on the solver state.
+// Build solver state from both pv (pressure) and hv (temperature) so AIR/VAC tools and particle heat are preserved.
+// Ideal gas: p = rho*R*T => rho = p/(R*T); e = c_v*T. We derive rho from (pv, hv) so tool edits to pv take effect.
 // Ensure stored E is valid: E >= r*e_min + KE so we never inject invalid state (no hidden floors on e).
 void air_solver_sync_from_tpt(AirSolverState* state,
     const float* pv, const float* vx, const float* vy, const float* rho, const unsigned char* wall,
     const float* hv, float game_vel_scale) {
+    (void)rho;
     State* s = S(state);
+    const double T_min_k = 1.0;   // minimum T (K) so e = c_v*T is valid
+    const double p_min_rho = 1.0; // minimum p (Pa) when computing rho = p/(R*T) so VAC (pv≈0) gives low rho
     for (int iy = 0; iy < s->ny; iy++)
         for (int ix = 0; ix < s->nx; ix++) {
             int i = iy * s->nx + ix;
             s->set_wall(iy, ix, (wall[i] != 0));
             if (s->is_wall(iy, ix)) continue;
-            double r = (double)rho[i];
+            double T = (double)hv[i];
+            double p = (double)pv[i];
+            if (!std::isfinite(T) || !std::isfinite(p) || T < T_min_k || p < p_min_rho) {
+                T = T_min_k;
+                p = p_min_rho;
+            }
+            // rho = p/(R*T) so AIR (high pv) and VAC (low pv) tools drive density; e = c_v*T preserves heat.
+            double r = p / (R_gas * T);
             if (r < rho_min) r = rho_min;
+            if (r > rho_max || !std::isfinite(r)) r = rho_max;
             double ux = (double)vx[i] * (double)game_vel_scale;
             double uy = (double)vy[i] * (double)game_vel_scale;
-            // Clamp extreme pressures for stability inside solver; visual pv can still show the full range.
-            double p = std::clamp((double)pv[i], -p_max_solver, p_max_solver);
-            // Ideal gas: p = (γ−1)ρe  => e = p /((γ−1)ρ).
-            double e = p / ((gamma_gas - 1.0) * r);
+            if (!std::isfinite(ux)) ux = 0.0;
+            if (!std::isfinite(uy)) uy = 0.0;
+            double e = c_v * T;
             double ke = 0.5 * r * (ux*ux + uy*uy);
             double E = r * e + ke;
             double E_min_valid = r * e_min + ke;
@@ -538,8 +682,14 @@ void air_solver_sync_from_tpt(AirSolverState* state,
             s->U0[2][iy][ix] = r * uy;
             s->U0[3][iy][ix] = E;
         }
+    s->sanitize_U0();  // replace any cell that ended up NaN so we never spread it
 }
-// Output: clamp p and T only for display so TPT never sees negative pressure or invalid T.
+// Safe defaults when solver state is invalid so we never write NaN/0 to sim (stops spread to entire map).
+static const double sync_p_safe = 101325.0;   // 1 atm
+static const double sync_T_safe = 300.0;      // K
+static const double sync_rho_safe = sync_p_safe / (R_gas * sync_T_safe);
+
+// Output: clamp p and T; replace NaN/inf with safe values so TPT never sees invalid and it cannot spread.
 void air_solver_sync_to_tpt(AirSolverState* state,
     float* pv, float* vx, float* vy, float* hv, float* rho,
     float game_vel_scale) {
@@ -551,11 +701,19 @@ void air_solver_sync_to_tpt(AirSolverState* state,
             if (s->is_wall(iy, ix)) continue;
             double r, ux, uy, e, p;
             s->primitives(iy, ix, r, ux, uy, e, p);
+            bool valid = std::isfinite(p) && std::isfinite(e) && std::isfinite(r) && std::isfinite(ux) && std::isfinite(uy);
+            if (!valid) {
+                pv[i] = (float)sync_p_safe;
+                vx[i] = vy[i] = 0.0f;
+                hv[i] = (float)sync_T_safe;
+                rho[i] = (float)sync_rho_safe;
+                continue;
+            }
             pv[i] = (float)std::max(p, 1e-10);
             vx[i] = (float)(ux * inv_scale);
             vy[i] = (float)(uy * inv_scale);
-            hv[i] = (float)s->temperature_from_e(e);
-            rho[i] = (float)r;
+            hv[i] = (float)std::max(s->temperature_from_e(e), 1.0);  // avoid 0 K / -273.15°C display
+            rho[i] = (float)std::max(r, 1e-6);
         }
 }
 double air_solver_step(AirSolverState* state) {
