@@ -47,16 +47,12 @@ void Air::Clear()
 {
 	std::fill(&sim.vy[0][0], &sim.vy[0][0]+NCELL, 0.0f);
 	std::fill(&sim.vx[0][0], &sim.vx[0][0]+NCELL, 0.0f);
-		// Initialize density to standard atmospheric density at ambient temperature
-		// Using ideal gas law: ρ = P/(RT), with P = 101325 Pa (1 atm), R = 287 J/(kg·K), T = ambientAirTemp
-		// Default density ≈ 1.225 kg/m³ at 15°C (288.15 K)
-		const float R_gas = 287.0f; // Specific gas constant for air (J/(kg·K))
-		const float P_atm = 101325.0f; // Standard atmospheric pressure (Pa)
-		float defaultDensity = P_atm / (R_gas * ambientAirTemp);
-		std::fill(&rho[0][0], &rho[0][0]+NCELL, defaultDensity);
-		// Initialize pressure to atmospheric pressure (absolute, in Pascals)
-		// pv stores absolute pressure directly in Pascals
-		std::fill(&sim.pv[0][0], &sim.pv[0][0]+NCELL, P_atm);
+	const float R_gas = 287.0f;
+	// Baseline pressure: 1 atm when atmospheric baseline on, 1 kPa when off (so solver stays valid)
+	const float P_baseline = useAtmosphericPressure ? 101325.0f : 1000.0f;
+	float defaultDensity = P_baseline / (R_gas * ambientAirTemp);
+	std::fill(&rho[0][0], &rho[0][0]+NCELL, defaultDensity);
+	std::fill(&sim.pv[0][0], &sim.pv[0][0]+NCELL, P_baseline);
 }
 
 void Air::ClearAirH()
@@ -272,7 +268,7 @@ void Air::update_air(void)
 					else if (!bmap_blockair[j+1][i])
 						pv[j][i] = pv[j+1][i];
 					else
-						pv[j][i] = 101325.0f;
+						pv[j][i] = useAtmosphericPressure ? 101325.0f : 1000.0f;
 				}
 			}
 		}
@@ -378,9 +374,8 @@ void Air::update_air(void)
 						pv[j][i] = pv[j+1][i];
 					else
 					{
-						// If all neighbors are walls, use atmospheric pressure as fallback
-						const float P_atm = 101325.0f;
-						pv[j][i] = P_atm;
+						// If all neighbors are walls, use baseline (1 atm or 1 kPa so solver stays valid)
+						pv[j][i] = useAtmosphericPressure ? 101325.0f : 1000.0f;
 					}
 				}
 			}
@@ -924,12 +919,10 @@ Air::Air(Simulation & simulation):
 	make_kernel();
 	std::fill(&bmap_blockair [0][0], &bmap_blockair [0][0] + NCELL, 0);
 	std::fill(&bmap_blockairh[0][0], &bmap_blockairh[0][0] + NCELL, 0);
-	// Initialize density to standard atmospheric density at ambient temperature
-	// Using ideal gas law: ρ = P/(RT), with P = 101325 Pa (1 atm), R = 287 J/(kg·K), T = ambientAirTemp
-	// Default density ≈ 1.225 kg/m³ at 15°C (288.15 K)
-	const float R_gas = 287.0f; // Specific gas constant for air (J/(kg·K))
-	const float P_atm = 101325.0f; // Standard atmospheric pressure (Pa)
-	float defaultDensity = P_atm / (R_gas * ambientAirTemp);
+	const float R_gas = 287.0f;
+	// useAtmosphericPressure is true by default so initial fill = 1 atm; else 1 kPa so solver stays valid
+	const float P_baseline = useAtmosphericPressure ? 101325.0f : 1000.0f;
+	float defaultDensity = P_baseline / (R_gas * ambientAirTemp);
 	std::fill(&rho[0][0], &rho[0][0] + NCELL, defaultDensity);
 	std::fill(&sim.vx[0][0], &sim.vx[0][0] + NCELL, 0.0f);
 	std::fill(&ovx   [0][0], &ovx   [0][0] + NCELL, 0.0f);
@@ -937,7 +930,7 @@ Air::Air(Simulation & simulation):
 	std::fill(&ovy   [0][0], &ovy   [0][0] + NCELL, 0.0f);
 	std::fill(&sim.hv[0][0], &sim.hv[0][0] + NCELL, 0.0f);
 	std::fill(&ohv   [0][0], &ohv   [0][0] + NCELL, 0.0f);
-	std::fill(&sim.pv[0][0], &sim.pv[0][0] + NCELL, 0.0f);
-	std::fill(&opv   [0][0], &opv   [0][0] + NCELL, 0.0f);
+	std::fill(&sim.pv[0][0], &sim.pv[0][0] + NCELL, P_baseline);
+	std::fill(&opv   [0][0], &opv   [0][0] + NCELL, P_baseline);
 }
 

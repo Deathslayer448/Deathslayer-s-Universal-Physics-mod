@@ -24,7 +24,7 @@ class OptionsView: public ui::Window
 	ui::Checkbox *NoWeightSwitch{};
 	ui::Checkbox *BetterBurning{};
 	ui::Checkbox *atmosphericPressure{};
-	ui::DropDown *pressureUnit{};
+	ui::Checkbox *pressureUnitKPa{};
 	ui::DropDown *airMode{};
 	ui::Textbox *simulationSpeed{};
 	ui::Textbox *ambientAirTemp{};

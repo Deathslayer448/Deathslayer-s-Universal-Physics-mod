@@ -1118,7 +1118,7 @@ OptionsModel::PressureUnit GameModel::GetPressureUnit()
 {
 	// Access OptionsModel through GameController
 	// For now, use GlobalPrefs directly
-	int unit = GlobalPrefs::Ref().Get("Simulation.PressureUnit", int(OptionsModel::PRESSURE_ATM));
+	int unit = GlobalPrefs::Ref().Get("Simulation.PressureUnit", int(OptionsModel::PRESSURE_KPA));
 	return OptionsModel::PressureUnit(unit);
 }
 

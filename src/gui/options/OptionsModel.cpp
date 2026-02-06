@@ -95,37 +95,29 @@ bool OptionsModel::GetAtmosphericPressure()
 }
 void OptionsModel::SetAtmosphericPressure(bool state)
 {
-	bool oldState = sim->air->useAtmosphericPressure;
 	sim->air->useAtmosphericPressure = state;
-	
-	// When toggled ON (state changed from false to true), add atmospheric pressure to all empty spaces
-	if (state && !oldState)
+	const float R_gas = 287.0f;
+	// When toggled: set empty cells to baseline pressure so solver doesn't break.
+	// ON  = 1 atm (101325 Pa); OFF = 1 kPa so solver stays valid.
+	const float P_baseline = state ? 101325.0f : 1000.0f;
+	float defaultDensity = P_baseline / (R_gas * sim->air->ambientAirTemp);
+	for (int y = 0; y < YCELLS; y++)
 	{
-		const float P_atm = 101325.0f;
-		const float R_gas = 287.0f;
-		float defaultDensity = P_atm / (R_gas * sim->air->ambientAirTemp);
-		
-		// Add atmospheric pressure to all empty cells
-		for (int y = 0; y < YCELLS; y++)
+		for (int x = 0; x < XCELLS; x++)
 		{
-			for (int x = 0; x < XCELLS; x++)
+			if (!sim->air->bmap_blockair[y][x])
 			{
-				if (!sim->air->bmap_blockair[y][x])
-				{
-					// Set pressure to atmospheric and density to default
-					sim->pv[y][x] = P_atm;
-					sim->air->rho[y][x] = defaultDensity;
-				}
+				sim->pv[y][x] = P_baseline;
+				sim->air->rho[y][x] = defaultDensity;
 			}
 		}
 	}
-	
 	notifySettingsChanged();
 }
 
 OptionsModel::PressureUnit OptionsModel::GetPressureUnit()
 {
-	int unit = GlobalPrefs::Ref().Get("Simulation.PressureUnit", int(PRESSURE_ATM));
+	int unit = GlobalPrefs::Ref().Get("Simulation.PressureUnit", int(PRESSURE_KPA));
 	return PressureUnit(unit);
 }
 

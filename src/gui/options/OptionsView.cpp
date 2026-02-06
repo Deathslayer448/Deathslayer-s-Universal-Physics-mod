@@ -119,17 +119,6 @@ OptionsView::OptionsView() : ui::Window(ui::Point(-1, -1), ui::Point(320, 340))
 		if (c)
 			c->SetBetterBurningEnable(BetterBurning->GetChecked());
 	});
-	atmosphericPressure = addCheckbox(0, "Atmospheric pressure", "Enables atmospheric pressure baseline. When enabled, pressure is relative to standard atmospheric pressure (101325 Pa). When disabled, pressure is absolute.", [this] {
-		if (c)
-			c->SetAtmosphericPressure(atmosphericPressure->GetChecked());
-	});
-	pressureUnit = addDropDown("Pressure unit", {
-		{ "Atmospheres (atm)", OptionsModel::PRESSURE_ATM },
-		{ "Kilopascals (kPa)", OptionsModel::PRESSURE_KPA },
-	}, [this] {
-		if (c)
-			c->SetPressureUnit(OptionsModel::PressureUnit(pressureUnit->GetOption().second));
-	});
 	addSeparator();
 	{
 		auto *sectionLabel = new ui::Label(ui::Point(8, currentY), ui::Point(Size.X - 16, 18), "Solver and air");
@@ -139,6 +128,14 @@ OptionsView::OptionsView() : ui::Window(ui::Point(-1, -1), ui::Point(320, 340))
 		scrollPanel->AddChild(sectionLabel);
 		currentY += 20;
 	}
+	atmosphericPressure = addCheckbox(0, "Atmospheric pressure baseline", "When on: pressure relative to 1 atm (101325 Pa), empty cells at 1 atm. When off: absolute pressure, empty cells at 1 kPa so solver stays valid.", [this] {
+		if (c)
+			c->SetAtmosphericPressure(atmosphericPressure->GetChecked());
+	});
+	pressureUnitKPa = addCheckbox(0, "Pressure in kPa", "When on, show pressure in kPa. When off, show in atmospheres.", [this] {
+		if (c)
+			c->SetPressureUnit(pressureUnitKPa->GetChecked() ? OptionsModel::PRESSURE_KPA : OptionsModel::PRESSURE_ATM);
+	});
 	airMode = addDropDown("Air simulation mode", {
 		{ "On", AIR_ON },
 		{ "Pressure off", AIR_PRESSUREOFF },
@@ -669,6 +666,8 @@ void OptionsView::NotifySettingsChanged(OptionsModel * sender)
 		BetterBurning->SetChecked(sender->GetBetterBurningEnable());
 	if (atmosphericPressure)
 		atmosphericPressure->SetChecked(sender->GetAtmosphericPressure());
+	if (pressureUnitKPa)
+		pressureUnitKPa->SetChecked(sender->GetPressureUnit() == OptionsModel::PRESSURE_KPA);
 	airMode->SetOption(sender->GetAirMode());
 	if (simulationSpeed && !simulationSpeed->IsFocused())
 		SimulationSpeedToTextBox(sender->GetAirSolverStepsPerFrame());
