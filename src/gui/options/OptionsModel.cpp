@@ -97,18 +97,25 @@ void OptionsModel::SetAtmosphericPressure(bool state)
 {
 	sim->air->useAtmosphericPressure = state;
 	const float R_gas = 287.0f;
-	// When toggled: set empty cells to baseline pressure so solver doesn't break.
-	// ON  = 1 atm (101325 Pa); OFF = 1 kPa so solver stays valid.
-	const float P_baseline = state ? 101325.0f : 1000.0f;
-	float defaultDensity = P_baseline / (R_gas * sim->air->ambientAirTemp);
+	const float P_atm = 101325.0f;
+	const float P_kpa = 1000.0f;
+	// Only convert cells that are at the *old* baseline, so we don't reset the whole map.
+	// Switching to kPa: only cells at 1 atm → 1 kPa. Switching to atm: only cells at 1 kPa → 1 atm.
+	const float P_old = state ? P_kpa : P_atm;   // old baseline (we're leaving it)
+	const float P_new = state ? P_atm : P_kpa;   // new baseline (we're switching to it)
+	const float tol = state ? 150.0f : 2000.0f; // tolerance: ±150 Pa for 1 kPa, ±5 kPa for 1 atm
+	float newDensity = P_new / (R_gas * sim->air->ambientAirTemp);
 	for (int y = 0; y < YCELLS; y++)
 	{
 		for (int x = 0; x < XCELLS; x++)
 		{
-			if (!sim->air->bmap_blockair[y][x])
+			if (sim->air->bmap_blockair[y][x])
+				continue;
+			float p = sim->pv[y][x];
+			if (p >= P_old - tol && p <= P_old + tol)
 			{
-				sim->pv[y][x] = P_baseline;
-				sim->air->rho[y][x] = defaultDensity;
+				sim->pv[y][x] = P_new;
+				sim->air->rho[y][x] = newDensity;
 			}
 		}
 	}
