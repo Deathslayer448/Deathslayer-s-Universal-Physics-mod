@@ -245,7 +245,9 @@ void Air::update_air(void)
 		const double cell_size_m = CELL * 0.01;   // effective 4 cm per air cell for solver (CFL + visible pressure)
 		const double frame_dt = 1.0 / 60.0;       // target sim time per frame (60 fps)
 		rusanovSolver.ensure_created(YCELLS, XCELLS, cell_size_m);
-		rusanovSolver.set_boundary_walls();
+		// Loop = periodic wrap. Void = open (leak). Solid = reflective only where bmap_blockair is set (from sync).
+		// Open boundary ghost must be low pressure so pressure actually leaks; use 1 kPa so void always drains.
+		rusanovSolver.set_boundary_mode(sim.edgeMode, 1000.0);
 		rusanovSolver.sync_from_sim(sim, *this);
 		{ static bool once = false; if (!once) { std::fprintf(stderr, "[AIR] update_air: Rusanov path active (run from terminal to see logs)\n"); std::fflush(stderr); once = true; } }
 		rusanovSolver.step(frame_dt, airSolverStepsPerFrame);

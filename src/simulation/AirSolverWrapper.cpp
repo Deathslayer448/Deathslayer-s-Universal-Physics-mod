@@ -106,6 +106,12 @@ void AirSolverWrapper::set_boundary_walls()
 		air_solver_set_boundary_walls(static_cast<AirSolverState*>(state));
 }
 
+void AirSolverWrapper::set_boundary_mode(int edgeMode, double ambient_pressure_pa)
+{
+	if (state)
+		air_solver_set_boundary_mode(static_cast<AirSolverState*>(state), edgeMode, ambient_pressure_pa);
+}
+
 void AirSolverWrapper::set_uniform(double rho_kg_m3, double ux_mps, double uy_mps, double p_pa)
 {
 	if (state)

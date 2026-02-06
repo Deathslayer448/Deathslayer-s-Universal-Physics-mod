@@ -36,6 +36,9 @@ void air_solver_apply_heat_diffusion(AirSolverState* state, double dt);
 /** Set boundary cells as walls (reflective box). Call after create if desired. */
 void air_solver_set_boundary_walls(AirSolverState* state);
 
+/** Set domain boundary mode from edge mode: 0=void (open, leak pressure), 1=solid (reflective), 2=loop (periodic). ambient_pressure_pa used for open. */
+void air_solver_set_boundary_mode(AirSolverState* state, int edgeMode, double ambient_pressure_pa);
+
 /** Set uniform rest state: rho (kg/m³), ux, uy (m/s), p (Pa). */
 void air_solver_set_uniform(AirSolverState* state, double rho, double ux, double uy, double p);
 

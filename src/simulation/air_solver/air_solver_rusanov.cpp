@@ -47,11 +47,15 @@ const double mu = 1.8e-5;             // dynamic viscosity Pa·s (air ~300 K)
 // U = [rho, rho*u, rho*v, E]; E = rho*e + 0.5*rho*(u^2+v^2). Store as 4 matrices U0[l][iy][ix].
 using Mat2 = std::vector<std::vector<double>>;
 using WallMask = std::vector<std::vector<bool>>;
+// Edge mode: 0 = void (open, leak pressure), 1 = solid (reflective), 2 = loop (periodic wrap).
+enum BoundaryMode { BoundaryOpen = 0, BoundaryReflective = 1, BoundaryPeriodic = 2 };
 struct State {
     int ny, nx;
     double dx;
     std::array<Mat2, 4> U0, U1;
     WallMask wall;  // true = solid (reflective wall), false = fluid. Default all false (periodic).
+    int boundary_mode = BoundaryReflective;  // domain boundary: open / reflective / periodic
+    double ambient_U[4] = { 0 };             // for open boundary: [rho, 0, 0, E]
 
     State(int ny_, int nx_, double dx_ = 1.0)
         : ny(ny_), nx(nx_), dx(dx_) {
@@ -64,10 +68,35 @@ struct State {
 
     void set_wall(int iy, int ix, bool w) { if (iy >= 0 && iy < ny && ix >= 0 && ix < nx) wall[iy][ix] = w; }
     bool is_wall(int iy, int ix) const { return (iy >= 0 && iy < ny && ix >= 0 && ix < nx) ? wall[iy][ix] : true; }
-    // Set domain boundary cells as walls (reflective box). Call after construction for bounded domain.
+    // Set domain boundary cells as walls (reflective box). Call for EDGE_SOLID.
     void set_boundary_walls() {
         for (int iy = 0; iy < ny; iy++) { set_wall(iy, 0, true); set_wall(iy, nx - 1, true); }
         for (int ix = 0; ix < nx; ix++) { set_wall(0, ix, true); set_wall(ny - 1, ix, true); }
+    }
+    // Clear domain boundary from wall mask (for periodic or open).
+    void clear_boundary_walls() {
+        for (int iy = 0; iy < ny; iy++) { set_wall(iy, 0, false); set_wall(iy, nx - 1, false); }
+        for (int ix = 0; ix < nx; ix++) { set_wall(0, ix, false); set_wall(ny - 1, ix, false); }
+    }
+    // edgeMode: 0=void (open), 1=solid (reflective only if edge cells are wall from sync), 2=loop (periodic).
+    // For solid we do NOT set boundary walls here — walls come from bmap_blockair in sync (actual block air at edges).
+    // For void/loop we clear so edges are fluid; open uses ambient_pressure_pa (low = leak out).
+    void set_boundary_mode(int edgeMode, double ambient_pressure_pa) {
+        if (edgeMode == (int)BoundaryReflective) {
+            boundary_mode = BoundaryReflective;
+            // Do not set_boundary_walls(): edge walls come from sync (bmap_blockair). Only bounce when there's an actual wall.
+        } else {
+            clear_boundary_walls();
+            boundary_mode = (edgeMode == (int)BoundaryPeriodic) ? BoundaryPeriodic : BoundaryOpen;
+            if (boundary_mode == BoundaryOpen) {
+                double rho_amb = std::max(ambient_pressure_pa / (R_gas * 300.0), rho_min);
+                double e_amb = ambient_pressure_pa / ((gamma_gas - 1.0) * rho_amb);
+                ambient_U[0] = rho_amb;
+                ambient_U[1] = 0.0;
+                ambient_U[2] = 0.0;
+                ambient_U[3] = rho_amb * e_amb;
+            }
+        }
     }
 
     double& u(int l, int iy, int ix) { return U0[l][iy][ix]; }
@@ -132,12 +161,63 @@ struct State {
         p = (gamma_gas - 1.0) * r * std::max(e, e_min);
     }
 
-    // Rusanov flux in x; uses reflective ghost when neighbor is wall.
+    // Get left/right domain-boundary ghost state (when ixL<0 or ixR>=nx).
+    // Solid only bounces if the edge cell is actually wall (from sync); if edge is fluid, leak like void.
+    void get_U_left_boundary(int iy, double Uout[4]) const {
+        if (boundary_mode == BoundaryPeriodic) {
+            for (int l = 0; l < 4; l++) Uout[l] = U0[l][iy][nx - 1];
+        } else if (boundary_mode == BoundaryOpen || !is_wall(iy, 0)) {
+            for (int l = 0; l < 4; l++) Uout[l] = ambient_U[l];
+        } else {
+            get_U_ghost_x(U0, iy, 0, Uout);
+        }
+    }
+    void get_U_right_boundary(int iy, double Uout[4]) const {
+        if (boundary_mode == BoundaryPeriodic) {
+            for (int l = 0; l < 4; l++) Uout[l] = U0[l][iy][0];
+        } else if (boundary_mode == BoundaryOpen || !is_wall(iy, nx - 1)) {
+            for (int l = 0; l < 4; l++) Uout[l] = ambient_U[l];
+        } else {
+            get_U_ghost_x(U0, iy, nx - 1, Uout);
+        }
+    }
+    void get_U_top_boundary(int ix, double Uout[4]) const {
+        if (boundary_mode == BoundaryPeriodic) {
+            for (int l = 0; l < 4; l++) Uout[l] = U0[l][ny - 1][ix];
+        } else if (boundary_mode == BoundaryOpen || !is_wall(0, ix)) {
+            for (int l = 0; l < 4; l++) Uout[l] = ambient_U[l];
+        } else {
+            get_U_ghost_y(U0, 0, ix, Uout);
+        }
+    }
+    void get_U_bottom_boundary(int ix, double Uout[4]) const {
+        if (boundary_mode == BoundaryPeriodic) {
+            for (int l = 0; l < 4; l++) Uout[l] = U0[l][0][ix];
+        } else if (boundary_mode == BoundaryOpen || !is_wall(ny - 1, ix)) {
+            for (int l = 0; l < 4; l++) Uout[l] = ambient_U[l];
+        } else {
+            get_U_ghost_y(U0, ny - 1, ix, Uout);
+        }
+    }
+
+    // Rusanov flux in x; uses reflective/periodic/open ghost when neighbor is wall or domain boundary.
     // At vacuum interface (one side rho < rho_vacuum) use one-sided flux from dense side so we don't dump huge momentum into vacuum.
     void rusanov_x(int iy, int ixL, int ixR, double F[4]) const {
         double UL[4], UR[4];
-        if (is_wall(iy, ixL)) get_U_ghost_x(U0, iy, ixR, UL); else for (int l = 0; l < 4; l++) UL[l] = U0[l][iy][ixL];
-        if (is_wall(iy, ixR)) get_U_ghost_x(U0, iy, ixL, UR); else for (int l = 0; l < 4; l++) UR[l] = U0[l][iy][ixR];
+        if (ixL < 0) {
+            get_U_left_boundary(iy, UL);
+        } else if (is_wall(iy, ixL)) {
+            get_U_ghost_x(U0, iy, ixR, UL);
+        } else {
+            for (int l = 0; l < 4; l++) UL[l] = U0[l][iy][ixL];
+        }
+        if (ixR >= nx) {
+            get_U_right_boundary(iy, UR);
+        } else if (is_wall(iy, ixR)) {
+            get_U_ghost_x(U0, iy, ixL, UR);
+        } else {
+            for (int l = 0; l < 4; l++) UR[l] = U0[l][iy][ixR];
+        }
         double rL, uxL, uyL, eL, pL, rR, uxR, uyR, eR, pR;
         primitives_from_U4(UL, rL, uxL, uyL, eL, pL);
         primitives_from_U4(UR, rR, uxR, uyR, eR, pR);
@@ -187,8 +267,20 @@ struct State {
 
     void rusanov_y(int iyL, int iyR, int ix, double G[4]) const {
         double UL[4], UR[4];
-        if (is_wall(iyL, ix)) get_U_ghost_y(U0, iyR, ix, UL); else for (int l = 0; l < 4; l++) UL[l] = U0[l][iyL][ix];
-        if (is_wall(iyR, ix)) get_U_ghost_y(U0, iyL, ix, UR); else for (int l = 0; l < 4; l++) UR[l] = U0[l][iyR][ix];
+        if (iyL < 0) {
+            get_U_top_boundary(ix, UL);
+        } else if (is_wall(iyL, ix)) {
+            get_U_ghost_y(U0, iyR, ix, UL);
+        } else {
+            for (int l = 0; l < 4; l++) UL[l] = U0[l][iyL][ix];
+        }
+        if (iyR >= ny) {
+            get_U_bottom_boundary(ix, UR);
+        } else if (is_wall(iyR, ix)) {
+            get_U_ghost_y(U0, iyL, ix, UR);
+        } else {
+            for (int l = 0; l < 4; l++) UR[l] = U0[l][iyR][ix];
+        }
         double rL, uxL, uyL, eL, pL, rR, uxR, uyR, eR, pR;
         primitives_from_U4(UL, rL, uxL, uyL, eL, pL);
         primitives_from_U4(UR, rR, uxR, uyR, eR, pR);
@@ -507,9 +599,14 @@ struct State {
                         for (int l = 0; l < 4; l++) U1[l][iy][ix] = U0[l][iy][ix];
                         continue;
                     }
-                    int ixp = (ix + 1) % nx, ixm = (ix - 1 + nx) % nx;
-                    int iyp = (iy + 1) % ny, iym = (iy - 1 + ny) % ny;
-
+                    int ixp, ixm, iyp, iym;
+                    if (boundary_mode == BoundaryPeriodic) {
+                        ixp = (ix + 1) % nx; ixm = (ix - 1 + nx) % nx;
+                        iyp = (iy + 1) % ny; iym = (iy - 1 + ny) % ny;
+                    } else {
+                        ixp = ix + 1; ixm = ix - 1;
+                        iyp = iy + 1; iym = iy - 1;
+                    }
                     double Fp[4], Fm[4], Gp[4], Gm[4];
                     rusanov_x(iy, ix, ixp, Fp);
                     rusanov_x(iy, ixm, ix, Fm);
@@ -724,6 +821,9 @@ void air_solver_apply_heat_diffusion(AirSolverState* state, double dt) {
 }
 void air_solver_set_boundary_walls(AirSolverState* state) {
     S(state)->set_boundary_walls();
+}
+void air_solver_set_boundary_mode(AirSolverState* state, int edgeMode, double ambient_pressure_pa) {
+    S(state)->set_boundary_mode(edgeMode, ambient_pressure_pa);
 }
 void air_solver_set_uniform(AirSolverState* state, double rho, double ux, double uy, double p) {
     S(state)->set_uniform(rho, ux, uy, p);

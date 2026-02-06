@@ -43,6 +43,9 @@ public:
 	/** Set boundary cells as reflective walls. Call after ensure_created if desired. */
 	void set_boundary_walls();
 
+	/** Set domain boundary from edge mode: 0=void (open), 1=solid (reflective), 2=loop (periodic). ambient_pressure_pa for open. */
+	void set_boundary_mode(int edgeMode, double ambient_pressure_pa);
+
 	/** Set uniform rest state (e.g. 1 atm, ambient temp). */
 	void set_uniform(double rho_kg_m3, double ux_mps, double uy_mps, double p_pa);
 
