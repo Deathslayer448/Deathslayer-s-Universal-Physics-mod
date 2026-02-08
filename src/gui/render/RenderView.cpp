@@ -92,6 +92,9 @@ RenderView::RenderView():
 	addDisplayModeCheckbox(DISPLAY_AIRV, IconVelocity  , ui::Point(167,  4), "Displays velocity and positive pressure: up/down adds blue, right/left adds red, still pressure adds green");
 	addDisplayModeCheckbox(DISPLAY_AIRH, IconHeat      , ui::Point(167, 22), "Displays the temperature of the air like heat display does");
 	addDisplayModeCheckbox(DISPLAY_AIRW, IconVort      , ui::Point(199,  4), "Displays vorticity, red is clockwise and blue is anticlockwise");
+	addDisplayModeCheckbox(DISPLAY_AIRRHO, IconPressure , ui::Point(199, 22), "Density (normalized): blue = low, black = mid, red = high");
+	addDisplayModeCheckbox(DISPLAY_AIRVIS, IconGradient , ui::Point(231,  4), "Viscosity (normalized): blue = low, black = mid, red = high");
+	addDisplayModeCheckbox(DISPLAY_AIRVN, IconVelocity  , ui::Point(231, 22), "Velocity magnitude (normalized): blue = still, black = mid, red = fast");
 	line2 = 232;
 	addDisplayModeCheckbox(DISPLAY_WARP, IconWarp      , ui::Point(237, 22), "Gravity lensing, Newtonian Gravity bends light with this on");
 	addDisplayModeCheckbox(DISPLAY_EFFE, IconEffect    , ui::Point(237,  4), "Enables moving solids, stickmen guns, and premium(tm) graphics");

@@ -3948,6 +3948,7 @@ Simulation::Simulation()
 
 	//Create and attach air simulation
 	air = std::make_unique<Air>(*this);
+	airRho = air->rho;
 
 	player.comm = 0;
 	player2.comm = 0;

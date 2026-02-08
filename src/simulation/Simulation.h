@@ -101,6 +101,8 @@ struct RenderableSimulation
 	float vy[YCELLS][XCELLS];
 	float pv[YCELLS][XCELLS];
 	float hv[YCELLS][XCELLS];
+	// Optional: set by Simulation when air exists; used by renderer for density/viscosity overlay.
+	float (*airRho)[XCELLS] = nullptr;
 
 	unsigned char bmap[YCELLS][XCELLS];
 	unsigned char emap[YCELLS][XCELLS];

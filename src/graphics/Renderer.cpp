@@ -938,6 +938,8 @@ void Renderer::draw_air()
 	auto *hv = sim->hv;
 	auto *vx = sim->vx;
 	auto *vy = sim->vy;
+	// Density (rho): set by Simulation when air exists; null for render-thread copy.
+	float (*rho)[XCELLS] = sim->airRho;
 	auto c = 0x000000_rgb;
 
 	// Match original TPT: values in 0-8 (pressure) or 0-8 per channel (velocity), then scale to 0-255.
@@ -957,7 +959,7 @@ void Renderer::draw_air()
 		}
 	// Rank-based t for velocity gradient. Pressure uses absolute Pa (no pressure_t).
 	std::vector<float> vel_t(NCELL, 0.0f);
-	if (displayMode & (DISPLAY_AIRV | DISPLAY_AIRC)) {
+	if (displayMode & (DISPLAY_AIRV | DISPLAY_AIRC | DISPLAY_AIRVN)) {
 		std::vector<int> idx(NCELL);
 		for (int i = 0; i < NCELL; i++) idx[i] = i;
 		std::sort(idx.begin(), idx.end(), [&mag_cell](int a, int b) { return mag_cell[a] < mag_cell[b]; });
@@ -1001,6 +1003,58 @@ void Renderer::draw_air()
 				for (int j = i_start; j <= i_end; j++)
 					pressure_rank[idx[j]] = mid_rank;
 			}
+		}
+	}
+
+	// Rank-based density for normalized view (same blue/black/red logic as pressure).
+	std::vector<float> density_rank(NCELL, 0.5f);
+	if ((displayMode & DISPLAY_AIRRHO) && rho) {
+		std::vector<int> idx(NCELL);
+		for (int i = 0; i < NCELL; i++) idx[i] = i;
+		std::sort(idx.begin(), idx.end(), [rho](int a, int b) {
+			int ay = a / XCELLS, ax = a % XCELLS;
+			int by = b / XCELLS, bx = b % XCELLS;
+			float ra = rho[ay][ax], rb = rho[by][bx];
+			if (ra != rb) return ra < rb;
+			return a < b;
+		});
+		int i = 0;
+		while (i < NCELL) {
+			int i_start = i;
+			float r_run = rho[idx[i] / XCELLS][idx[i] % XCELLS];
+			while (i < NCELL && rho[idx[i] / XCELLS][idx[i] % XCELLS] == r_run)
+				i++;
+			int i_end = i - 1;
+			float mid_rank = (NCELL > 1) ? (0.5f * (float)(i_start + i_end) / (float)(NCELL - 1)) : 0.5f;
+			for (int j = i_start; j <= i_end; j++)
+				density_rank[idx[j]] = mid_rank;
+		}
+	}
+
+	// Rank-based kinematic viscosity (nu ∝ 1/ρ) for normalized view.
+	std::vector<float> viscosity_rank(NCELL, 0.5f);
+	if ((displayMode & DISPLAY_AIRVIS) && rho) {
+		std::vector<int> idx(NCELL);
+		for (int i = 0; i < NCELL; i++) idx[i] = i;
+		// Rank by 1/rho (high nu = low rho = blue end, low nu = high rho = red end).
+		std::sort(idx.begin(), idx.end(), [rho](int a, int b) {
+			int ay = a / XCELLS, ax = a % XCELLS;
+			int by = b / XCELLS, bx = b % XCELLS;
+			float ra = std::max(rho[ay][ax], 1e-6f), rb = std::max(rho[by][bx], 1e-6f);
+			float inv_a = 1.0f / ra, inv_b = 1.0f / rb;
+			if (inv_a != inv_b) return inv_a < inv_b;
+			return a < b;
+		});
+		int i = 0;
+		while (i < NCELL) {
+			int i_start = i;
+			float r_run = rho[idx[i] / XCELLS][idx[i] % XCELLS];
+			while (i < NCELL && rho[idx[i] / XCELLS][idx[i] % XCELLS] == r_run)
+				i++;
+			int i_end = i - 1;
+			float mid_rank = (NCELL > 1) ? (0.5f * (float)(i_start + i_end) / (float)(NCELL - 1)) : 0.5f;
+			for (int j = i_start; j <= i_end; j++)
+				viscosity_rank[idx[j]] = mid_rank;
 		}
 	}
 
@@ -1101,6 +1155,99 @@ void Renderer::draw_air()
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				} else {
 					c = RGB(0, 0, 0);  // middle rank = black
+				}
+			}
+			else if (displayMode & DISPLAY_AIRRHO)
+			{
+				float rank = density_rank[y * XCELLS + x];
+				const float rank_center = 0.5f;
+				const float rank_half_scale = 0.5f;
+				const float rank_black_eps = 0.01f;
+				float delta_rank = rank - rank_center;
+				if (delta_rank < -rank_black_eps) {
+					float t_local = -delta_rank / rank_half_scale;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
+					if (val > 255) val = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(240, sat, val, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else if (delta_rank > rank_black_eps) {
+					float t_local = delta_rank / rank_half_scale;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
+					if (val > 255) val = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(0, sat, val, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else {
+					c = RGB(0, 0, 0);
+				}
+			}
+			else if (displayMode & DISPLAY_AIRVIS)
+			{
+				float rank = viscosity_rank[y * XCELLS + x];
+				const float rank_center = 0.5f;
+				const float rank_half_scale = 0.5f;
+				const float rank_black_eps = 0.01f;
+				float delta_rank = rank - rank_center;
+				if (delta_rank < -rank_black_eps) {
+					float t_local = -delta_rank / rank_half_scale;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
+					if (val > 255) val = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(240, sat, val, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else if (delta_rank > rank_black_eps) {
+					float t_local = delta_rank / rank_half_scale;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
+					if (val > 255) val = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(0, sat, val, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else {
+					c = RGB(0, 0, 0);
+				}
+			}
+			else if (displayMode & DISPLAY_AIRVN)
+			{
+				float rank = vel_t[y * XCELLS + x];
+				const float rank_center = 0.5f;
+				const float rank_half_scale = 0.5f;
+				const float rank_black_eps = 0.01f;
+				float delta_rank = rank - rank_center;
+				if (delta_rank < -rank_black_eps) {
+					float t_local = -delta_rank / rank_half_scale;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
+					if (val > 255) val = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(240, sat, val, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else if (delta_rank > rank_black_eps) {
+					float t_local = delta_rank / rank_half_scale;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
+					if (val > 255) val = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(0, sat, val, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				} else {
+					c = RGB(0, 0, 0);
 				}
 			}
 			else if (displayMode & DISPLAY_AIRPN_HIGH)

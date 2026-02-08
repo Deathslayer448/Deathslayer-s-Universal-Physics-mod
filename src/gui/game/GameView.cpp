@@ -1695,9 +1695,45 @@ void GameView::OnKeyPress(int key, int scan, bool repeat, bool shift, bool ctrl,
 			c->SetInfoTip("Pressure (normalized, low focus)");
 		}
 	}
+	else if (shift && key == '5')
+	{
+		// Density (normalized): blue = low, black = mid, red = high
+		if (rendererSettings)
+		{
+			uint32_t displayMode = rendererSettings->displayMode;
+			displayMode &= ~DISPLAY_AIR;
+			displayMode |= DISPLAY_AIRRHO;
+			rendererSettings->displayMode = displayMode;
+			c->SetInfoTip("Density (normalized to map)");
+		}
+	}
 	else if (shift && key == '6')
 	{
 		c->LoadRenderPreset(11);
+	}
+	else if (shift && key == '7')
+	{
+		// Viscosity (normalized): blue = low nu, black = mid, red = high nu
+		if (rendererSettings)
+		{
+			uint32_t displayMode = rendererSettings->displayMode;
+			displayMode &= ~DISPLAY_AIR;
+			displayMode |= DISPLAY_AIRVIS;
+			rendererSettings->displayMode = displayMode;
+			c->SetInfoTip("Viscosity (normalized to map)");
+		}
+	}
+	else if (shift && key == '8')
+	{
+		// Velocity magnitude (normalized): blue = still, black = mid, red = fast
+		if (rendererSettings)
+		{
+			uint32_t displayMode = rendererSettings->displayMode;
+			displayMode &= ~DISPLAY_AIR;
+			displayMode |= DISPLAY_AIRVN;
+			rendererSettings->displayMode = displayMode;
+			c->SetInfoTip("Velocity (normalized to map)");
+		}
 	}
 	else if (key >= '0' && key <= '9')
 	{
