@@ -510,8 +510,8 @@ struct State {
             }
     }
 
-    // Enforce pressure in [p_min_solver, p_max_solver]. No rate clamping; VAC/void stay vacuum.
-    void clamp_p_all(std::array<Mat2, 4>& U) {
+    // Cap pressure at p_max_solver only (no floor). Keeps blow-up under control without touching vacuum.
+    void clamp_p_max_only(std::array<Mat2, 4>& U) {
         for (int iy = 0; iy < ny; ++iy)
             for (int ix = 0; ix < nx; ++ix) {
                 if (is_wall(iy, ix)) continue;
@@ -520,10 +520,7 @@ struct State {
                 double E = U[3][iy][ix];
                 double e_int = E / r - ke;
                 double p = (gamma_gas - 1.0) * r * std::max(e_int, e_min);
-                if (!std::isfinite(p) || p < p_min_solver) {
-                    double e_floor = p_min_solver / ((gamma_gas - 1.0) * r);
-                    U[3][iy][ix] = r * e_floor + ke;
-                } else if (p > p_max_solver) {
+                if (p > p_max_solver) {
                     double e_cap = p_max_solver / ((gamma_gas - 1.0) * r);
                     U[3][iy][ix] = r * e_cap + ke;
                 }
@@ -657,6 +654,7 @@ struct State {
             }
 apply_viscous(U1, dt);
             clamp_rho_after_update(U1);
+            clamp_p_max_only(U1);  // cap pressure so we never exceed 10k kPa
             std::swap(U0, U1);
             // Dissipative-only fix: reduce KE where e_int < e_min (no energy injection).
             fix_invalid_cells_dissipative();
@@ -783,6 +781,7 @@ void air_solver_sync_from_tpt(AirSolverState* state,
                 T = T_min_k;
                 p = p_min_rho;
             }
+            if (p > p_max_solver) p = p_max_solver;
             // rho = p/(R*T) so AIR (high pv) and VAC (low pv) tools drive density; e = c_v*T preserves heat.
             double r = p / (R_gas * T);
             if (r < rho_min) r = rho_min;
@@ -828,7 +827,8 @@ void air_solver_sync_to_tpt(AirSolverState* state,
                 rho[i] = (float)sync_rho_safe;
                 continue;
             }
-            pv[i] = (float)std::max(p, 1e-10);
+            p = std::min(std::max(p, 1e-10), p_max_solver);
+            pv[i] = (float)p;
             vx[i] = (float)(ux * inv_scale);
             vy[i] = (float)(uy * inv_scale);
             hv[i] = (float)std::max(s->temperature_from_e(e), 1.0);  // avoid 0 K / -273.15°C display
