@@ -168,9 +168,11 @@ SimulationSample Simulation::GetSample(int x, int y)
 		{
 			sample.WallType = bmap[y/CELL][x/CELL];
 		}
-		// Pressure is stored directly in Pascals (absolute)
-		sample.AirPressure = pv[y/CELL][x/CELL];
-		sample.AirTemperature = hv[y/CELL][x/CELL];
+		// Pressure is stored directly in Pascals (absolute). Clamp so UI never sees 0/NaN (avoids E_air = nan).
+		float p = pv[y/CELL][x/CELL];
+		float T = hv[y/CELL][x/CELL];
+		sample.AirPressure = (std::isfinite(p) && p >= 1.0f) ? p : 1.0f;
+		sample.AirTemperature = (std::isfinite(T) && T >= 1.0f) ? T : 1.0f;
 		sample.AirVelocityX = vx[y/CELL][x/CELL];
 		sample.AirVelocityY = vy[y/CELL][x/CELL];
 

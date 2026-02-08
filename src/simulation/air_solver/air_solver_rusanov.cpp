@@ -37,9 +37,9 @@ const double e_min = 1e-6;
 const double e_nudge = 1e-8;
 // In state_valid, accept e_int >= e_min_accept so rounding/clamp slip (e.g. 4.76e-7) doesn't stuck forever.
 const double e_min_accept = e_min * 0.4;
-// Pressure bounds: keep at least 1 kPa so we don't leak to vacuum and break the solver; cap at 10k kPa so it never blows up.
-const double p_min_solver = 1000.0;   // 1 kPa minimum (no 0-pressure cells → no NaN, "just enough" leak)
-const double p_max_solver = 1e7;       // 10k kPa max so insane pressures never propagate
+// Pressure bounds: floor at 1 Pa to avoid 0/NaN; cap at 10k kPa so it never blows up. VAC/void stay at vacuum.
+const double p_min_solver = 1.0;      // 1 Pa minimum (no 0 → no NaN; VAC and void can stay vacuum)
+const double p_max_solver = 1e7;      // 10k kPa max so insane pressures never propagate
 // Vacuum interface: below this density use one-sided flux (dense side only) so we don't dump huge momentum into vacuum.
 const double rho_vacuum = 0.01;
 const double CFL = 0.35;
@@ -486,12 +486,10 @@ struct State {
                 if (is_wall(iy, ix)) continue;
                 double r = U[0][iy][ix];
                 if (r < rho_min) {
-                    double r_safe = std::max(p_min_solver / (R_gas * 300.0), rho_min);
-                    double e_safe = p_min_solver / ((gamma_gas - 1.0) * r_safe);
-                    U[0][iy][ix] = r_safe;
+                    U[0][iy][ix] = rho_min;
                     U[1][iy][ix] = 0.0;
                     U[2][iy][ix] = 0.0;
-                    U[3][iy][ix] = r_safe * e_safe;
+                    U[3][iy][ix] = rho_min * (e_min + e_nudge);
                     continue;
                 }
                 if (r > rho_max || !std::isfinite(r)) {
@@ -512,7 +510,7 @@ struct State {
             }
     }
 
-    // Enforce pressure in [p_min_solver, p_max_solver] so we never get 0/NaN (blow-up) or insane highs.
+    // Enforce pressure in [p_min_solver, p_max_solver]. No rate clamping; VAC/void stay vacuum.
     void clamp_p_all(std::array<Mat2, 4>& U) {
         for (int iy = 0; iy < ny; ++iy)
             for (int ix = 0; ix < nx; ++ix) {
@@ -566,16 +564,13 @@ struct State {
                     }
                 }
                 if (bad) {
-                    // Replace with rest state at p_min_solver (1 kPa) so we never spread 0/NaN.
-                    double r_safe = std::max(p_min_solver / (R_gas * 300.0), rho_min);
-                    double e_safe = p_min_solver / ((gamma_gas - 1.0) * r_safe);
-                    U0[0][iy][ix] = r_safe;
+                    // Replace with vacuum (rho_min, e_min) so we never spread 0/NaN.
+                    U0[0][iy][ix] = rho_min;
                     U0[1][iy][ix] = 0.0;
                     U0[2][iy][ix] = 0.0;
-                    U0[3][iy][ix] = r_safe * e_safe;
+                    U0[3][iy][ix] = rho_min * (e_min + e_nudge);
                 }
             }
-        clamp_p_all(U0);  // enforce [1 kPa, 10k kPa] so synced state never feeds blow-up
     }
 
     // Try to repair cells with e_int < e_min by dissipating kinetic energy into internal energy (E stays constant).
@@ -662,7 +657,6 @@ struct State {
             }
 apply_viscous(U1, dt);
             clamp_rho_after_update(U1);
-            clamp_p_all(U1);  // keep p in [1 kPa, 10k kPa] so no 0/NaN and no insane blow-up
             std::swap(U0, U1);
             // Dissipative-only fix: reduce KE where e_int < e_min (no energy injection).
             fix_invalid_cells_dissipative();
@@ -674,14 +668,12 @@ apply_viscous(U1, dt);
             if (!state_valid(&bad_iy, &bad_ix, &bad_rho, &bad_e)) {
                 // Vacuum-like: fix in place and re-check.
                 if (bad_iy >= 0 && bad_ix >= 0 && bad_rho <= rho_vacuum_max) {
-                    AIR_DBG("state INVALID at iy=%d ix=%d rho=%.6e e_int=%.6e => local VAC reset (p_min)\n",
+                    AIR_DBG("state INVALID at iy=%d ix=%d rho=%.6e e_int=%.6e => local VAC reset\n",
                             bad_iy, bad_ix, bad_rho, bad_e);
-                    double r_safe = std::max(p_min_solver / (R_gas * 300.0), rho_min);
-                    double e_safe = p_min_solver / ((gamma_gas - 1.0) * r_safe);
-                    U0[0][bad_iy][bad_ix] = r_safe;
+                    U0[0][bad_iy][bad_ix] = rho_min;
                     U0[1][bad_iy][bad_ix] = 0.0;
                     U0[2][bad_iy][bad_ix] = 0.0;
-                    U0[3][bad_iy][bad_ix] = r_safe * e_safe;
+                    U0[3][bad_iy][bad_ix] = rho_min * (e_min + e_nudge);
 
                     bad_iy = bad_ix = -1;
                     bad_rho = bad_e = 0.0;
@@ -779,6 +771,7 @@ void air_solver_sync_from_tpt(AirSolverState* state,
     (void)rho;
     State* s = S(state);
     const double T_min_k = 1.0;   // minimum T (K) so e = c_v*T is valid
+    const double p_min_rho = 1.0; // minimum p (Pa) when computing rho so VAC (pv≈0) gives low rho
     for (int iy = 0; iy < s->ny; iy++)
         for (int ix = 0; ix < s->nx; ix++) {
             int i = iy * s->nx + ix;
@@ -786,10 +779,10 @@ void air_solver_sync_from_tpt(AirSolverState* state,
             if (s->is_wall(iy, ix)) continue;
             double T = (double)hv[i];
             double p = (double)pv[i];
-            if (!std::isfinite(T) || !std::isfinite(p) || T < T_min_k)
+            if (!std::isfinite(T) || !std::isfinite(p) || T < T_min_k || p < p_min_rho) {
                 T = T_min_k;
-            if (!std::isfinite(p) || p < p_min_solver) p = p_min_solver;
-            if (p > p_max_solver) p = p_max_solver;
+                p = p_min_rho;
+            }
             // rho = p/(R*T) so AIR (high pv) and VAC (low pv) tools drive density; e = c_v*T preserves heat.
             double r = p / (R_gas * T);
             if (r < rho_min) r = rho_min;
@@ -811,8 +804,8 @@ void air_solver_sync_from_tpt(AirSolverState* state,
     s->sanitize_U0();  // replace any cell that ended up NaN so we never spread it
 }
 // Safe defaults when solver state is invalid so we never write NaN/0 to sim (stops spread to entire map).
-static const double sync_p_safe = p_min_solver;  // 1 kPa so we don't leak everything and no 0/NaN
-static const double sync_T_safe = 300.0;         // K
+static const double sync_p_safe = 101325.0;   // 1 atm for invalid cells
+static const double sync_T_safe = 300.0;      // K
 static const double sync_rho_safe = sync_p_safe / (R_gas * sync_T_safe);
 
 // Output: clamp p and T; replace NaN/inf with safe values so TPT never sees invalid and it cannot spread.
@@ -835,8 +828,7 @@ void air_solver_sync_to_tpt(AirSolverState* state,
                 rho[i] = (float)sync_rho_safe;
                 continue;
             }
-            p = std::max(p_min_solver, std::min(p_max_solver, p));
-            pv[i] = (float)p;
+            pv[i] = (float)std::max(p, 1e-10);
             vx[i] = (float)(ux * inv_scale);
             vy[i] = (float)(uy * inv_scale);
             hv[i] = (float)std::max(s->temperature_from_e(e), 1.0);  // avoid 0 K / -273.15°C display

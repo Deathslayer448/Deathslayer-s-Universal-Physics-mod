@@ -2616,12 +2616,17 @@ void GameView::OnDraw()
 				float kinetic_per_vol = 0.5f * rho * (vx_mps * vx_mps + vy_mps * vy_mps);
 				float E_J = (internal_per_vol + kinetic_per_vol) * volume;
 				sampleInfo << " ";
-				if (E_J >= 1.0f)
-					sampleInfo << "E_air: " << Format::Precision(2) << E_J << " J";
-				else if (E_J >= 1e-3f)
-					sampleInfo << "E_air: " << Format::Precision(4) << (E_J * 1000.0f) << " mJ";
+				if (std::isfinite(E_J) && E_J >= 0.f)
+				{
+					if (E_J >= 1.0f)
+						sampleInfo << "E_air: " << Format::Precision(2) << E_J << " J";
+					else if (E_J >= 1e-3f)
+						sampleInfo << "E_air: " << Format::Precision(4) << (E_J * 1000.0f) << " mJ";
+					else
+						sampleInfo << "E_air: " << Format::Precision(2) << E_J << " J";
+				}
 				else
-					sampleInfo << "E_air: " << Format::Precision(2) << E_J << " J";
+					sampleInfo << "E_air: ---";
 			}
 			if (type > 0 && type < PT_NUM)
 			{
