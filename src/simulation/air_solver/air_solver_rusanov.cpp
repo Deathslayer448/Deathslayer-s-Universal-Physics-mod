@@ -40,8 +40,9 @@ const double e_min_accept = e_min * 0.4;
 // Pressure bounds: floor at 1 Pa to avoid 0/NaN; cap at 10k kPa so it never blows up. VAC/void stay at vacuum.
 const double p_min_solver = 1.0;      // 1 Pa minimum (no 0 → no NaN; VAC and void can stay vacuum)
 const double p_max_solver = 1e7;      // 10k kPa max so insane pressures never propagate
-// Vacuum interface: below this density use one-sided flux (dense side only) so we don't dump huge momentum into vacuum.
+// Vacuum interface: below this density we use Rusanov with a wave-speed floor (not one-sided flux) so diffusion dominates.
 const double rho_vacuum = 0.01;
+// CFL = 0.35: sound travels at most 0.35 cells per step when u=0 (dt = CFL*dx/c). In game terms: speed of sound = CFL cells/step.
 const double CFL = 0.35;
 const double mu = 1.8e-5;             // dynamic viscosity Pa·s (air ~300 K)
 
@@ -226,42 +227,16 @@ struct State {
         double FL[4], FR[4];
         flux_x(rL, uxL, uyL, pL, EL, FL);
         flux_x(rR, uxR, uyR, pR, ER, FR);
-        if (rL < rho_vacuum || rR < rho_vacuum) {
-            // Euler flux has F[0]=rho*u: when dense cell is at rest (u=0) we get F[0]=0 but F[1]=p (pressure).
-            // That dumps momentum into vacuum without mass → velocity explodes. Use outflow flux: mass and momentum
-            // together with velocity = sound speed (rarefaction into vacuum).
-            bool L_is_vacuum = (rL < rho_vacuum && rR >= rho_vacuum);
-            bool R_is_vacuum = (rR < rho_vacuum && rL >= rho_vacuum);
-            double c_d;
-            if (L_is_vacuum) {
-                c_d = sound_speed(rR, pR);
-                // Flow R→L (into vacuum): F[0]<0. Mass flux = rR*cR, velocity = -cR.
-                F[0] = -rR * c_d;
-                F[1] = rR * c_d * c_d;           // F[0]*u_flow with u_flow = -cR gives momentum flux
-                F[2] = -rR * c_d * uyR;
-                F[3] = -(ER + pR) * c_d;
-            } else if (R_is_vacuum) {
-                c_d = sound_speed(rL, pL);
-                // Flow L→R (into vacuum): F[0]>0. Mass flux = rL*cL, velocity = +cL.
-                F[0] = rL * c_d;
-                F[1] = rL * c_d * c_d;
-                F[2] = rL * c_d * uyL;
-                F[3] = (EL + pL) * c_d;
-            } else {
-                // Both vacuum: use denser side outflow, direction into the other.
-                if (rL >= rR) {
-                    c_d = sound_speed(rL, pL);
-                    F[0] = rL * c_d; F[1] = rL * c_d * c_d; F[2] = rL * c_d * uyL; F[3] = (EL + pL) * c_d;
-                } else {
-                    c_d = sound_speed(rR, pR);
-                    F[0] = -rR * c_d; F[1] = rR * c_d * c_d; F[2] = -rR * c_d * uyR; F[3] = -(ER + pR) * c_d;
-                }
-            }
-            return;
-        }
         double sL = std::abs(uxL) + sound_speed(rL, pL);
         double sR = std::abs(uxR) + sound_speed(rR, pR);
         double s_max = std::max(sL, sR);
+        // At vacuum interface: one-sided flux dumps mass+momentum at velocity c → insane KE in low-density cells.
+        // Use Rusanov with a wave-speed floor so numerical diffusion dominates; flux is then consistent with
+        // neighbor state (velocity ~ u_neighbor, not c) and we avoid checkerboard / 600 MJ in 0.1 kPa cells.
+        if (rL < rho_vacuum || rR < rho_vacuum) {
+            double c_dense = (rL >= rR) ? sound_speed(rL, pL) : sound_speed(rR, pR);
+            s_max = std::max(s_max, c_dense);
+        }
         for (int l = 0; l < 4; l++)
             F[l] = 0.5 * (FL[l] + FR[l]) - 0.5 * s_max * (UR[l] - UL[l]);
     }
@@ -289,37 +264,13 @@ struct State {
         double GL[4], GR[4];
         flux_y(rL, uxL, uyL, pL, EL, GL);
         flux_y(rR, uxR, uyR, pR, ER, GR);
-        if (rL < rho_vacuum || rR < rho_vacuum) {
-            // Outflow flux (mass + momentum at sound speed), same idea as x.
-            bool L_is_vacuum = (rL < rho_vacuum && rR >= rho_vacuum);
-            bool R_is_vacuum = (rR < rho_vacuum && rL >= rho_vacuum);
-            double c_d;
-            if (L_is_vacuum) {
-                c_d = sound_speed(rR, pR);
-                G[0] = -rR * c_d;
-                G[1] = -rR * c_d * uxR;
-                G[2] = rR * c_d * c_d;
-                G[3] = -(ER + pR) * c_d;
-            } else if (R_is_vacuum) {
-                c_d = sound_speed(rL, pL);
-                G[0] = rL * c_d;
-                G[1] = rL * c_d * uxL;
-                G[2] = rL * c_d * c_d;
-                G[3] = (EL + pL) * c_d;
-            } else {
-                if (rL >= rR) {
-                    c_d = sound_speed(rL, pL);
-                    G[0] = rL * c_d; G[1] = rL * c_d * uxL; G[2] = rL * c_d * c_d; G[3] = (EL + pL) * c_d;
-                } else {
-                    c_d = sound_speed(rR, pR);
-                    G[0] = -rR * c_d; G[1] = -rR * c_d * uxR; G[2] = rR * c_d * c_d; G[3] = -(ER + pR) * c_d;
-                }
-            }
-            return;
-        }
         double sL = std::abs(uyL) + sound_speed(rL, pL);
         double sR = std::abs(uyR) + sound_speed(rR, pR);
         double s_max = std::max(sL, sR);
+        if (rL < rho_vacuum || rR < rho_vacuum) {
+            double c_dense = (rL >= rR) ? sound_speed(rL, pL) : sound_speed(rR, pR);
+            s_max = std::max(s_max, c_dense);
+        }
         for (int l = 0; l < 4; l++)
             G[l] = 0.5 * (GL[l] + GR[l]) - 0.5 * s_max * (UR[l] - UL[l]);
     }
