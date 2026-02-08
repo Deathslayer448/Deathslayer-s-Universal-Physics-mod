@@ -31,7 +31,9 @@ const double rho_max = 1e4;   // ~1e4× normal air; only clips obvious blow-ups
 // Only cells with rho << typical air density are ever zeroed out and nudged.
 const double rho_vacuum_max = 1e-4;
 // When flux is into a cell with density below this, use donor state (no momentum dump into vacuum).
-const double rho_receiver_donor = 0.15;   // kg/m³; flux into lower density uses donor state
+// Physics: KE per volume = 0.5 (momentum)²/ρ, so same momentum → KE ∝ 1/ρ; near-vacuum has few particles,
+// so we must use mass_flux × u_donor (donor state) not full Rusanov, or E_air blows up at low pressure.
+const double rho_receiver_donor = 0.5;   // kg/m³; ~0.2 kPa @ 300 K; any flux into lower density uses donor
 // Minimum allowed internal energy per unit mass used only for validity checks / flux caps.
 // Keep this very small so VAC can still produce (near) 0 kPa without triggering floors.
 const double e_min = 1e-6;
@@ -381,6 +383,9 @@ struct State {
         for (int iy = 0; iy < ny; iy++) {
             for (int ix = 0; ix < nx; ix++) {
                 if (is_wall(iy, ix)) continue;
+                // Don't add viscous momentum/energy into near-vacuum cells: same momentum → v = p/ρ blows up.
+                double r = U[0][iy][ix];
+                if (r < rho_receiver_donor) continue;
                 int i = iy * nx + ix;
                 int ixp = (ix + 1) % nx, ixm = (ix - 1 + nx) % nx;
                 int iyp = (iy + 1) % ny, iym = (iy - 1 + ny) % ny;
@@ -783,6 +788,20 @@ void air_solver_sync_from_tpt(AirSolverState* state,
             double uy = (double)vy[i] * (double)game_vel_scale;
             if (!std::isfinite(ux)) ux = 0.0;
             if (!std::isfinite(uy)) uy = 0.0;
+            // Scale down velocity in low-pressure cells so momentum ~ "how many particles": avoid huge KE,
+            // but keep some velocity so pressure can leak into void (don't zero).
+            if (r < rho_receiver_donor && r > 1e-12) {
+                double v2 = ux*ux + uy*uy;
+                if (v2 > 1e-12) {
+                    double c_sq = gamma_gas * std::max(p, 1.0) / r;
+                    double v_max_sq = 400.0 * c_sq;  // allow up to 20× sound speed in low-ρ (leak possible)
+                    if (v2 > v_max_sq) {
+                        double s = std::sqrt(v_max_sq / v2);
+                        ux *= s;
+                        uy *= s;
+                    }
+                }
+            }
             double e = c_v * T;
             double ke = 0.5 * r * (ux*ux + uy*uy);
             double E = r * e + ke;
