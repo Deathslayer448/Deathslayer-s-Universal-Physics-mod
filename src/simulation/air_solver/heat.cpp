@@ -74,6 +74,8 @@ void heat_diffusion_step(int ny, int nx, double dx, double dt,
     }
     // Wall→fluid: natural-convection heat transfer (Nusselt correlation). h = Nu*k/L, Nu = f(Gr, Pr).
     // Gr = g*β*ΔT*L³/ν², Ra = Gr*Pr; β = 1/T (ideal gas), ν = μ/ρ so density (pressure) increases h.
+    // Below this density we skip wall→fluid transfer: same flux into near-vacuum gives huge T (E/ρ) and instability; wall also shouldn't cool into vacuum.
+    const double rho_vacuum_no_wall_heat = 0.02;  // kg/m³ (~1.7 kPa at 300 K)
     auto wall_blocks_heat_at = [&](int iy, int ix) -> bool {
         if (!wall_blocks_heat || iy < 0 || iy >= ny || ix < 0 || ix >= nx) return true;
         return (*wall_blocks_heat)[iy][ix];
@@ -100,6 +102,8 @@ void heat_diffusion_step(int ny, int nx, double dx, double dt,
             if (is_wall(iy, ix)) continue;
             const double T_fluid = T[iy*nx+ix];
             const double rho_fluid = std::max(rho[iy][ix], 1e-6);
+            // No wall→fluid heat into near-vacuum: avoids huge T (E/ρ) and flicker; wall (e.g. TTAN) won't cool into vacuum.
+            if (rho_fluid < rho_vacuum_no_wall_heat) continue;
             double rate = 0.0;
             if (ix > 0        && is_wall(iy, ix - 1) && !wall_blocks_heat_at(iy, ix - 1)) {
                 double Tw = wall_temperature(iy, ix - 1);
