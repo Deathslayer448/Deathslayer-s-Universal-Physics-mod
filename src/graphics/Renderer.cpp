@@ -364,8 +364,23 @@ void Renderer::render_parts()
 
 				pixel_mode &= renderMode;
 
-				//Alter colour based on display mode
-				if(colorMode & COLOUR_HEAT)
+				// When using custom air overlays (pressure/visc/velocity normalized), use normal particle colour so particles don't keep heat/life/grad from a previous view. Re-apply per-particle hot glow (PROP_HOT_GLOW) so hot TTAN etc. still glow orange.
+				const uint32_t customAirOverlays = DISPLAY_AIRPN | DISPLAY_AIRPN_HIGH | DISPLAY_AIRPN_LOW | DISPLAY_AIRVIS | DISPLAY_AIRVN;
+				if (displayMode & customAirOverlays)
+				{
+					colr = colour.Red;
+					colg = colour.Green;
+					colb = colour.Blue;
+					if ((elements[t].Properties & PROP_HOT_GLOW) && sim->parts[i].temp > (elements[t].HighTemperature - 800.0f))
+					{
+						auto gradv = 3.1415f / (2.0f * elements[t].HighTemperature - (elements[t].HighTemperature - 800.0f));
+						auto caddress = int((sim->parts[i].temp > elements[t].HighTemperature) ? elements[t].HighTemperature - (elements[t].HighTemperature - 800.0f) : sim->parts[i].temp - (elements[t].HighTemperature - 800.0f));
+						colr += int(sin(gradv * caddress) * 226);
+						colg += int(sin(gradv * caddress * 4.55f + TPT_PI_DBL) * 34);
+						colb += int(sin(gradv * caddress * 2.22f + TPT_PI_DBL) * 64);
+					}
+				}
+				else if(colorMode & COLOUR_HEAT)
 				{
 					firea = 255;
 					RGB color = heatTableAt(int((sim->parts[i].temp - stats.hdispLimitMin) / (stats.hdispLimitMax - stats.hdispLimitMin) * 1024));

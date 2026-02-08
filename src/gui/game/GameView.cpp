@@ -2682,7 +2682,7 @@ void GameView::OnDraw()
 
 	if(showHud && introText < 51)
 	{
-		//FPS and some version info
+		// FPS line (first line)
 		StringBuilder fpsInfo;
 		fpsInfo << Format::Precision(2) << "FPS: " << ui::Engine::Ref().GetFps();
 
@@ -2693,27 +2693,6 @@ void GameView::OnDraw()
 			else
 				fpsInfo << " Parts: " << sample.NumParts;
 		}
-		if ((std::holds_alternative<HdispLimitAuto>(rendererSettings->wantHdispLimitMin) ||
-		     std::holds_alternative<HdispLimitAuto>(rendererSettings->wantHdispLimitMax)) && rendererStats.hdispLimitValid)
-		{
-			fpsInfo << " [TEMP L:";
-			format::RenderTemperature(fpsInfo, rendererStats.hdispLimitMin, c->GetTemperatureScale());
-			fpsInfo << " H:";
-			format::RenderTemperature(fpsInfo, rendererStats.hdispLimitMax, c->GetTemperatureScale());
-			fpsInfo << "]";
-		}
-		if ((rendererSettings->displayMode & (DISPLAY_AIRPN | DISPLAY_AIRPN_HIGH | DISPLAY_AIRPN_LOW)) && rendererStats.airNormPressureValid)
-		{
-			fpsInfo << " [Pressure L:" << Format::Precision(2) << rendererStats.airNormPressureMin << " H:" << rendererStats.airNormPressureMax << " kPa]";
-		}
-		if ((rendererSettings->displayMode & DISPLAY_AIRVIS) && rendererStats.airNormViscosityValid)
-		{
-			fpsInfo << " [Visc L:" << Format::Precision(2) << (rendererStats.airNormViscosityMin * 1e5f) << " H:" << (rendererStats.airNormViscosityMax * 1e5f) << " e-5 m²/s]";
-		}
-		if ((rendererSettings->displayMode & DISPLAY_AIRVN) && rendererStats.airNormVelocityValid)
-		{
-			fpsInfo << " [Vel L:" << Format::Precision(2) << rendererStats.airNormVelocityMin << " H:" << rendererStats.airNormVelocityMax << " m/s]";
-		}
 		if (c->GetReplaceModeFlags()&REPLACE_MODE)
 			fpsInfo << " [REPLACE MODE]";
 		if (c->GetReplaceModeFlags()&SPECIFIC_DELETE)
@@ -2722,6 +2701,34 @@ void GameView::OnDraw()
 			fpsInfo << " [GRID: " << rendererSettings->gridSize << "]";
 		if (rendererSettings->findingElement)
 			fpsInfo << " [FIND]";
+
+		// Second line: view range (TEMP L/H or Pressure/Visc/Vel L/H) when in those modes
+		StringBuilder viewInfo;
+		if ((std::holds_alternative<HdispLimitAuto>(rendererSettings->wantHdispLimitMin) ||
+		     std::holds_alternative<HdispLimitAuto>(rendererSettings->wantHdispLimitMax)) && rendererStats.hdispLimitValid)
+		{
+			viewInfo << "[TEMP L:";
+			format::RenderTemperature(viewInfo, rendererStats.hdispLimitMin, c->GetTemperatureScale());
+			viewInfo << " H:";
+			format::RenderTemperature(viewInfo, rendererStats.hdispLimitMax, c->GetTemperatureScale());
+			viewInfo << "]";
+		}
+		if ((rendererSettings->displayMode & (DISPLAY_AIRPN | DISPLAY_AIRPN_HIGH | DISPLAY_AIRPN_LOW)) && rendererStats.airNormPressureValid)
+		{
+			if (viewInfo.Size()) viewInfo << " ";
+			viewInfo << "[Pressure L:" << Format::Precision(2) << rendererStats.airNormPressureMin << " H:" << rendererStats.airNormPressureMax << " kPa]";
+		}
+		if ((rendererSettings->displayMode & DISPLAY_AIRVIS) && rendererStats.airNormViscosityValid)
+		{
+			if (viewInfo.Size()) viewInfo << " ";
+			viewInfo << "[Visc L:" << Format::Precision(2) << (rendererStats.airNormViscosityMin * 1e5f) << " H:" << (rendererStats.airNormViscosityMax * 1e5f) << " e-5 m²/s]";
+		}
+		if ((rendererSettings->displayMode & DISPLAY_AIRVN) && rendererStats.airNormVelocityValid)
+		{
+			if (viewInfo.Size()) viewInfo << " ";
+			viewInfo << "[Vel L:" << Format::Precision(2) << rendererStats.airNormVelocityMin << " H:" << rendererStats.airNormVelocityMax << " m/s]";
+		}
+
 		if (c->GetDebugFlags() & DEBUG_SIMHUD)
 		{
 			fpsInfo << "\nSimulation";
@@ -2786,9 +2793,14 @@ void GameView::OnDraw()
 		}
 
 		int textWidth = Graphics::TextSize(fpsInfo.Build()).X - 1;
+		int viewLineWidth = viewInfo.Size() ? (Graphics::TextSize(viewInfo.Build()).X - 1) : 0;
+		if (viewLineWidth > textWidth) textWidth = viewLineWidth;
 		int alpha = 255-introText*5;
-		g->BlendFilledRect(RectSized(Vec2{ 12, 12 }, Vec2{ textWidth+8, 15 }), 0x000000_rgb .WithAlpha(int(alpha*0.5)));
+		int boxHeight = viewInfo.Size() ? 29 : 15;
+		g->BlendFilledRect(RectSized(Vec2{ 12, 12 }, Vec2{ textWidth+8, boxHeight }), 0x000000_rgb .WithAlpha(int(alpha*0.5)));
 		g->BlendText({ 16, 16 }, fpsInfo.Build(), 0x20D8FF_rgb .WithAlpha(int(alpha*0.75)));
+		if (viewInfo.Size())
+			g->BlendText({ 16, 30 }, viewInfo.Build(), 0x20D8FF_rgb .WithAlpha(int(alpha*0.75)));
 	}
 
 	//Tooltips
