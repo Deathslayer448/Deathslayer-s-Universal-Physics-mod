@@ -122,6 +122,17 @@ void OptionsModel::SetAtmosphericPressure(bool state)
 	notifySettingsChanged();
 }
 
+bool OptionsModel::GetPressureBreakEnabled()
+{
+	return sim->air->enablePressureBreak;
+}
+
+void OptionsModel::SetPressureBreakEnabled(bool state)
+{
+	sim->air->enablePressureBreak = state;
+	notifySettingsChanged();
+}
+
 OptionsModel::PressureUnit OptionsModel::GetPressureUnit()
 {
 	int unit = GlobalPrefs::Ref().Get("Simulation.PressureUnit", int(PRESSURE_KPA));

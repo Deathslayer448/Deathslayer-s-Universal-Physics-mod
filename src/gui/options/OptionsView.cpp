@@ -136,6 +136,10 @@ OptionsView::OptionsView() : ui::Window(ui::Point(-1, -1), ui::Point(320, 340))
 		if (c)
 			c->SetPressureUnit(pressureUnitKPa->GetChecked() ? OptionsModel::PRESSURE_KPA : OptionsModel::PRESSURE_ATM);
 	});
+	pressureBreak = addCheckbox(0, "Pressure-difference break (TUNG)", "Experimental; can reduce frame rate. When on, TUNG can break from sustained pressure difference across the wall.", [this] {
+		if (c)
+			c->SetPressureBreakEnabled(pressureBreak->GetChecked());
+	});
 	airMode = addDropDown("Air simulation mode", {
 		{ "On", AIR_ON },
 		{ "Pressure off", AIR_PRESSUREOFF },
@@ -668,6 +672,8 @@ void OptionsView::NotifySettingsChanged(OptionsModel * sender)
 		atmosphericPressure->SetChecked(sender->GetAtmosphericPressure());
 	if (pressureUnitKPa)
 		pressureUnitKPa->SetChecked(sender->GetPressureUnit() == OptionsModel::PRESSURE_KPA);
+	if (pressureBreak)
+		pressureBreak->SetChecked(sender->GetPressureBreakEnabled());
 	airMode->SetOption(sender->GetAirMode());
 	if (simulationSpeed && !simulationSpeed->IsFocused())
 		SimulationSpeedToTextBox(sender->GetAirSolverStepsPerFrame());

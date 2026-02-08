@@ -37,6 +37,7 @@ constexpr auto PROP_SPARKSETTLE   = UINT32_C(0x00020000);  //2^17 Allow Sparks/E
 constexpr auto PROP_NOAMBHEAT     = UINT32_C(0x00040000);  //2^18 Don't transfer or receive heat from ambient heat.
 constexpr auto PROP_NOCTYPEDRAW   = UINT32_C(0x00100000); // 2^20 When this element is drawn upon with, do not set ctype (like BCLN for CLNE)
 constexpr auto PROP_WATER         = UINT32_C(0x00200000); // 2^21 Water property for custom water system
+constexpr auto PROP_BLOCKAIR      = UINT32_C(0x00400000); // 2^22 Particle blocks air (pressure cannot cross; used by air sim to set bmap_blockair)
 
 constexpr auto FLAG_STAGNANT      = UINT32_C(0x00000001);
 constexpr auto FLAG_SKIPMOVE      = UINT32_C(0x00000002); // skip movement for one frame, only implemented for PHOT

@@ -56,6 +56,7 @@ void Air::Clear()
 	float defaultDensity = P_baseline / (R_gas * ambientAirTemp);
 	std::fill(&rho[0][0], &rho[0][0]+NCELL, defaultDensity);
 	std::fill(&sim.pv[0][0], &sim.pv[0][0]+NCELL, P_baseline);
+	std::fill(&pressure_break_energy[0][0], &pressure_break_energy[0][0]+NCELL, 0.0f);
 }
 
 void Air::ClearAirH()
@@ -266,6 +267,8 @@ void Air::update_air(void)
 		{ static bool once = false; if (!once) { std::fprintf(stderr, "[AIR] update_air: Rusanov path active (run from terminal to see logs)\n"); std::fflush(stderr); once = true; } }
 		rusanovSolver.step(frame_dt, airSolverStepsPerFrame);
 		rusanovSolver.sync_to_sim(sim, *this);
+		if (enablePressureBreak)
+			UpdatePressureBreakEnergy((float)frame_dt);
 		// Cool particles in wall cells by the heat they transferred to air (real heat capacity).
 		{
 			static std::vector<float> wall_heat_lost;
@@ -940,10 +943,7 @@ void Air::ApproximateBlockAirMaps()
 		int type = sim.parts[i].type;
 		if (!type)
 			continue;
-		// Real TTAN would only block if there was enough TTAN
-		// but it would be more expensive and complicated to actually check that
-		// so just block for a frame, if it wasn't supposed to block it will continue allowing air next frame
-		if (type == PT_TTAN)
+		if (elements[type].Properties & PROP_BLOCKAIR)
 		{
 			int x = ((int)(sim.parts[i].x+0.5f))/CELL, y = ((int)(sim.parts[i].y+0.5f))/CELL;
 			if (InBounds(x, y))
@@ -968,7 +968,8 @@ Air::Air(Simulation & simulation):
 	airSolverStepsPerFrame(1),
 	ambientAirTemp(R_TEMP + 273.15f),
 	vorticityCoeff(0.0f),
-	useAtmosphericPressure(true) // Default: show relative pressure in UI
+	useAtmosphericPressure(true), // Default: show relative pressure in UI
+	enablePressureBreak(false)    // Default off: experimental, may reduce FPS
 {
 	//Simulation should do this.
 	make_kernel();
@@ -987,5 +988,84 @@ Air::Air(Simulation & simulation):
 	std::fill(&ohv   [0][0], &ohv   [0][0] + NCELL, 0.0f);
 	std::fill(&sim.pv[0][0], &sim.pv[0][0] + NCELL, P_baseline);
 	std::fill(&opv   [0][0], &opv   [0][0] + NCELL, P_baseline);
+	std::fill(&pressure_break_energy[0][0], &pressure_break_energy[0][0] + NCELL, 0.0f);
+}
+
+void Air::UpdatePressureBreakEnergy(float dt)
+{
+	if (dt <= 0.0f)
+		return;
+	// Mark cells that contain at least one TUNG particle (breakable solid).
+	std::vector<bool> has_tung(NCELL, false);
+	for (int i = 0; i < sim.parts.active; i++)
+	{
+		if (sim.parts[i].type != PT_TUNG)
+			continue;
+		int cy = (int)(sim.parts[i].y + 0.5f) / CELL;
+		int cx = (int)(sim.parts[i].x + 0.5f) / CELL;
+		if (cy >= 0 && cy < YCELLS && cx >= 0 && cx < XCELLS)
+			has_tung[cy * XCELLS + cx] = true;
+	}
+	// Real units: P in Pa, rho in kg/m³, v in m/s. Must match AirSolverWrapper::game_vel_scale (v_mps = v_game * vel_scale).
+	constexpr float vel_scale = 0.6f;
+	auto &pv = sim.pv;
+	auto &vx = sim.vx;
+	auto &vy = sim.vy;
+	for (int iy = 0; iy < YCELLS; iy++)
+		for (int ix = 0; ix < XCELLS; ix++)
+		{
+			if (!has_tung[iy * XCELLS + ix])
+				continue;
+			// Pressure difference across this wall cell: only accumulate when ΔP is significant (avoid 101 vs 101.2 kPa breaking).
+			float P_min = pv[iy][ix], P_max = pv[iy][ix];
+			for (int dy = -1; dy <= 1; dy++)
+				for (int dx = -1; dx <= 1; dx++)
+				{
+					if (dx == 0 && dy == 0)
+						continue;
+					int ny = iy + dy, nx = ix + dx;
+					if (ny < 0 || ny >= YCELLS || nx < 0 || nx >= XCELLS)
+						continue;
+					float P_n = pv[ny][nx];
+					P_min = std::min(P_min, P_n);
+					P_max = std::max(P_max, P_n);
+				}
+			constexpr float MIN_PRESSURE_DIFFERENCE_PA = 80000.0f;  // 80 kPa (~0.8 atm); only large ΔP accumulates
+			if (P_max - P_min < MIN_PRESSURE_DIFFERENCE_PA)
+				continue;
+			// Net energy flux (W/m²) into this wall cell. Flux = P*v_n + 0.5*rho*v²*v_n (v_n = velocity toward this cell).
+			float net_flux = 0.0f;
+			for (int dy = -1; dy <= 1; dy++)
+				for (int dx = -1; dx <= 1; dx++)
+				{
+					if (dx == 0 && dy == 0)
+						continue;
+					int ny = iy + dy, nx = ix + dx;
+					if (ny < 0 || ny >= YCELLS || nx < 0 || nx >= XCELLS)
+						continue;
+					float dist = std::sqrt((float)(dx*dx + dy*dy));
+					float ux = (float)dx / dist, uy = (float)dy / dist;
+					float vx_mps = vx[ny][nx] * vel_scale;
+					float vy_mps = vy[ny][nx] * vel_scale;
+					float v_n = vx_mps * ux + vy_mps * uy;
+					float P_n = pv[ny][nx];
+					float rho_n = std::max(rho[ny][nx], 1e-6f);
+					float v_sq = vx_mps * vx_mps + vy_mps * vy_mps;
+					float flux_n = P_n * v_n + 0.5f * rho_n * v_sq * v_n;
+					net_flux += flux_n;
+				}
+			float inc = std::max(0.0f, net_flux) * dt;
+			pressure_break_energy[iy][ix] += inc;
+			// Bleed only into neighboring TUNG cells so adjacent wall cells accumulate similarly (avoids jagged break; no bleed into air-only cells).
+			constexpr float diffusion_frac = 0.4f;
+			for (int dy = -1; dy <= 1; dy++)
+				for (int dx = -1; dx <= 1; dx++)
+				{
+					if (dx == 0 && dy == 0) continue;
+					int ny = iy + dy, nx = ix + dx;
+					if (ny >= 0 && ny < YCELLS && nx >= 0 && nx < XCELLS && has_tung[ny * XCELLS + nx])
+						pressure_break_energy[ny][nx] += diffusion_frac * inc;
+				}
+		}
 }
 

@@ -52,6 +52,16 @@ void OptionsController::SetAtmosphericPressure(bool state)
 	model->SetAtmosphericPressure(state);
 }
 
+void OptionsController::SetPressureBreakEnabled(bool state)
+{
+	model->SetPressureBreakEnabled(state);
+}
+
+bool OptionsController::GetPressureBreakEnabled()
+{
+	return model->GetPressureBreakEnabled();
+}
+
 void OptionsController::SetPressureUnit(OptionsModel::PressureUnit unit)
 {
 	model->SetPressureUnit(unit);

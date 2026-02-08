@@ -1,5 +1,4 @@
 #include "simulation/ElementCommon.h"
-#include "simulation/Air.h"
 
 static int update(UPDATE_FUNC_ARGS);
 
@@ -32,7 +31,7 @@ void Element::Element_TTAN()
 	HeatConduct = 251;
 	Description = "Titanium. Higher melting temperature than most other metals, blocks all air pressure.";
 
-	Properties = TYPE_SOLID|PROP_CONDUCTS|PROP_HOT_GLOW|PROP_LIFE_DEC;
+	Properties = TYPE_SOLID|PROP_CONDUCTS|PROP_HOT_GLOW|PROP_LIFE_DEC|PROP_BLOCKAIR;
 
 	LowPressure = IPL;
 	LowPressureTransition = NT;
@@ -68,10 +67,5 @@ static int update(UPDATE_FUNC_ARGS)
 		}
 	}
 
-	if (ttan >= 2)
-	{
-		sim->air->bmap_blockair[y/CELL][x/CELL] = 1;
-		sim->air->bmap_blockairh[y/CELL][x/CELL] = 0x8;
-	}
 	return 0;
 }

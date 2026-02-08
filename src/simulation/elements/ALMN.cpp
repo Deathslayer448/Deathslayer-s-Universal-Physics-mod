@@ -1,5 +1,4 @@
 #include "simulation/ElementCommon.h"
-#include "simulation/Air.h"
 
 static int update(UPDATE_FUNC_ARGS);
 
@@ -30,7 +29,7 @@ void Element::Element_ALMN() {
 	HeatConduct = 255;
 	Description = "Aluminium. Blocks pressure, shatters when hit with high velocity particles.";
 
-	Properties = TYPE_SOLID | PROP_CONDUCTS | PROP_LIFE_DEC;
+	Properties = TYPE_SOLID | PROP_CONDUCTS | PROP_LIFE_DEC | PROP_BLOCKAIR;
 
 	LowPressure = IPL;
 	LowPressureTransition = NT;
@@ -45,12 +44,6 @@ void Element::Element_ALMN() {
 }
 
 static int update(UPDATE_FUNC_ARGS) {
-	// Only solid blocks
-	if (parts[i].type == PT_ALMN) {
-		sim->air->bmap_blockair[y/CELL][x/CELL] = 1;
-		sim->air->bmap_blockairh[y/CELL][x/CELL] = 0x8;
-	}
-
 	if (parts[i].tmp2 == 1 && sim->rng.chance(1, 100)) {
 		sim->kill_part(i);
 		return 1;

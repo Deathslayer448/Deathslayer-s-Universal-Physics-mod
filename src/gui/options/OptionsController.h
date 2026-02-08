@@ -21,6 +21,8 @@ public:
 	void SetNoWeightSwitch(bool state);
 	void SetBetterBurningEnable(bool state);
 	void SetAtmosphericPressure(bool state);
+	void SetPressureBreakEnabled(bool state);
+	bool GetPressureBreakEnabled();
 	void SetPressureUnit(OptionsModel::PressureUnit unit);
 	OptionsModel::PressureUnit GetPressureUnit();
 	void SetGravityMode(int gravityMode);

@@ -86,6 +86,7 @@ void Simulation::Restore(const Snapshot &snap)
 	std::copy(snap.ElecMap        .begin(), snap.ElecMap        .end(), &emap[0][0]      );
 	std::copy(snap.BlockAir       .begin(), snap.BlockAir       .end(), &air->bmap_blockair[0][0] );
 	std::copy(snap.BlockAirH      .begin(), snap.BlockAirH      .end(), &air->bmap_blockairh[0][0]);
+	std::fill(&air->pressure_break_energy[0][0], &air->pressure_break_energy[0][0] + NCELL, 0.0f);
 	std::copy(snap.FanVelocityX   .begin(), snap.FanVelocityX   .end(), &fvx[0][0]       );
 	std::copy(snap.FanVelocityY   .begin(), snap.FanVelocityY   .end(), &fvy[0][0]       );
 	std::copy(snap.Particles      .begin(), snap.Particles      .end(), &parts[0]        );

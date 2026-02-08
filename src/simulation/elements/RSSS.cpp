@@ -1,5 +1,4 @@
 #include "simulation/ElementCommon.h"
-#include "simulation/Air.h"
 
 static int update(UPDATE_FUNC_ARGS);
 
@@ -32,7 +31,7 @@ void Element::Element_RSSS()
 	HeatConduct = 130;
 	Description = "Solidified resist. Blocks pressure and insulates electricity. Liquefies on contact with neutrons.";
 
-	Properties = TYPE_SOLID|PROP_NEUTPASS;
+	Properties = TYPE_SOLID|PROP_NEUTPASS|PROP_BLOCKAIR;
 	CarriesTypeIn = (1U << FIELD_CTYPE) | (1U << FIELD_TMP);
 
 	LowPressure = IPL;
@@ -73,10 +72,6 @@ static int update(UPDATE_FUNC_ARGS)
 			}
 		}
 	}
-
-	//Block air like TTAN
-	sim->air->bmap_blockair[y/CELL][x/CELL] = 1;
-	sim->air->bmap_blockairh[y/CELL][x/CELL] = 0x8;
 
 	return 0;
 }

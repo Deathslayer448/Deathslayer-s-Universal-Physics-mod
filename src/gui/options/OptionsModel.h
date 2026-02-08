@@ -28,6 +28,8 @@ public:
 	void SetBetterBurningEnable(bool state);
 	bool GetAtmosphericPressure();
 	void SetAtmosphericPressure(bool state);
+	bool GetPressureBreakEnabled();
+	void SetPressureBreakEnabled(bool state);
 	enum PressureUnit { PRESSURE_ATM, PRESSURE_KPA };
 	PressureUnit GetPressureUnit();
 	void SetPressureUnit(PressureUnit unit);

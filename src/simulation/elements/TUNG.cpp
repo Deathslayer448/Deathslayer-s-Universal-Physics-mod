@@ -34,7 +34,7 @@ void Element::Element_TUNG()
 	HeatConduct = 251;
 	Description = "Tungsten. Brittle metal with a very high melting point.";
 
-	Properties = TYPE_SOLID|PROP_CONDUCTS|PROP_LIFE_DEC;
+	Properties = TYPE_SOLID|PROP_CONDUCTS|PROP_LIFE_DEC|PROP_BLOCKAIR;
 
 	LowPressure = IPL;
 	LowPressureTransition = NT;
@@ -98,15 +98,37 @@ static int update(UPDATE_FUNC_ARGS)
 		parts[i].vy += sim->rng.between(-50, 50);
 		return 1;
 	}
-	auto press = int(sim->pv[y/CELL][x/CELL] * 64);
-	auto diff = press - parts[i].tmp3;
-	if (diff > 32 || diff < -32)
+	// Pressure-difference break (per-cell energy in Air). Only when option is enabled (experimental).
+	if (!sim->air || !sim->air->enablePressureBreak)
+		return 0;
+	constexpr float PRESSURE_BREAK_THRESHOLD_J_M2 = 2000000.0f;  // 2 MJ/m²; needs sustained large ΔP to break
+	int cy = y / CELL, cx = x / CELL;
+	if (cy >= 0 && cy < YCELLS && cx >= 0 && cx < XCELLS)
 	{
-		sim->part_change_type(i,x,y,PT_BRMT);
-		parts[i].ctype = PT_TUNG;
-		return 1;
+		float &cell_energy = sim->air->pressure_break_energy[cy][cx];
+		if (cell_energy >= PRESSURE_BREAK_THRESHOLD_J_M2)
+		{
+			sim->air->pressure_break_energy[cy][cx] = 0.0f;
+			// Break all TUNG in this 4×4 cell by scanning only the cell pixels (O(16) not O(N)).
+			int y0 = cy * CELL, x0 = cx * CELL;
+			for (int py = y0; py < y0 + CELL && py < YRES; py++)
+			{
+				if (py < 0) continue;
+				for (int px = x0; px < x0 + CELL && px < XRES; px++)
+				{
+					if (px < 0) continue;
+					auto r = pmap[py][px];
+					if (TYP(r) == PT_TUNG)
+					{
+						int j = ID(r);
+						sim->part_change_type(j, px, py, PT_BRMT);
+						sim->parts[j].ctype = PT_TUNG;
+					}
+				}
+			}
+			return 1;
+		}
 	}
-	parts[i].tmp3 = press;
 	return 0;
 }
 
