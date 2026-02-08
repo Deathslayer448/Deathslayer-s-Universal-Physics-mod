@@ -1661,28 +1661,38 @@ void GameView::OnKeyPress(int key, int scan, bool repeat, bool shift, bool ctrl,
 	}
 	else if (shift && key == '2')
 	{
-		// Toggle normalized pressure view
+		// Pressure (normalized to map): full rank gradient blue -> black -> red
 		if (rendererSettings)
 		{
 			uint32_t displayMode = rendererSettings->displayMode;
-			// Air display modes are mutually exclusive
-			if (displayMode & DISPLAY_AIR)
-			{
-				displayMode &= ~DISPLAY_AIR;
-			}
-			if (displayMode & DISPLAY_AIRPN)
-			{
-				// Turn off normalized pressure view
-				displayMode &= ~DISPLAY_AIRPN;
-				c->SetInfoTip("");
-			}
-			else
-			{
-				// Turn on normalized pressure view
-				displayMode |= DISPLAY_AIRPN;
-				c->SetInfoTip("Pressure (normalized to map)");
-			}
+			displayMode &= ~(DISPLAY_AIRP | DISPLAY_AIRPN | DISPLAY_AIRPN_HIGH | DISPLAY_AIRPN_LOW);
+			displayMode |= DISPLAY_AIRPN;
 			rendererSettings->displayMode = displayMode;
+			c->SetInfoTip("Pressure (normalized to map)");
+		}
+	}
+	else if (shift && key == '3')
+	{
+		// Pressure (normalized, high focus): gradient on upper range only
+		if (rendererSettings)
+		{
+			uint32_t displayMode = rendererSettings->displayMode;
+			displayMode &= ~(DISPLAY_AIRP | DISPLAY_AIRPN | DISPLAY_AIRPN_HIGH | DISPLAY_AIRPN_LOW);
+			displayMode |= DISPLAY_AIRPN_HIGH;
+			rendererSettings->displayMode = displayMode;
+			c->SetInfoTip("Pressure (normalized, high focus)");
+		}
+	}
+	else if (shift && key == '4')
+	{
+		// Pressure (normalized, low focus): gradient on lower range only
+		if (rendererSettings)
+		{
+			uint32_t displayMode = rendererSettings->displayMode;
+			displayMode &= ~(DISPLAY_AIRP | DISPLAY_AIRPN | DISPLAY_AIRPN_HIGH | DISPLAY_AIRPN_LOW);
+			displayMode |= DISPLAY_AIRPN_LOW;
+			rendererSettings->displayMode = displayMode;
+			c->SetInfoTip("Pressure (normalized, low focus)");
 		}
 	}
 	else if (shift && key == '6')

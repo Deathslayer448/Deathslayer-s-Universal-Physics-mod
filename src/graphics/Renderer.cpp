@@ -966,8 +966,9 @@ void Renderer::draw_air()
 	}
 
 	// Rank-based pressure for normalized view (same idea as vel_t: rank by value, then same blue/black/red logic)
+	// Also computed for AIRPN_HIGH and AIRPN_LOW (same rank, different color focus).
 	std::vector<float> pressure_rank(NCELL, 0.5f);
-	if (displayMode & DISPLAY_AIRPN) {
+	if (displayMode & (DISPLAY_AIRPN | DISPLAY_AIRPN_HIGH | DISPLAY_AIRPN_LOW)) {
 		float p_min = std::numeric_limits<float>::max();
 		float p_max = std::numeric_limits<float>::lowest();
 		for (int i = 0; i < NCELL; i++) {
@@ -1100,6 +1101,45 @@ void Renderer::draw_air()
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				} else {
 					c = RGB(0, 0, 0);  // middle rank = black
+				}
+			}
+			else if (displayMode & DISPLAY_AIRPN_HIGH)
+			{
+				// High focus: gradient only on upper pressure range (rank 0.65–1.0); below that solid blue.
+				float rank = pressure_rank[y * XCELLS + x];
+				const float rank_high_start = 0.65f;
+				const float high_span = 1.0f - rank_high_start;
+				if (rank < rank_high_start) {
+					c = RGB(0, 0, 180);  // solid blue for lower half
+				} else {
+					float t_local = (rank - rank_high_start) / high_span;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
+					if (val > 255) val = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(0, sat, val, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
+				}
+			}
+			else if (displayMode & DISPLAY_AIRPN_LOW)
+			{
+				// Low focus: gradient only on lower pressure range (rank 0–0.35); above that solid red.
+				float rank = pressure_rank[y * XCELLS + x];
+				const float rank_low_end = 0.35f;
+				if (rank > rank_low_end) {
+					c = RGB(220, 0, 0);  // solid red for upper half
+				} else {
+					float t_local = (rank_low_end > 1e-6f) ? (rank / rank_low_end) : 0.0f;
+					if (t_local > 1.0f) t_local = 1.0f;
+					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
+					if (sat > 255) sat = 255;
+					int val = 140 + (int)(t_local * 80.0f + 0.5f);
+					if (val > 255) val = 255;
+					int r_, g_, b_;
+					HSV_to_RGB(240, sat, val, &r_, &g_, &b_);
+					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				}
 			}
 			else if (displayMode & DISPLAY_AIRV)

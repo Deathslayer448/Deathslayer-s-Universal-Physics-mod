@@ -30,6 +30,8 @@ const double rho_max = 1e4;   // ~1e4× normal air; only clips obvious blow-ups
 // Upper bound for treating a cell as "vacuum-like" for last-resort repair.
 // Only cells with rho << typical air density are ever zeroed out and nudged.
 const double rho_vacuum_max = 1e-4;
+// When flux is into a cell with density below this, use donor state (no momentum dump into vacuum).
+const double rho_receiver_donor = 0.15;   // kg/m³; flux into lower density uses donor state
 // Minimum allowed internal energy per unit mass used only for validity checks / flux caps.
 // Keep this very small so VAC can still produce (near) 0 kPa without triggering floors.
 const double e_min = 1e-6;
@@ -236,14 +238,27 @@ struct State {
         }
         for (int l = 0; l < 4; l++)
             F[l] = 0.5 * (FL[l] + FR[l]) - 0.5 * s_max * (UR[l] - UL[l]);
-        // At large density ratio, 0.5*(p_L+p_R) dumps huge momentum into the low-density side (a = (1/rho)*grad p).
-        // Use min(p_L,p_R) for the pressure term so we don't accelerate low-density cells to 14 km/s.
+        // At large density ratio or when flux is into near-vacuum, use donor state so we don't dump huge momentum (no 500 mJ at 0.1 kPa).
         double r_max = std::max(rL, rR);
         double r_min = std::min(rL, rR);
-        if (r_max > 1e-6 && r_min / r_max < 0.1) {
-            double p_avg = 0.5 * (pL + pR);
-            double p_lim = std::min(pL, pR);
-            F[1] -= (p_avg - p_lim);  // replace pressure contribution in x-momentum flux
+        bool use_donor_flux = (r_max > 1e-6 && r_min / r_max < 0.2);
+        if (F[0] > 0.0 && rR < rho_receiver_donor) use_donor_flux = true;
+        if (F[0] < 0.0 && rL < rho_receiver_donor) use_donor_flux = true;
+        if (use_donor_flux) {
+            if (r_max > 1e-6 && r_min / r_max < 0.2) {
+                double p_avg = 0.5 * (pL + pR);
+                double p_lim = std::min(pL, pR);
+                F[1] -= (p_avg - p_lim);
+            }
+            if (F[0] > 0.0 && (rR < rL || rR < rho_receiver_donor)) {
+                F[1] = F[0] * uxL;
+                F[2] = F[0] * uyL;
+                F[3] = F[0] * (EL / std::max(rL, rho_min));
+            } else if (F[0] < 0.0 && (rL < rR || rL < rho_receiver_donor)) {
+                F[1] = F[0] * uxR;
+                F[2] = F[0] * uyR;
+                F[3] = F[0] * (ER / std::max(rR, rho_min));
+            }
         }
     }
 
@@ -281,10 +296,24 @@ struct State {
             G[l] = 0.5 * (GL[l] + GR[l]) - 0.5 * s_max * (UR[l] - UL[l]);
         double r_max = std::max(rL, rR);
         double r_min = std::min(rL, rR);
-        if (r_max > 1e-6 && r_min / r_max < 0.1) {
-            double p_avg = 0.5 * (pL + pR);
-            double p_lim = std::min(pL, pR);
-            G[2] -= (p_avg - p_lim);  // replace pressure contribution in y-momentum flux
+        bool use_donor_flux = (r_max > 1e-6 && r_min / r_max < 0.2);
+        if (G[0] > 0.0 && rR < rho_receiver_donor) use_donor_flux = true;
+        if (G[0] < 0.0 && rL < rho_receiver_donor) use_donor_flux = true;
+        if (use_donor_flux) {
+            if (r_max > 1e-6 && r_min / r_max < 0.2) {
+                double p_avg = 0.5 * (pL + pR);
+                double p_lim = std::min(pL, pR);
+                G[2] -= (p_avg - p_lim);
+            }
+            if (G[0] > 0.0 && (rR < rL || rR < rho_receiver_donor)) {
+                G[1] = G[0] * uxL;
+                G[2] = G[0] * uyL;
+                G[3] = G[0] * (EL / std::max(rL, rho_min));
+            } else if (G[0] < 0.0 && (rL < rR || rL < rho_receiver_donor)) {
+                G[1] = G[0] * uxR;
+                G[2] = G[0] * uyR;
+                G[3] = G[0] * (ER / std::max(rR, rho_min));
+            }
         }
     }
 
