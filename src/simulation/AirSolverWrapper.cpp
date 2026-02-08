@@ -6,6 +6,7 @@
 #include <cmath>
 #include <algorithm>
 #include <cstdio>
+#include <vector>
 
 // Debug: print to stderr when stuck (always on; flush so it appears in terminal).
 #define AIR_WRAP_DBG(...) do { std::fprintf(stderr, "[AIR-WRAP] " __VA_ARGS__); std::fflush(stderr); } while (0)
@@ -63,7 +64,7 @@ void AirSolverWrapper::sync_to_sim(Simulation& sim, Air& air)
 		pv, vx, vy, hv, rho, (float)game_vel_scale);
 }
 
-void AirSolverWrapper::step(double dt_frame, int max_steps)
+void AirSolverWrapper::step(Simulation& sim, double dt_frame, int max_steps)
 {
 	if (!state)
 		return;
@@ -72,6 +73,23 @@ void AirSolverWrapper::step(double dt_frame, int max_steps)
 		AIR_WRAP_DBG("air solver step() active (stderr is working)\n");
 		first = false;
 	}
+	// Build gravity in m/s² from TPT (vertical + Newtonian). TPT: vy += g_game per frame → a = g_game/dt_frame (game units) → a_mps2 = g_game * (dx_m / dt_frame²).
+	static std::vector<float> gx_mps2, gy_mps2;
+	size_t ncell = (size_t)ny * (size_t)nx;
+	if (gx_mps2.size() != ncell) {
+		gx_mps2.resize(ncell);
+		gy_mps2.resize(ncell);
+	}
+	// g_game = velocity increment per frame (pixels/frame); a = g_game/dt_frame → m/s²: a_mps2 = (g_game/dt_frame)*(dx_m/pixel) = g_game*dx_m/dt_frame.
+	double scale = (dt_frame > 1e-12) ? (dx_m / dt_frame) : 0.0;
+	for (int iy = 0; iy < ny; iy++)
+		for (int ix = 0; ix < nx; ix++) {
+			float gx_game = 0.f, gy_game = 0.f;
+			sim.GetGravityField(ix * CELL, iy * CELL, 1.0f, 1.0f, gx_game, gy_game);
+			int i = iy * nx + ix;
+			gx_mps2[i] = (float)((double)gx_game * scale);
+			gy_mps2[i] = (float)((double)gy_game * scale);
+		}
 	AirSolverState* s = static_cast<AirSolverState*>(state);
 	double advance = 0.0;
 	if (max_steps < 1) max_steps = 1;
@@ -93,6 +111,7 @@ void AirSolverWrapper::step(double dt_frame, int max_steps)
 		}
 		reject = 0;
 		air_solver_apply_heat_diffusion(s, dt);
+		air_solver_apply_gravity(s, dt, gx_mps2.data(), gy_mps2.data());
 		advance += dt;
 		steps++;
 	}

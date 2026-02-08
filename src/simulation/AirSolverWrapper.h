@@ -36,9 +36,9 @@ public:
 	/** Copy solver primitives to sim/air arrays. */
 	void sync_to_sim(Simulation& sim, Air& air);
 
-	/** Advance solver (and heat diffusion) for up to dt_frame seconds; then sync_to_sim.
-	 *  max_steps: max solver steps per call (1 = one step/frame, higher = faster simulation). */
-	void step(double dt_frame, int max_steps = 1);
+	/** Advance solver (and heat + gravity) for up to dt_frame seconds; then sync_to_sim.
+	 *  Gravity from sim (vertical + Newtonian) applied as body force; buoyancy is implicit. */
+	void step(Simulation& sim, double dt_frame, int max_steps = 1);
 
 	/** Set boundary cells as reflective walls. Call after ensure_created if desired. */
 	void set_boundary_walls();

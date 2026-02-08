@@ -33,6 +33,9 @@ double air_solver_step(AirSolverState* state);
 /** Apply heat diffusion for dt (call after step with same dt). */
 void air_solver_apply_heat_diffusion(AirSolverState* state, double dt);
 
+/** Apply gravity source terms: momentum += dt*rho*g, energy += dt*rho*g·v. gx, gy in m/s², row-major [iy*nx+ix]. Call after step and heat with same dt. */
+void air_solver_apply_gravity(AirSolverState* state, double dt, const float* gx_mps2, const float* gy_mps2);
+
 /** Set boundary cells as walls (reflective box). Call after create if desired. */
 void air_solver_set_boundary_walls(AirSolverState* state);
 

@@ -465,6 +465,26 @@ struct State {
         heat::heat_diffusion_step(ny, nx, dx, dt, U0[0], U0[1], U0[2], U0[3], &wall, &wall_T, &wall_blocks_heat, &wall_heat_lost);
     }
 
+    // Gravity source terms (Euler with body force): d(rho*u)/dt += rho*gx, d(rho*v)/dt += rho*gy, dE/dt += rho*g·v.
+    // Buoyancy is implicit: denser (cooler) fluid gets pulled down more, lighter (hotter) rises. gx, gy in m/s², row-major.
+    void apply_gravity(double dt, const float* gx_mps2, const float* gy_mps2) {
+        if (!gx_mps2 || !gy_mps2) return;
+        for (int iy = 0; iy < ny; iy++) {
+            for (int ix = 0; ix < nx; ix++) {
+                if (is_wall(iy, ix)) continue;
+                double r = std::max(U0[0][iy][ix], rho_min);
+                double ux = U0[1][iy][ix] / r;
+                double uy = U0[2][iy][ix] / r;
+                int i = iy * nx + ix;
+                double gx = (double)gx_mps2[i];
+                double gy = (double)gy_mps2[i];
+                U0[1][iy][ix] += dt * r * gx;
+                U0[2][iy][ix] += dt * r * gy;
+                U0[3][iy][ix] += dt * r * (gx * ux + gy * uy);
+            }
+        }
+    }
+
     bool state_valid(int* out_iy, int* out_ix, double* out_rho, double* out_e) const {
         for (int iy = 0; iy < ny; iy++)
             for (int ix = 0; ix < nx; ix++) {
@@ -919,6 +939,9 @@ double air_solver_step(AirSolverState* state) {
 }
 void air_solver_apply_heat_diffusion(AirSolverState* state, double dt) {
     S(state)->apply_heat_diffusion(dt);
+}
+void air_solver_apply_gravity(AirSolverState* state, double dt, const float* gx_mps2, const float* gy_mps2) {
+    S(state)->apply_gravity(dt, gx_mps2, gy_mps2);
 }
 void air_solver_set_boundary_walls(AirSolverState* state) {
     S(state)->set_boundary_walls();

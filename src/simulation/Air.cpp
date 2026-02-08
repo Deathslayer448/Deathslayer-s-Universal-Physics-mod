@@ -265,7 +265,7 @@ void Air::update_air(void)
 		}
 		rusanovSolver.sync_from_sim(sim, *this);
 		{ static bool once = false; if (!once) { std::fprintf(stderr, "[AIR] update_air: Rusanov path active (run from terminal to see logs)\n"); std::fflush(stderr); once = true; } }
-		rusanovSolver.step(frame_dt, airSolverStepsPerFrame);
+		rusanovSolver.step(sim, frame_dt, airSolverStepsPerFrame);
 		rusanovSolver.sync_to_sim(sim, *this);
 		if (enablePressureBreak)
 			UpdatePressureBreakEnergy((float)frame_dt);
