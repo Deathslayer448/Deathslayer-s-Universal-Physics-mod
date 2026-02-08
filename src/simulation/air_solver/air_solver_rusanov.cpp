@@ -34,6 +34,9 @@ const double rho_vacuum_max = 1e-4;
 // Physics: KE per volume = 0.5 (momentum)²/ρ, so same momentum → KE ∝ 1/ρ; near-vacuum has few particles,
 // so we must use mass_flux × u_donor (donor state) not full Rusanov, or E_air blows up at low pressure.
 const double rho_receiver_donor = 0.5;   // kg/m³; ~0.2 kPa @ 300 K; any flux into lower density uses donor
+// When receiver is very low density, cap donor velocity we transfer so we don't get 389 mJ at 0.1 kPa.
+const double rho_receiver_cap_v = 0.1;   // kg/m³; below this, cap transferred velocity
+const double donor_v_max_over_c = 12.0;  // max donor |u| we transfer into very low-ρ = this × c_donor
 // Minimum allowed internal energy per unit mass used only for validity checks / flux caps.
 // Keep this very small so VAC can still produce (near) 0 kPa without triggering floors.
 const double e_min = 1e-6;
@@ -253,13 +256,35 @@ struct State {
                 F[1] -= (p_avg - p_lim);
             }
             if (F[0] > 0.0 && (rR < rL || rR < rho_receiver_donor)) {
-                F[1] = F[0] * uxL;
-                F[2] = F[0] * uyL;
-                F[3] = F[0] * (EL / std::max(rL, rho_min));
+                double ux = uxL, uy = uyL;
+                double e_int_donor = EL / std::max(rL, rho_min) - 0.5 * (uxL*uxL + uyL*uyL);
+                double c_donor = sound_speed(rL, pL);
+                if (rR < rho_receiver_cap_v && c_donor > 1e-12) {
+                    double v_donor = std::sqrt(uxL*uxL + uyL*uyL);
+                    double v_cap = donor_v_max_over_c * c_donor;
+                    if (v_donor > v_cap) {
+                        double s = v_cap / v_donor;
+                        ux *= s; uy *= s;
+                    }
+                }
+                F[1] = F[0] * ux;
+                F[2] = F[0] * uy;
+                F[3] = F[0] * (e_int_donor + 0.5 * (ux*ux + uy*uy));
             } else if (F[0] < 0.0 && (rL < rR || rL < rho_receiver_donor)) {
-                F[1] = F[0] * uxR;
-                F[2] = F[0] * uyR;
-                F[3] = F[0] * (ER / std::max(rR, rho_min));
+                double ux = uxR, uy = uyR;
+                double e_int_donor = ER / std::max(rR, rho_min) - 0.5 * (uxR*uxR + uyR*uyR);
+                double c_donor = sound_speed(rR, pR);
+                if (rL < rho_receiver_cap_v && c_donor > 1e-12) {
+                    double v_donor = std::sqrt(uxR*uxR + uyR*uyR);
+                    double v_cap = donor_v_max_over_c * c_donor;
+                    if (v_donor > v_cap) {
+                        double s = v_cap / v_donor;
+                        ux *= s; uy *= s;
+                    }
+                }
+                F[1] = F[0] * ux;
+                F[2] = F[0] * uy;
+                F[3] = F[0] * (e_int_donor + 0.5 * (ux*ux + uy*uy));
             }
         }
     }
@@ -308,13 +333,29 @@ struct State {
                 G[2] -= (p_avg - p_lim);
             }
             if (G[0] > 0.0 && (rR < rL || rR < rho_receiver_donor)) {
-                G[1] = G[0] * uxL;
-                G[2] = G[0] * uyL;
-                G[3] = G[0] * (EL / std::max(rL, rho_min));
+                double ux = uxL, uy = uyL;
+                double e_int_donor = EL / std::max(rL, rho_min) - 0.5 * (uxL*uxL + uyL*uyL);
+                double c_donor = sound_speed(rL, pL);
+                if (rR < rho_receiver_cap_v && c_donor > 1e-12) {
+                    double v_donor = std::sqrt(uxL*uxL + uyL*uyL);
+                    double v_cap = donor_v_max_over_c * c_donor;
+                    if (v_donor > v_cap) { double s = v_cap / v_donor; ux *= s; uy *= s; }
+                }
+                G[1] = G[0] * ux;
+                G[2] = G[0] * uy;
+                G[3] = G[0] * (e_int_donor + 0.5 * (ux*ux + uy*uy));
             } else if (G[0] < 0.0 && (rL < rR || rL < rho_receiver_donor)) {
-                G[1] = G[0] * uxR;
-                G[2] = G[0] * uyR;
-                G[3] = G[0] * (ER / std::max(rR, rho_min));
+                double ux = uxR, uy = uyR;
+                double e_int_donor = ER / std::max(rR, rho_min) - 0.5 * (uxR*uxR + uyR*uyR);
+                double c_donor = sound_speed(rR, pR);
+                if (rL < rho_receiver_cap_v && c_donor > 1e-12) {
+                    double v_donor = std::sqrt(uxR*uxR + uyR*uyR);
+                    double v_cap = donor_v_max_over_c * c_donor;
+                    if (v_donor > v_cap) { double s = v_cap / v_donor; ux *= s; uy *= s; }
+                }
+                G[1] = G[0] * ux;
+                G[2] = G[0] * uy;
+                G[3] = G[0] * (e_int_donor + 0.5 * (ux*ux + uy*uy));
             }
         }
     }
