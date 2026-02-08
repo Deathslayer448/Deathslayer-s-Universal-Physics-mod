@@ -933,6 +933,9 @@ void Renderer::draw_air()
 		return;
 	if(!(displayMode & DISPLAY_AIR))
 		return;
+	stats.airNormPressureValid = false;
+	stats.airNormViscosityValid = false;
+	stats.airNormVelocityValid = false;
 	int x, y, i, j;
 	auto *pv = sim->pv;
 	auto *hv = sim->hv;
@@ -965,6 +968,16 @@ void Renderer::draw_air()
 		std::sort(idx.begin(), idx.end(), [&mag_cell](int a, int b) { return mag_cell[a] < mag_cell[b]; });
 		for (int i = 0; i < NCELL; i++)
 			vel_t[idx[i]] = (NCELL > 1) ? ((float)i / (float)(NCELL - 1)) : 0.0f;
+		if (displayMode & DISPLAY_AIRVN) {
+			float v_min = mag_cell[0], v_max = mag_cell[0];
+			for (int i = 1; i < NCELL; i++) {
+				if (mag_cell[i] < v_min) v_min = mag_cell[i];
+				if (mag_cell[i] > v_max) v_max = mag_cell[i];
+			}
+			stats.airNormVelocityMin = v_min;
+			stats.airNormVelocityMax = v_max;
+			stats.airNormVelocityValid = true;
+		}
 	}
 
 	// Rank-based pressure for normalized view (same idea as vel_t: rank by value, then same blue/black/red logic)
@@ -1004,36 +1017,25 @@ void Renderer::draw_air()
 					pressure_rank[idx[j]] = mid_rank;
 			}
 		}
+		stats.airNormPressureMin = p_min / 1000.0f;
+		stats.airNormPressureMax = p_max / 1000.0f;
+		stats.airNormPressureValid = true;
 	}
 
-	// Rank-based density for normalized view (same blue/black/red logic as pressure).
-	std::vector<float> density_rank(NCELL, 0.5f);
-	if ((displayMode & DISPLAY_AIRRHO) && rho) {
-		std::vector<int> idx(NCELL);
-		for (int i = 0; i < NCELL; i++) idx[i] = i;
-		std::sort(idx.begin(), idx.end(), [rho](int a, int b) {
-			int ay = a / XCELLS, ax = a % XCELLS;
-			int by = b / XCELLS, bx = b % XCELLS;
-			float ra = rho[ay][ax], rb = rho[by][bx];
-			if (ra != rb) return ra < rb;
-			return a < b;
-		});
-		int i = 0;
-		while (i < NCELL) {
-			int i_start = i;
-			float r_run = rho[idx[i] / XCELLS][idx[i] % XCELLS];
-			while (i < NCELL && rho[idx[i] / XCELLS][idx[i] % XCELLS] == r_run)
-				i++;
-			int i_end = i - 1;
-			float mid_rank = (NCELL > 1) ? (0.5f * (float)(i_start + i_end) / (float)(NCELL - 1)) : 0.5f;
-			for (int j = i_start; j <= i_end; j++)
-				density_rank[idx[j]] = mid_rank;
-		}
-	}
-
-	// Rank-based kinematic viscosity (nu ∝ 1/ρ) for normalized view.
+	// Rank-based kinematic viscosity (nu = μ/ρ) for normalized view.
 	std::vector<float> viscosity_rank(NCELL, 0.5f);
 	if ((displayMode & DISPLAY_AIRVIS) && rho) {
+		float rho_min_map = rho[0][0], rho_max_map = rho[0][0];
+		for (int i = 0; i < NCELL; i++) {
+			float r = std::max(rho[i / XCELLS][i % XCELLS], 1e-6f);
+			if (r < rho_min_map) rho_min_map = r;
+			if (r > rho_max_map) rho_max_map = r;
+		}
+		// ν = μ/ρ with μ ≈ 1.8e-5 Pa·s (air); store ν in m²/s for status line.
+		const float mu_air = 1.8e-5f;
+		stats.airNormViscosityMin = mu_air / rho_max_map;
+		stats.airNormViscosityMax = mu_air / rho_min_map;
+		stats.airNormViscosityValid = true;
 		std::vector<int> idx(NCELL);
 		for (int i = 0; i < NCELL; i++) idx[i] = i;
 		// Rank by 1/rho (high nu = low rho = blue end, low nu = high rho = red end).
@@ -1155,37 +1157,6 @@ void Renderer::draw_air()
 					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
 				} else {
 					c = RGB(0, 0, 0);  // middle rank = black
-				}
-			}
-			else if (displayMode & DISPLAY_AIRRHO)
-			{
-				float rank = density_rank[y * XCELLS + x];
-				const float rank_center = 0.5f;
-				const float rank_half_scale = 0.5f;
-				const float rank_black_eps = 0.01f;
-				float delta_rank = rank - rank_center;
-				if (delta_rank < -rank_black_eps) {
-					float t_local = -delta_rank / rank_half_scale;
-					if (t_local > 1.0f) t_local = 1.0f;
-					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
-					if (sat > 255) sat = 255;
-					int val = 140 + (int)(t_local * 80.0f + 0.5f);
-					if (val > 255) val = 255;
-					int r_, g_, b_;
-					HSV_to_RGB(240, sat, val, &r_, &g_, &b_);
-					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
-				} else if (delta_rank > rank_black_eps) {
-					float t_local = delta_rank / rank_half_scale;
-					if (t_local > 1.0f) t_local = 1.0f;
-					int sat = 140 + (int)(t_local * 115.0f + 0.5f);
-					if (sat > 255) sat = 255;
-					int val = 140 + (int)(t_local * 80.0f + 0.5f);
-					if (val > 255) val = 255;
-					int r_, g_, b_;
-					HSV_to_RGB(0, sat, val, &r_, &g_, &b_);
-					c = RGB((unsigned char)r_, (unsigned char)g_, (unsigned char)b_);
-				} else {
-					c = RGB(0, 0, 0);
 				}
 			}
 			else if (displayMode & DISPLAY_AIRVIS)

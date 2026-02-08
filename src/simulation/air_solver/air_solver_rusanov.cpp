@@ -51,7 +51,14 @@ const double p_max_solver = 1e7;      // 10k kPa max so insane pressures never p
 const double rho_vacuum = 0.01;
 // CFL = 0.35: sound travels at most 0.35 cells per step when u=0 (dt = CFL*dx/c). In game terms: speed of sound = CFL cells/step.
 const double CFL = 0.35;
-const double mu = 1.8e-5;             // dynamic viscosity Pa·s (air ~300 K)
+// Sutherland's law for air: μ(T) = μ_ref * (T/T_ref)^(3/2) * (T_ref + S)/(T + S). Real air: T_ref=300 K, μ_ref=1.8e-5 Pa·s, S=110.4 K.
+const double mu_ref = 1.8e-5;         // Pa·s at T_ref
+const double T_ref = 300.0;           // K
+const double S_sutherland = 110.4;   // K (Sutherland constant for air)
+inline double mu_from_T(double T) {
+	T = std::max(1.0, std::min(5000.0, T));  // clamp so μ stays bounded
+	return mu_ref * std::pow(T / T_ref, 1.5) * (T_ref + S_sutherland) / (T + S_sutherland);
+}
 
 // U = [rho, rho*u, rho*v, E]; E = rho*e + 0.5*rho*(u^2+v^2). Store as 4 matrices U0[l][iy][ix].
 using Mat2 = std::vector<std::vector<double>>;
@@ -388,9 +395,9 @@ struct State {
         return (lam > 1e-12) ? lam : 1.0;
     }
 
-    // Diffusion limit (viscous only): dt < 0.25*dx² / (μ/ρ)
+    // Diffusion limit (viscous only): dt < 0.25*dx² / (μ/ρ). Use μ_ref so step size isn't reduced by hot μ(T).
     double max_diffusion_dt() const {
-        double nu_max = mu / rho_min;
+        double nu_max = mu_ref / rho_min;
         return 0.25 * dx * dx / std::max(nu_max, 1e-30);
     }
 
@@ -405,6 +412,8 @@ struct State {
                 primitives_from(U, iy, ix, r, ux, uy, e, p);
                 int i = iy * nx + ix;
                 u[i] = ux; v[i] = uy;
+                double T = temperature_from_e(std::max(e, e_min));
+                double mu_cell = mu_from_T(T);
                 int ixp = (ix + 1) % nx, ixm = (ix - 1 + nx) % nx;
                 int iyp = (iy + 1) % ny, iym = (iy - 1 + ny) % ny;
                 double uP = is_wall(iy, ixp) ? -ux : (U[1][iy][ixp] / std::max(U[0][iy][ixp], rho_min));
@@ -420,9 +429,9 @@ struct State {
                 double dudy = (uP - uM) / (2.0 * dx);
                 double dvdy = (vP - vM) / (2.0 * dx);
                 double div = dudx + dvdy;
-                txx[i] = 2.0 * mu * dudx - (2.0/3.0) * mu * div;
-                tyy[i] = 2.0 * mu * dvdy - (2.0/3.0) * mu * div;
-                txy[i] = mu * (dudy + dvdx);
+                txx[i] = 2.0 * mu_cell * dudx - (2.0/3.0) * mu_cell * div;
+                tyy[i] = 2.0 * mu_cell * dvdy - (2.0/3.0) * mu_cell * div;
+                txy[i] = mu_cell * (dudy + dvdx);
                 FE[i] = u[i]*txx[i] + v[i]*txy[i];
                 GE[i] = u[i]*txy[i] + v[i]*tyy[i];
             }

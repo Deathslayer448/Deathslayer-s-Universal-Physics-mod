@@ -1695,18 +1695,6 @@ void GameView::OnKeyPress(int key, int scan, bool repeat, bool shift, bool ctrl,
 			c->SetInfoTip("Pressure (normalized, low focus)");
 		}
 	}
-	else if (shift && key == '5')
-	{
-		// Density (normalized): blue = low, black = mid, red = high
-		if (rendererSettings)
-		{
-			uint32_t displayMode = rendererSettings->displayMode;
-			displayMode &= ~DISPLAY_AIR;
-			displayMode |= DISPLAY_AIRRHO;
-			rendererSettings->displayMode = displayMode;
-			c->SetInfoTip("Density (normalized to map)");
-		}
-	}
 	else if (shift && key == '6')
 	{
 		c->LoadRenderPreset(11);
@@ -2713,6 +2701,18 @@ void GameView::OnDraw()
 			fpsInfo << " H:";
 			format::RenderTemperature(fpsInfo, rendererStats.hdispLimitMax, c->GetTemperatureScale());
 			fpsInfo << "]";
+		}
+		if ((rendererSettings->displayMode & (DISPLAY_AIRPN | DISPLAY_AIRPN_HIGH | DISPLAY_AIRPN_LOW)) && rendererStats.airNormPressureValid)
+		{
+			fpsInfo << " [Pressure L:" << Format::Precision(2) << rendererStats.airNormPressureMin << " H:" << rendererStats.airNormPressureMax << " kPa]";
+		}
+		if ((rendererSettings->displayMode & DISPLAY_AIRVIS) && rendererStats.airNormViscosityValid)
+		{
+			fpsInfo << " [Visc L:" << Format::Precision(2) << (rendererStats.airNormViscosityMin * 1e5f) << " H:" << (rendererStats.airNormViscosityMax * 1e5f) << " e-5 m²/s]";
+		}
+		if ((rendererSettings->displayMode & DISPLAY_AIRVN) && rendererStats.airNormVelocityValid)
+		{
+			fpsInfo << " [Vel L:" << Format::Precision(2) << rendererStats.airNormVelocityMin << " H:" << rendererStats.airNormVelocityMax << " m/s]";
 		}
 		if (c->GetReplaceModeFlags()&REPLACE_MODE)
 			fpsInfo << " [REPLACE MODE]";
