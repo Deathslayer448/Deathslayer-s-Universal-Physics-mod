@@ -938,26 +938,35 @@ void Air::ApproximateBlockAirMaps()
 {
 	auto &sd = SimulationData::CRef();
 	auto &elements = sd.elements;
+	// Particle blocks air only when PROP_BLOCKAIR and more than 2 particles in that cell. Set as soon as count > 2 (short-circuit).
+	static std::vector<unsigned char> blockAirCount;
+	blockAirCount.resize(NCELL);
+	std::fill(blockAirCount.begin(), blockAirCount.end(), 0);
 	for (int i = 0; i < sim.parts.active; i++)
 	{
 		int type = sim.parts[i].type;
 		if (!type)
 			continue;
+		int cx = (int)(sim.parts[i].x + 0.5f) / CELL, cy = (int)(sim.parts[i].y + 0.5f) / CELL;
+		if (cy < 0 || cy >= YCELLS || cx < 0 || cx >= XCELLS)
+			continue;
 		if (elements[type].Properties & PROP_BLOCKAIR)
 		{
-			int x = ((int)(sim.parts[i].x+0.5f))/CELL, y = ((int)(sim.parts[i].y+0.5f))/CELL;
-			if (InBounds(x, y))
+			unsigned char &c = blockAirCount[cy * XCELLS + cx];
+			if (c <= 2)
 			{
-				bmap_blockair[y][x] = 1;
-				bmap_blockairh[y][x] = 0x8;
+				c++;
+				if (c > 2)
+				{
+					bmap_blockair[cy][cx] = 1;
+					bmap_blockairh[cy][cx] = 0x8;
+				}
 			}
 		}
-		// mostly accurate insulator blocking, besides checking GEL
-		else if (sd.IsHeatInsulator(sim.parts[i]) || elements[type].HeatConduct <= (sim.rng()%250))
+		else if (sd.IsHeatInsulator(sim.parts[i]))
 		{
-			int x = ((int)(sim.parts[i].x+0.5f))/CELL, y = ((int)(sim.parts[i].y+0.5f))/CELL;
-			if (InBounds(x, y) && !(bmap_blockairh[y][x]&0x8))
-				bmap_blockairh[y][x]++;
+			if (!(bmap_blockairh[cy][cx] & 0x8))
+				bmap_blockairh[cy][cx]++;
 		}
 	}
 }
