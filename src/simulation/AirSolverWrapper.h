@@ -49,5 +49,8 @@ public:
 	/** Set uniform rest state (e.g. 1 atm, ambient temp). */
 	void set_uniform(double rho_kg_m3, double ux_mps, double uy_mps, double p_pa);
 
+	/** Copy wall heat lost (J/m per unit depth) to out[row-major]. Call after step(); use to cool particles. */
+	void get_wall_heat_lost(float* out);
+
 	bool has_state() const { return state != nullptr; }
 };

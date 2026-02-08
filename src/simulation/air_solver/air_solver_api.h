@@ -17,10 +17,10 @@ AirSolverState* air_solver_create(int ny, int nx, double dx);
 
 void air_solver_destroy(AirSolverState* state);
 
-/** Copy TPT arrays into solver. pv,vx,vy,rho,wall row-major; wall[i]!=0 means solid. hv = air temp (K); if non-null, used to set internal energy so air temp affects pressure (Phase 2.4). */
+/** Copy TPT arrays into solver. pv,vx,vy,rho,wall row-major; wall[i]!=0 means solid. hv = air temp (K). wall_blocks_heat: row-major; non-zero = actual wall (adiabatic); only wall cells that are not actual walls (e.g. TTAN) get convective heat transfer. Pass nullptr to treat all walls as adiabatic. */
 void air_solver_sync_from_tpt(AirSolverState* state,
     const float* pv, const float* vx, const float* vy, const float* rho, const unsigned char* wall,
-    const float* hv, float game_vel_scale);
+    const float* hv, float game_vel_scale, const unsigned char* wall_blocks_heat);
 
 /** Copy solver primitives to TPT arrays (pv, vx, vy, hv, rho row-major). */
 void air_solver_sync_to_tpt(AirSolverState* state,
@@ -41,6 +41,9 @@ void air_solver_set_boundary_mode(AirSolverState* state, int edgeMode, double am
 
 /** Set uniform rest state: rho (kg/m³), ux, uy (m/s), p (Pa). */
 void air_solver_set_uniform(AirSolverState* state, double rho, double ux, double uy, double p);
+
+/** Copy wall heat lost (J/m per unit depth) to out[row-major]. Call after apply_heat_diffusion; use to cool particles. */
+void air_solver_get_wall_heat_lost(AirSolverState* state, float* out);
 
 #ifdef __cplusplus
 }

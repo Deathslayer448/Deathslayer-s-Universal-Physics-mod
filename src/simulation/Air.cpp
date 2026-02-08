@@ -1,11 +1,14 @@
 #include "Air.h"
 #include "Simulation.h"
 #include "ElementClasses.h"
+#include "ElementDefs.h"
+#include "Misc.h"
 #include "common/tpt-rand.h"
 #include "AirSolverWrapper.h"
 #include <cmath>
 #include <algorithm>
 #include <cstdio>
+#include <vector>
 
 void Air::make_kernel(void) //used for velocity
 {
@@ -248,10 +251,60 @@ void Air::update_air(void)
 		// Loop = periodic wrap. Void = open (leak). Solid = reflective only where bmap_blockair is set (from sync).
 		// Open boundary ghost must be low pressure so pressure actually leaks; use 1 kPa so void always drains.
 		rusanovSolver.set_boundary_mode(sim.edgeMode, 1000.0);
+		// So heat diffusion gets current-frame temps: set hv for wall cells from particle temps (e.g. hot TTAN).
+		// Particle heat transfer runs after update_air, so without this, sync would only see last frame's hv for walls.
+		for (int i = 0; i < sim.parts.active; i++) {
+			if (!sim.parts[i].type) continue;
+			int cx = (int)(sim.parts[i].x + 0.5f) / CELL;
+			int cy = (int)(sim.parts[i].y + 0.5f) / CELL;
+			if (cy >= 0 && cy < YCELLS && cx >= 0 && cx < XCELLS && bmap_blockair[cy][cx]) {
+				float T = sim.parts[i].temp;
+				if (T >= 1.0f && T <= MAX_TEMP) sim.hv[cy][cx] = T;
+			}
+		}
 		rusanovSolver.sync_from_sim(sim, *this);
 		{ static bool once = false; if (!once) { std::fprintf(stderr, "[AIR] update_air: Rusanov path active (run from terminal to see logs)\n"); std::fflush(stderr); once = true; } }
 		rusanovSolver.step(frame_dt, airSolverStepsPerFrame);
 		rusanovSolver.sync_to_sim(sim, *this);
+		// Cool particles in wall cells by the heat they transferred to air (real heat capacity).
+		{
+			static std::vector<float> wall_heat_lost;
+			wall_heat_lost.resize(YCELLS * XCELLS);
+			rusanovSolver.get_wall_heat_lost(wall_heat_lost.data());
+			auto &elements = sim.elements();
+			for (int j = 1; j < YCELLS - 1; j++) {
+				for (int i = 1; i < XCELLS - 1; i++) {
+					if (!bmap_blockair[j][i] || sim.bmap[j][i]) continue;  // only particle wall cells
+					float Q = wall_heat_lost[j * XCELLS + i];
+					if (Q <= 0.0f) continue;
+					// Sum heat capacity of all particles in this cell.
+					float hc_total = 0.0f;
+					int count = 0;
+					for (int k = 0; k < sim.parts.active; k++) {
+						if (!sim.parts[k].type) continue;
+						int cx = (int)(sim.parts[k].x + 0.5f) / CELL;
+						int cy = (int)(sim.parts[k].y + 0.5f) / CELL;
+						if (cy != j || cx != i) continue;
+						float hc = (elements[sim.parts[k].type].HeatCapacity > 0.0f) ? elements[sim.parts[k].type].HeatCapacity : DEFAULT_PARTICLE_HEAT_CAPACITY;
+						hc_total += hc;
+						count++;
+					}
+					if (hc_total <= 0.0f || count == 0) continue;
+					// dT = -Q / (total heat capacity); Q in J/m, treat as J (1 m depth).
+					float dT = -Q / std::max(hc_total, 0.1f);
+					float new_hv = sim.hv[j][i] + dT;
+					new_hv = restrict_flt(new_hv, MIN_TEMP, MAX_TEMP);
+					sim.hv[j][i] = new_hv;
+					for (int k = 0; k < sim.parts.active; k++) {
+						if (!sim.parts[k].type) continue;
+						int cx = (int)(sim.parts[k].x + 0.5f) / CELL;
+						int cy = (int)(sim.parts[k].y + 0.5f) / CELL;
+						if (cy != j || cx != i) continue;
+						sim.parts[k].temp = restrict_flt(sim.parts[k].temp + dT, MIN_TEMP, MAX_TEMP);
+					}
+				}
+			}
+		}
 		// Keep wall cells consistent: no velocity, pressure = adjacent (solver doesn't write to walls)
 		for (auto j = 1; j < YCELLS - 1; j++)
 		{

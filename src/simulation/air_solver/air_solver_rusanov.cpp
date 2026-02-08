@@ -63,6 +63,9 @@ struct State {
     double dx;
     std::array<Mat2, 4> U0, U1;
     WallMask wall;  // true = solid (reflective wall), false = fluid. Default all false (periodic).
+    WallMask wall_blocks_heat;  // true = actual wall (adiabatic); false = particle blocking air (convective). Only wall cells matter.
+    Mat2 wall_T;    // T (K) at wall cells for heat diffusion (hot walls like TTAN → fluid)
+    Mat2 wall_heat_lost;  // energy lost from each wall cell (J/m per unit depth) so TPT can cool particles
     int boundary_mode = BoundaryReflective;  // domain boundary: open / reflective / periodic
     double ambient_U[4] = { 0 };             // for open boundary: [rho, 0, 0, E]
 
@@ -73,6 +76,9 @@ struct State {
             U1[l].resize(ny, std::vector<double>(nx, 0.0));
         }
         wall.resize(ny, std::vector<bool>(nx, false));
+        wall_blocks_heat.resize(ny, std::vector<bool>(nx, false));
+        wall_T.resize(ny, std::vector<double>(nx, 300.0));  // default 300 K for heat diffusion from walls
+        wall_heat_lost.resize(ny, std::vector<double>(nx, 0.0));
     }
 
     void set_wall(int iy, int ix, bool w) { if (iy >= 0 && iy < ny && ix >= 0 && ix < nx) wall[iy][ix] = w; }
@@ -442,9 +448,12 @@ struct State {
         }
     }
 
-    // Thermal diffusion (heat.cpp); call after step() with same dt. Adiabatic at walls.
+    // Thermal diffusion (heat.cpp); call after step() with same dt. Adiabatic only at wall_blocks_heat (actual walls).
     void apply_heat_diffusion(double dt) {
-        heat::heat_diffusion_step(ny, nx, dx, dt, U0[0], U0[1], U0[2], U0[3], &wall);
+        for (int iy = 0; iy < ny; iy++)
+            for (int ix = 0; ix < nx; ix++)
+                wall_heat_lost[iy][ix] = 0.0;
+        heat::heat_diffusion_step(ny, nx, dx, dt, U0[0], U0[1], U0[2], U0[3], &wall, &wall_T, &wall_blocks_heat, &wall_heat_lost);
     }
 
     bool state_valid(int* out_iy, int* out_ix, double* out_rho, double* out_e) const {
@@ -804,7 +813,7 @@ void air_solver_destroy(AirSolverState* state) {
 // Ensure stored E is valid: E >= r*e_min + KE so we never inject invalid state (no hidden floors on e).
 void air_solver_sync_from_tpt(AirSolverState* state,
     const float* pv, const float* vx, const float* vy, const float* rho, const unsigned char* wall,
-    const float* hv, float game_vel_scale) {
+    const float* hv, float game_vel_scale, const unsigned char* wall_blocks_heat_ptr) {
     (void)rho;
     State* s = S(state);
     const double T_min_k = 1.0;   // minimum T (K) so e = c_v*T is valid
@@ -813,7 +822,15 @@ void air_solver_sync_from_tpt(AirSolverState* state,
         for (int ix = 0; ix < s->nx; ix++) {
             int i = iy * s->nx + ix;
             s->set_wall(iy, ix, (wall[i] != 0));
-            if (s->is_wall(iy, ix)) continue;
+            // Only actual walls (wall section) block heat; particles (TTAN etc.) allow convective transfer.
+            s->wall_blocks_heat[iy][ix] = (wall[i] != 0) && (wall_blocks_heat_ptr ? (wall_blocks_heat_ptr[i] != 0) : true);
+            if (s->is_wall(iy, ix)) {
+                // Store wall cell air temp so heat diffusion can transfer it to adjacent fluid (e.g. TTAN heats cell, heat flows out).
+                double Tw = (double)hv[i];
+                if (!std::isfinite(Tw) || Tw < 1.0) Tw = 300.0;
+                s->wall_T[iy][ix] = Tw;
+                continue;
+            }
             double T = (double)hv[i];
             double p = (double)pv[i];
             if (!std::isfinite(T) || !std::isfinite(p) || T < T_min_k || p < p_min_rho) {
@@ -902,6 +919,12 @@ void air_solver_set_boundary_mode(AirSolverState* state, int edgeMode, double am
 }
 void air_solver_set_uniform(AirSolverState* state, double rho, double ux, double uy, double p) {
     S(state)->set_uniform(rho, ux, uy, p);
+}
+void air_solver_get_wall_heat_lost(AirSolverState* state, float* out) {
+    const State* s = S(state);
+    for (int iy = 0; iy < s->ny; iy++)
+        for (int ix = 0; ix < s->nx; ix++)
+            out[iy * s->nx + ix] = (float)s->wall_heat_lost[iy][ix];
 }
 
 #else

@@ -38,15 +38,16 @@ void AirSolverWrapper::sync_from_sim(Simulation& sim, Air& air)
 {
 	if (!state)
 		return;
-	// TPT arrays are [y][x]; row-major flat is [iy*nx+ix]. hv = air temp (K) so air temp affects pressure (Phase 2.4).
+	// TPT arrays are [y][x]; row-major flat is [iy*nx+ix]. hv = air temp (K). wall_blocks_heat = bmap so only actual walls (wall section) block heat; particles (TTAN etc.) allow convective transfer.
 	const float* pv = &sim.pv[0][0];
 	const float* vx = &sim.vx[0][0];
 	const float* vy = &sim.vy[0][0];
 	const float* rho = &air.rho[0][0];
 	const unsigned char* wall = &air.bmap_blockair[0][0];
 	const float* hv = &sim.hv[0][0];
+	const unsigned char* wall_blocks_heat = &sim.bmap[0][0];
 	air_solver_sync_from_tpt(static_cast<AirSolverState*>(state),
-		pv, vx, vy, rho, wall, hv, (float)game_vel_scale);
+		pv, vx, vy, rho, wall, hv, (float)game_vel_scale, wall_blocks_heat);
 }
 
 void AirSolverWrapper::sync_to_sim(Simulation& sim, Air& air)
@@ -95,9 +96,19 @@ void AirSolverWrapper::step(double dt_frame, int max_steps)
 		advance += dt;
 		steps++;
 	}
+	// Advance thermal diffusion (incl. wall→fluid) by full frame so transfer is visible; CFL dt alone is too small per frame.
+	double heat_dt = dt_frame - advance;
+	if (heat_dt > 1e-12)
+		air_solver_apply_heat_diffusion(s, heat_dt);
 	// Only warn when we actually had rejects (dt=0); small advance with no rejects is normal when CFL dt is tiny.
 	if (reject > 0 && advance < dt_frame * 0.5)
 		AIR_WRAP_DBG("rejects=%d advance=%.6e (dt_frame=%.6e) => sim crawls\n", reject, advance, dt_frame);
+}
+
+void AirSolverWrapper::get_wall_heat_lost(float* out)
+{
+	if (state && out)
+		air_solver_get_wall_heat_lost(static_cast<AirSolverState*>(state), out);
 }
 
 void AirSolverWrapper::set_boundary_walls()

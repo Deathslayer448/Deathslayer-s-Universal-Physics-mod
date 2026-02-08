@@ -4,6 +4,17 @@ Replace TPT’s current air, pressure, and temperature systems with the AirSolve
 
 ---
 
+## 0. Progress summary (what's done)
+
+- **Phase 1 – Prep:** Done. Solver in `src/simulation/air_solver/` (air_solver_rusanov.cpp, heat.cpp, heat.hpp, air_solver_api.h); wrapper in `AirSolverWrapper.cpp/h`; sync_from_sim / sync_to_sim / step / set_boundary_mode / set_uniform; build wired.
+- **Phase 2 – Replace air evolution:** Done. `Air::update_air()` uses Rusanov path: ensure_created → set_boundary_mode(edgeMode, 1 kPa for void) → sync_from_sim → step(frame_dt, airSolverStepsPerFrame) → sync_to_sim; wall cells get v=0 and p from neighbor after sync. `Air::update_airh()` no-op when solver has state. Clear() uses useAtmosphericPressure (101325 vs 1000 Pa baseline).
+- **Boundary:** Void = open (ghost 1 kPa so pressure leaks); Loop = periodic; Solid = reflective only where bmap_blockair (from sync). No per-frame edge overwrite to P_atm.
+- **Solver stability / vacuum:** No pressure floor; p_max cap only (clamp_p_max_only). Vacuum interface: Rusanov with s_max floor (c_dense); large density ratio: pressure term min(p_L,p_R), donor-state flux when flux into low-ρ (rho_receiver_donor); cap donor velocity into very low-ρ (rho_receiver_cap_v, donor_v_max_over_c); no viscous momentum into low-ρ; sync_from_tpt soft cap on velocity for low-p cells.
+- **Options / display:** Pressure unit default kPa; "Pressure in kPa" and atmospheric in Solver and air; Shift+2 = normalized pressure, Shift+3 = high focus, Shift+4 = low focus.
+- **Remaining:** Phase 4 cleanup (remove dead legacy air code, repurpose constants); optional: gravity in solver, particle→solver source terms, open BC tuning.
+
+---
+
 ## 1. What TPT Has Today (Inventory)
 
 ### 1.1 Data (where it lives)
@@ -99,7 +110,7 @@ So: **strip** the *evolution* of pv, vx, vy, hv, rho from Air.cpp and replace wi
 
 ## 3. Phased replacement plan
 
-### Phase 1 – Prep (no behavior change)
+### Phase 1 – Prep (no behavior change) — DONE
 
 1. **Add solver to build**  
    - Copy or submodule AirSolverRusanov (air_solver_rusanov.cpp, heat.cpp, heat.hpp) into TPT (e.g. `src/simulation/` or a dedicated folder).  
@@ -116,7 +127,7 @@ So: **strip** the *evolution* of pv, vx, vy, hv, rho from Air.cpp and replace wi
 3. **Document current call graph**  
    - List every read of `pv`, `vx`, `vy`, `hv`, `rho` outside Air.cpp (elements, tools, renderer, Lua). So we know what “contract” the new system must satisfy (same grid, same meaning of pv/vx/vy/hv/rho).
 
-### Phase 2 – Replace air evolution only
+### Phase 2 – Replace air evolution only — DONE
 
 4. **Switch Air.cpp to solver**  
    - In `Air::update_air()`:
@@ -135,7 +146,7 @@ So: **strip** the *evolution* of pv, vx, vy, hv, rho from Air.cpp and replace wi
    - Run with solver only: no explosions, no NaNs; pressure and velocity look reasonable; hv (air temp) is updated by solver.  
    - Compare with old code in a side-by-side branch if useful, but goal is to fully switch.
 
-### Phase 3 – Particle–air coupling (unchanged contract)
+### Phase 3 – Particle–air coupling (unchanged contract) — DONE
 
 7. **Particle heat transfer**  
    - Simulation.cpp heat transfer already uses `hv[y/CELL][x/CELL]` and `parts[i].temp`. After Phase 2, hv is solver T, so this remains “particle temp ↔ air temp” with no API change.  
@@ -145,18 +156,19 @@ So: **strip** the *evolution* of pv, vx, vy, hv, rho from Air.cpp and replace wi
    - Any code that reads `sim.vx`/`sim.vy` for drag/wind now reads solver velocity; no change needed except to ensure sync_to_sim runs before particle updates.  
    - Optional later: add momentum/energy source terms from particles to solver (so particles push the air).
 
-### Phase 4 – Cleanup and tuning
+### Phase 4 – Cleanup and tuning — REMAINING
 
 9. **Remove dead code**  
-   - Delete old update_air pressure/velocity loops and any unused temporaries (ovx, ovy, opv, ohv can stay if still used for something, or be removed).  
-   - Keep vorticity, kernel, ApproximateBlockAirMaps, etc. only if still used.
+   - [ ] Delete or keep behind flag the `#if 0` legacy update_air block in Air.cpp.  
+   - [ ] Remove or repurpose ovx, ovy, opv, ohv if unused when solver is always on.  
+   - [ ] Keep vorticity, kernel, ApproximateBlockAirMaps only if still used.
 
 10. **Constants**  
-    - Drop or repurpose AIR_TSTEPP, AIR_TSTEPV, etc. for the solver path; solver uses CFL and diffusion limit.  
+    - [ ] Repurpose or document AIR_TSTEPP, AIR_TSTEPV, etc. for solver path (solver uses CFL + diffusion limit).  
     - Keep ambientAirTemp, P_atm (101325), R, and any display/options (e.g. useAtmosphericPressure) as-is.
 
 11. **Performance**  
-    - Profile one frame; if solver is too costly, consider fewer substeps per frame or a smaller effective CFL, or optional “simple air” mode that skips solver for low-end devices (future).
+    - [ ] Profile one frame; tune airSolverStepsPerFrame or CFL if needed; simple-air mode later.
 
 ---
 
@@ -201,12 +213,12 @@ So: **doable.** Integrate, profile, then tune (substeps per frame, CFL) only if 
 
 ## 7. File-level checklist
 
-- [ ] **Add:** AirSolverRusanov sources (or submodule) + wrapper class.
-- [ ] **Modify:** Air.cpp — replace update_air body with solver sync → step → sync; make update_airh no-op or remove when solver active.
-- [ ] **Modify:** Air.h — keep pv, vx, vy, hv, rho, bmap_blockair; remove or repurpose ovx, ovy, opv, ohv if unused.
-- [ ] **Modify:** Simulation.cpp — keep call order (update_air then update_airh); no change to particle heat transfer logic.
-- [ ] **Keep:** SimulationConfig.h CELL, XCELLS, YCELLS; ambientAirTemp, 101325 in Air.cpp and options.
-- [ ] **Keep:** All reads of pv, vx, vy, hv, rho in elements/tools/renderer; they now get solver output.
+- [x] **Add:** AirSolverRusanov sources + wrapper (AirSolverWrapper).
+- [x] **Modify:** Air.cpp — update_air uses solver sync → step → sync; update_airh no-op when solver active.
+- [ ] **Modify:** Air.h — keep pv, vx, vy, hv, rho, bmap_blockair; remove or repurpose ovx, ovy, opv, ohv if unused (Phase 4).
+- [x] **Modify:** Simulation.cpp — call order (update_air then update_airh) unchanged; particle heat transfer unchanged.
+- [x] **Keep:** SimulationConfig.h CELL, XCELLS, YCELLS; ambientAirTemp, 101325, useAtmosphericPressure in Air and options.
+- [x] **Keep:** All reads of pv, vx, vy, hv, rho in elements/tools/renderer; they get solver output.
 - [ ] **Later:** Gravity in solver; particle → solver momentum/energy source terms; open boundaries.
 
 This plan strips TPT’s custom air/pressure/temperature evolution and replaces it with the single AirSolverRusanov-based system while keeping particle systems and their coupling points unchanged. TPT temperature (no heat capacity, simple diffusion) is replaced by our system with heat capacity and k∇²T; particle–air coupling can use air heat capacity (ρ·c_v·V_cell) for energy-conserving exchange. Performance: doable (O(N), ~15k cells, a few substeps per frame); profile and tune if needed.
