@@ -230,15 +230,21 @@ struct State {
         double sL = std::abs(uxL) + sound_speed(rL, pL);
         double sR = std::abs(uxR) + sound_speed(rR, pR);
         double s_max = std::max(sL, sR);
-        // At vacuum interface: one-sided flux dumps mass+momentum at velocity c → insane KE in low-density cells.
-        // Use Rusanov with a wave-speed floor so numerical diffusion dominates; flux is then consistent with
-        // neighbor state (velocity ~ u_neighbor, not c) and we avoid checkerboard / 600 MJ in 0.1 kPa cells.
         if (rL < rho_vacuum || rR < rho_vacuum) {
             double c_dense = (rL >= rR) ? sound_speed(rL, pL) : sound_speed(rR, pR);
             s_max = std::max(s_max, c_dense);
         }
         for (int l = 0; l < 4; l++)
             F[l] = 0.5 * (FL[l] + FR[l]) - 0.5 * s_max * (UR[l] - UL[l]);
+        // At large density ratio, 0.5*(p_L+p_R) dumps huge momentum into the low-density side (a = (1/rho)*grad p).
+        // Use min(p_L,p_R) for the pressure term so we don't accelerate low-density cells to 14 km/s.
+        double r_max = std::max(rL, rR);
+        double r_min = std::min(rL, rR);
+        if (r_max > 1e-6 && r_min / r_max < 0.1) {
+            double p_avg = 0.5 * (pL + pR);
+            double p_lim = std::min(pL, pR);
+            F[1] -= (p_avg - p_lim);  // replace pressure contribution in x-momentum flux
+        }
     }
 
     void rusanov_y(int iyL, int iyR, int ix, double G[4]) const {
@@ -273,6 +279,13 @@ struct State {
         }
         for (int l = 0; l < 4; l++)
             G[l] = 0.5 * (GL[l] + GR[l]) - 0.5 * s_max * (UR[l] - UL[l]);
+        double r_max = std::max(rL, rR);
+        double r_min = std::min(rL, rR);
+        if (r_max > 1e-6 && r_min / r_max < 0.1) {
+            double p_avg = 0.5 * (pL + pR);
+            double p_lim = std::min(pL, pR);
+            G[2] -= (p_avg - p_lim);  // replace pressure contribution in y-momentum flux
+        }
     }
 
     // CFL: lam = max over cells of (|u| + c). Cap so one runaway cell doesn't collapse dt; floor so we always advance.
