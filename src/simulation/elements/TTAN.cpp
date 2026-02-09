@@ -28,6 +28,9 @@ void Element::Element_TTAN()
 
 	Weight = 100;
 
+	// Volumetric heat capacity per particle in J/K (Titanium ~520 J/(kg·K) for ~1 g equivalent).
+	HeatCapacity = 0.52f;
+
 	HeatConduct = 251;
 	Description = "Titanium. Higher melting temperature than most other metals, blocks all air pressure.";
 

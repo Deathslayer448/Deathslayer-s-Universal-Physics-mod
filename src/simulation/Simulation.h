@@ -83,13 +83,15 @@ public:
 	}
 };
 
-struct RenderableSimulation
+	struct RenderableSimulation
 {
 	GravityInput gravIn;
 	GravityOutput gravOut; // invariant: when grav is empty, this is in its default-constructed state
 	GravityOutput gravDisplay; // combined gravity (vertical/radial/custom + Newtonian) for gravity grid view
 	bool gravForceRecalc = true;
 	std::vector<sign> signs;
+
+	int gravityMode = GRAV_VERTICAL; // GRAV_VERTICAL, GRAV_OFF, GRAV_RADIAL, GRAV_CUSTOM (used by renderer for gravity grid)
 
 	int currentTick = 0;
 	int emp_decor = 0;
@@ -126,6 +128,7 @@ public:
 	RNG rng;
 
 	int replaceModeSelected = 0;
+	// gravityMode is inherited from RenderableSimulation; Simulation uses it for physics and options sync it
 	int replaceModeFlags = 0;
 	int debug_nextToUpdate = 0;
 	int debug_mostRecentlyUpdated = -1; // -1 when between full update loops
@@ -155,7 +158,7 @@ public:
 	unsigned int pmap_count[YRES][XRES];
 
 	int edgeMode = EDGE_VOID;
-	int gravityMode = GRAV_VERTICAL;
+	// gravityMode is in RenderableSimulation (base) so renderer and options can access it
 	float customGravityX = 0;
 	float customGravityY = 0;
 	int legacy_enable = 0;

@@ -12,8 +12,13 @@ constexpr float O_MIN_TEMP = -273;
 constexpr float MAX_PRESSURE = 10000000.0f; // Maximum pressure: 100 atm (10 MPa) in Pascals
 constexpr float MIN_PRESSURE = 0.0f; // Minimum pressure: absolute vacuum (0 Pa)
 
-// Phase 1.3: Default particle heat capacity when element has none or zero (for custom heat transfer).
-constexpr float DEFAULT_PARTICLE_HEAT_CAPACITY = 1.0f;
+// Heat capacity is in J/K (joules per kelvin) per particle — real physics units.
+// Atmosphere (air cells): C_air = ρ·c_v·V_cell is computed in the heat transfer code (SI units).
+// Particle defaults when element has no explicit HeatCapacity:
+constexpr float DEFAULT_GAS_HEAT_CAPACITY_J_PER_K = 0.001f;           // 1 mJ/K — typical for a small gas particle (e.g. ~1 mg air at c_v ≈ 717 J/(kg·K))
+constexpr float DEFAULT_SOLID_LIQUID_HEAT_CAPACITY_J_PER_K = 0.5f;   // 0.5 J/K — typical for solid/liquid particle (e.g. ~1 g at 500 J/(kg·K))
+// Fallback when type is unknown (use solid/liquid default)
+constexpr float DEFAULT_PARTICLE_HEAT_CAPACITY = DEFAULT_SOLID_LIQUID_HEAT_CAPACITY_J_PER_K;
 
 constexpr auto TYPE_PART          = UINT32_C(0x00000001);  //1 Powders
 constexpr auto TYPE_LIQUID        = UINT32_C(0x00000002);  //2 Liquids

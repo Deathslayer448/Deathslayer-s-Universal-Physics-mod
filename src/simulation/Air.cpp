@@ -288,7 +288,11 @@ void Air::update_air(void)
 						int cx = (int)(sim.parts[k].x + 0.5f) / CELL;
 						int cy = (int)(sim.parts[k].y + 0.5f) / CELL;
 						if (cy != j || cx != i) continue;
-						float hc = (elements[sim.parts[k].type].HeatCapacity > 0.0f) ? elements[sim.parts[k].type].HeatCapacity : DEFAULT_PARTICLE_HEAT_CAPACITY;
+						// Heat capacity in J/K: per-particle value or gas/solid default by type
+						int pt = sim.parts[k].type;
+						float hc = (sim.parts[k].heatCapacity > 0.0f) ? sim.parts[k].heatCapacity
+							: ((elements[pt].HeatCapacity > 0.0f) ? elements[pt].HeatCapacity
+							   : ((elements[pt].Properties & TYPE_GAS) ? DEFAULT_GAS_HEAT_CAPACITY_J_PER_K : DEFAULT_SOLID_LIQUID_HEAT_CAPACITY_J_PER_K));
 						hc_total += hc;
 						count++;
 					}

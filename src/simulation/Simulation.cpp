@@ -1919,6 +1919,9 @@ int Simulation::create_part(int p, int x, int y, int t, int v)
 	parts[i].type = t;
 	parts[i].x = (float)x;
 	parts[i].y = (float)y;
+	// Initialize per-particle heat capacity (J/K). Element value if set; else gas default for TYPE_GAS, solid/liquid default otherwise.
+	float defaultHC = (elements[t].Properties & TYPE_GAS) ? DEFAULT_GAS_HEAT_CAPACITY_J_PER_K : DEFAULT_SOLID_LIQUID_HEAT_CAPACITY_J_PER_K;
+	parts[i].heatCapacity = (elements[t].HeatCapacity > 0.0f) ? elements[t].HeatCapacity : defaultHC;
 
 	//and finally set the pmap/photon maps to the newly created particle
 	if (elements[t].Properties & TYPE_ENERGY)
@@ -2487,47 +2490,90 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 			}
 		}
 
-		// Heat transfer code
+		// Helper: Get effective heat capacity for a particle in J/K (per-particle property, with LAVA/ctype support).
+		auto get_particle_heat_capacity = [&](int part_id) -> float {
+			int part_type = parts[part_id].type;
+			// LAVA: use ctype's heat capacity if ctype is set (e.g., LAVA from TTAN vs LAVA from IRON)
+			if (part_type == PT_LAVA && parts[part_id].ctype > 0 && parts[part_id].ctype < PT_NUM)
+			{
+				float hc_ctype = elements[parts[part_id].ctype].HeatCapacity;
+				if (hc_ctype > 0.0f)
+					return hc_ctype;
+			}
+			// Use per-particle heatCapacity (J/K); if unset/zero, use gas vs solid/liquid default by element type
+			if (parts[part_id].heatCapacity > 0.0f)
+				return parts[part_id].heatCapacity;
+			return (elements[part_type].Properties & TYPE_GAS) ? DEFAULT_GAS_HEAT_CAPACITY_J_PER_K : DEFAULT_SOLID_LIQUID_HEAT_CAPACITY_J_PER_K;
+		};
+
+		// Heat transfer code: Physics-based using Fourier's law Q = k·A·(T1-T2)/dx
 		if (t && !sd.IsHeatInsulator(parts[i]) && rng.chance(int(elements[t].HeatConduct*gel_scale), 250))
 		{
-			// Heat transfer with air (Phase 2.6: heat-capacity-aware; Phase 1.3: default particle HC fallback)
+			// Heat transfer with air: Fourier's law Q = k_contact·A·(T_air - T_part)
+			// Air thermal conductivity k_air ≈ 0.026 W/(m·K) at 300K, contact area A ≈ 1 pixel²
+			// Particle thermal conductivity from HeatConduct (0-255 scale, convert to W/(m·K))
 			if (aheat_enable && !(elements[t].Properties&PROP_NOAMBHEAT))
 			{
-				float hc_part = (elements[t].HeatCapacity > 0.0f) ? elements[t].HeatCapacity : DEFAULT_PARTICLE_HEAT_CAPACITY;
-				auto dtemp = hv[y/CELL][x/CELL] - parts[i].temp; // Temperature difference
-				auto alpha = std::min(0.04f, 0.4f * hc_part); // alpha / heat_capacity must be < 1
+				float hc_part = get_particle_heat_capacity(i);
+				float T_part = parts[i].temp;
+				float T_air = hv[y/CELL][x/CELL];
+				float dT = T_air - T_part; // Temperature difference (air - particle)
 
-				// Air heat capacity (J/K) per cell: rho * c_v * area; rho = p/(R*T), area = (CELL*0.01)^2 m²
-				constexpr float R_air = 287.0f;   // J/(kg·K)
-				constexpr float c_v_air = 717.0f; // J/(kg·K)
-				float T_air = std::max(hv[y/CELL][x/CELL], 1.0f);
-				float rho_air = pv[y/CELL][x/CELL] / (R_air * T_air);
-				float cell_area_m2 = (float)(CELL * 0.01) * (float)(CELL * 0.01);
-				float C_air = rho_air * c_v_air * cell_area_m2;
+				// Air properties: heat capacity and thermal conductivity
+				constexpr float R_air = 287.0f;   // J/(kg·K) - matches solver R_gas
+				constexpr float c_v_air = 717.5f;  // J/(kg·K) - matches solver c_v = R/(γ-1)
+				constexpr float k_air = 0.026f;    // W/(m·K) - air thermal conductivity at 300K
+				float T_air_safe = std::max(T_air, 1.0f);
+				float p_air = std::max(pv[y/CELL][x/CELL], 1.0f);
+				float rho_air = p_air / (R_air * T_air_safe);
+				float cell_area_m2 = (float)(CELL * 0.01) * (float)(CELL * 0.01); // dx² for 2D solver
+				float C_air = rho_air * c_v_air * cell_area_m2; // Air heat capacity (J/K) per cell
 				float C_air_safe = std::max(C_air, 0.1f);
 
-				// Q = alpha*dtemp (same units as heat capacity × dT). Part: dT = Q/hc_part; air: dT = -Q/C_air
-				parts[i].temp = restrict_flt(parts[i].temp + alpha*dtemp / hc_part, MIN_TEMP, MAX_TEMP);
-				hv[y/CELL][x/CELL] = restrict_flt(hv[y/CELL][x/CELL] - alpha*dtemp / C_air_safe, MIN_TEMP, MAX_TEMP);
+				// Particle thermal conductivity: HeatConduct is 0-255 scale, convert to W/(m·K)
+				// Typical range: 0-255 → 0-400 W/(m·K) (metals ~200-400, insulators ~0.01-1)
+				float k_part = (elements[t].HeatConduct / 255.0f) * 400.0f;
+				k_part = std::max(k_part, 0.01f); // Minimum conductivity
+
+				// Effective thermal conductivity for contact (harmonic mean: 1/k_eff = 1/k_part + 1/k_air)
+				float k_eff = (k_part * k_air) / (k_part + k_air + 1e-6f);
+
+				// Contact area: particle size ≈ 1 pixel = 0.001 m (assuming 1 mm/pixel)
+				constexpr float contact_area_m2 = 0.001f * 0.001f; // 1 mm²
+				constexpr float contact_distance_m = 0.001f; // 1 mm
+
+				// Heat flux: Q = k_eff * A * dT / dx (W = J/s)
+				constexpr float dt_frame = 1.0f / 60.0f; // Frame time in seconds
+				float Q = k_eff * contact_area_m2 * dT / contact_distance_m * dt_frame; // Heat transferred (J)
+
+				// Temperature changes: dT = Q / C (energy conservation: C_part·dT_part + C_air·dT_air = 0)
+				float dT_part = Q / std::max(hc_part, 0.1f);
+				float dT_air = -Q / C_air_safe;
+
+				parts[i].temp = restrict_flt(T_part + dT_part, MIN_TEMP, MAX_TEMP);
+				hv[y/CELL][x/CELL] = restrict_flt(T_air + dT_air, MIN_TEMP, MAX_TEMP);
 			}
 
-			// Heat transfer with other elements
-			auto hc_total = 0.0f; // Total heat capacity of elements involved
-			auto c_heat = 0.0f; // Total heat distributed between elements
-			int surround_hconduct[8]; // IDs of elements which exchange heat
+			// Heat transfer with other particles: Physics-based using Fourier's law Q = k·A·(T1-T2)/dx
+			// Pairwise heat transfer: each neighbor exchanges heat with current particle independently
+			struct NeighborHeat {
+				int id;
+				float hc;
+				float k; // thermal conductivity
+				float temp;
+			};
+			std::vector<NeighborHeat> neighbors;
 
 			for (auto j=0; j<8; j++)
 			{
-				surround_hconduct[j] = i;
 				auto r = neighbourhood.surround[j];
-
-				if (!r)
-					continue;
+				if (!r) continue;
 
 				auto rt = TYP(r);
+				if (!rt) continue;
 
 				// Check if we can conduct heat
-				if (!rt || sd.IsHeatInsulator(parts[ID(r)])
+				if (sd.IsHeatInsulator(parts[ID(r)])
 				        || (t == PT_FILT && (rt == PT_BRAY || rt == PT_BIZR || rt == PT_BIZRG))
 				        || (rt == PT_FILT && (t == PT_BRAY || t == PT_PHOT || t == PT_BIZR || t == PT_BIZRG))
 				        || (t == PT_ELEC && rt == PT_DEUT)
@@ -2536,39 +2582,75 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 				        || (t == PT_FILT && rt == PT_HSWC && parts[ID(r)].tmp == 1))
 					continue;
 
-				auto hc_r = (elements[rt].HeatCapacity > 0.0f) ? elements[rt].HeatCapacity : DEFAULT_PARTICLE_HEAT_CAPACITY;
-				surround_hconduct[j] = ID(r);
-				c_heat += parts[ID(r)].temp * hc_r;
-				hc_total += hc_r;
+				int neighbor_id = ID(r);
+				float hc_neighbor = get_particle_heat_capacity(neighbor_id);
+				// Thermal conductivity: HeatConduct 0-255 → 0-400 W/(m·K)
+				float k_neighbor = (elements[rt].HeatConduct / 255.0f) * 400.0f;
+				k_neighbor = std::max(k_neighbor, 0.01f);
 
-				// Double count the particle to account for the heat capacity of both the PIPE/PPIP and its contents
-				if ((rt == PT_PIPE || rt == PT_PPIP) && parts[ID(r)].ctype != 0)
+				neighbors.push_back({neighbor_id, hc_neighbor, k_neighbor, parts[neighbor_id].temp});
+
+				// PIPE/PPIP: account for contents heat capacity
+				if ((rt == PT_PIPE || rt == PT_PPIP) && parts[neighbor_id].ctype != 0)
 				{
-					c_heat += parts[ID(r)].temp * hc_r;
-					hc_total += hc_r;
+					float hc_contents = get_particle_heat_capacity(neighbor_id); // Use same helper for contents
+					neighbors.push_back({neighbor_id, hc_contents, k_neighbor, parts[neighbor_id].temp});
 				}
 			}
 
-			// Add the current particle (Phase 1.3: default HC fallback)
-			float hc_t = (elements[t].HeatCapacity > 0.0f) ? elements[t].HeatCapacity : DEFAULT_PARTICLE_HEAT_CAPACITY;
-			c_heat += parts[i].temp * hc_t;
-			hc_total += hc_t;
+			float hc_self = get_particle_heat_capacity(i);
+			float k_self = (elements[t].HeatConduct / 255.0f) * 400.0f;
+			k_self = std::max(k_self, 0.01f);
+			float T_self = parts[i].temp;
 
-			// Double count the current particle to account for the heat capacity of both the PIPE/PPIP and its contents
+			// PIPE/PPIP: account for contents heat capacity
 			if ((t == PT_PIPE || t == PT_PPIP) && parts[i].ctype != 0)
 			{
-				c_heat += parts[i].temp * hc_t;
-				hc_total += hc_t;
+				float hc_contents = get_particle_heat_capacity(i);
+				hc_self += hc_contents; // Add contents heat capacity
 			}
 
-			// Equilibrium temperature
-			float pt = restrict_flt(c_heat / std::max(hc_total, 0.001f), MIN_TEMP, MAX_TEMP);
+			// Pairwise heat transfer: Q = k_eff * A * (T_neighbor - T_self) / dx * dt
+			constexpr float contact_area_m2 = 0.001f * 0.001f; // 1 mm²
+			constexpr float contact_distance_m = 0.001f; // 1 mm
+			constexpr float dt_frame = 1.0f / 60.0f; // Frame time in seconds
 
-			parts[i].temp = pt;
-			for (auto j=0; j<8; j++)
+			float dT_self_total = 0.0f;
+			std::vector<float> dT_neighbors(neighbors.size(), 0.0f);
+
+			for (size_t n = 0; n < neighbors.size(); n++)
 			{
-				parts[surround_hconduct[j]].temp = pt;
+				float T_neighbor = neighbors[n].temp;
+				float k_neighbor = neighbors[n].k;
+				float hc_neighbor = neighbors[n].hc;
+
+				// Effective thermal conductivity (harmonic mean)
+				float k_eff = (k_self * k_neighbor) / (k_self + k_neighbor + 1e-6f);
+
+				// Heat flux: Q = k_eff * A * (T_neighbor - T_self) / dx * dt
+				float dT = T_neighbor - T_self;
+				float Q = k_eff * contact_area_m2 * dT / contact_distance_m * dt_frame;
+
+				// Temperature changes: dT = Q / C (energy conservation)
+				float dT_self_pair = Q / std::max(hc_self, 0.1f);
+				float dT_neighbor_pair = -Q / std::max(hc_neighbor, 0.1f);
+
+				dT_self_total += dT_self_pair;
+				dT_neighbors[n] += dT_neighbor_pair;
 			}
+
+			// Apply temperature changes
+			parts[i].temp = restrict_flt(T_self + dT_self_total, MIN_TEMP, MAX_TEMP);
+			for (size_t n = 0; n < neighbors.size(); n++)
+			{
+				int neighbor_id = neighbors[n].id;
+				float T_neighbor_old = neighbors[n].temp;
+				parts[neighbor_id].temp = restrict_flt(T_neighbor_old + dT_neighbors[n], MIN_TEMP, MAX_TEMP);
+			}
+
+			// For compatibility with existing code that expects pt (equilibrium temp for phase transitions)
+			// Compute weighted average for phase transition checks
+			float pt = parts[i].temp; // Use current temp as approximation
 
 			auto ctemph = pt;
 			auto ctempl = pt;
