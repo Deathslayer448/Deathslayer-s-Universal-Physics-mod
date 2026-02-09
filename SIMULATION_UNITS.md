@@ -412,21 +412,17 @@ Quick reference for tuning and debugging.
 
 ## Undefined / To Be Decided
 
-### Particle Mass (`Weight` Property)
+### Particle Mass (planned: rename `Weight` → `Mass`)
 
-**Current status**: Exists but **not physically meaningful**. Used for:
+**Current status**: Exists as `Weight` but **not physically meaningful**. Used for:
 - Movement rules (`can_move` checks: lighter particles can't push heavier ones)
 - Some gravity calculations (but not consistent)
 
-**Proposed**: Define `Weight` as **mass per particle** in **kg** or **g**.
-
-**Options**:
-1. **Use density**: `m = ρ × V_pixel` where `ρ` is material density (kg/m³)
-   - Water: `m = 1000 × 1.0×10⁻⁴ = 0.1 kg = 100 g`
-   - Iron: `m = 7870 × 1.0×10⁻⁴ = 0.787 kg = 787 g`
-   - Air (gas): `m = 1.2 × 1.0×10⁻⁴ = 0.00012 kg = 0.12 g`
-2. **Fixed reference mass**: All particles = 1 g (or 0.1 g, or 10 g) regardless of material
-3. **Keep relative**: Use `Weight` as relative mass (current behavior), but document what "1 unit" means
+**Chosen plan** (see `WEIGHT_AND_SPECIFIC_HEAT_PLAN.md`): Rename **Weight → Mass** (float, kg). Fixed volume 0.1 L per particle → **m = ρ × V_pixel** (denser = more mass, same volume).
+- **Water** (ρ ≈ 1000 kg/m³): `m = 0.1 kg`
+- **Tungsten** (ρ ≈ 19,250 kg/m³): `m ≈ 1.93 kg`
+- **Iron** (ρ ≈ 7870 kg/m³): `m ≈ 0.787 kg`
+- **Gases** (ρ ~ 1–2 kg/m³): `m ~ 0.0001–0.0002 kg`
 
 **Impact**: Once mass is defined (and we switch to **specific heat**, see below):
 - Heat capacity: `C = m × c` where `c` = specific heat (J/(kg·K)); we will store `c`, not `C`.

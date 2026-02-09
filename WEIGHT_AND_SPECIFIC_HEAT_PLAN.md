@@ -8,6 +8,27 @@ Design decision (see `SIMULATION_UNITS.md` → **Design: Heat capacity vs specif
 
 ---
 
+## Next steps (concrete order)
+
+1. **Rename Weight → Mass**  
+   - Same fixed volume per particle: **0.1 L = 1.0×10⁻⁴ m³** (from `SIMULATION_UNITS.md`).  
+   - **Denser = more mass** (same volume). Store **mass in kg**: `m = ρ × V_pixel` with `V_pixel = 1e-4 m³`.  
+   - **Scale**: Water (ρ ≈ 1000 kg/m³) → **0.1 kg**. Tungsten (ρ ≈ 19,250 kg/m³) → **~1.93 kg**. Gases (ρ ~ 1–2 kg/m³) → **~0.0001–0.0002 kg**.  
+   - Rename the property from `Weight` to `Mass` in `Element` (and any UI/Lua) so “more mass = denser material” is clear.
+
+2. **Heat capacity → Specific heat**  
+   - Add/rename to **SpecificHeat** (J/(kg·K)) on Element (and optionally per-particle override).  
+   - Remove stored heat capacity; use **C = mass × specificHeat** everywhere (heat transfer, wall loss, HUD).
+
+3. **What else (same plan, in order)**  
+   - **Constants**: Default specific heat (gas ~700–1000, solid/liquid ~400–500 J/(kg·K)); document mass scale in `SIMULATION_UNITS.md`.  
+   - **Element struct**: `Mass` (float, kg), `SpecificHeat` (float, J/(kg·K)); convert all element `Weight` values to mass (kg) and all `HeatCapacity` to specific heat.  
+   - **Particle**: `specificHeat` (from element or override); `get_particle_heat_capacity(i) = mass(i) * specificHeat(i)`.  
+   - **Gameplay**: `can_move` (heavier mass can push lighter — same comparison with mass in kg); HCL/BLOD/STKM/WEB formulas rescaled or redefined for mass (kg).  
+   - **Saves/Lua**: Legacy `heatCapacity` → convert or ignore; document Mass and SpecificHeat.
+
+---
+
 ## 1. Goals
 
 - **Weight**: Becomes **mass per particle** in **kg** (or a consistent scale, e.g. grams stored as kg: 0.001 = 1 g).
@@ -33,10 +54,10 @@ Design decision (see `SIMULATION_UNITS.md` → **Design: Heat capacity vs specif
 
 | Current | After |
 |--------|--------|
-| `int Weight` (dimensionless, relative) | **Semantic change**: same field becomes **mass in kg** (e.g. 0.001 = 1 g). Scale to be decided (e.g. 1 unit = 1 g → store 0.001, or 1 unit = 0.01 kg). |
-| `float HeatCapacity` (J/K per particle) | **Rename / repurpose** to **specific heat** `SpecificHeat` (J/(kg·K)), or add new field and deprecate `HeatCapacity` |
+| `int Weight` (dimensionless, relative) | **Rename to `Mass`** (float, kg). Fixed volume 0.1 L → m = ρ×V_pixel. Water ≈ 0.1 kg, tungsten ≈ 1.93 kg, gases ~0.0001 kg. |
+| `float HeatCapacity` (J/K per particle) | **Rename to `SpecificHeat`** (J/(kg·K)). Heat capacity computed as C = Mass × SpecificHeat. |
 
-**Naming**: Either rename `HeatCapacity` → `SpecificHeat` and change units, or add `SpecificHeat` and stop using `HeatCapacity` (with migration).
+**Naming**: Rename `Weight` → `Mass` (mass in kg); rename `HeatCapacity` → `SpecificHeat` (J/(kg·K)). More mass = denser material (same volume).
 
 ### 2.3 Constants (`ElementDefs.h`)
 
