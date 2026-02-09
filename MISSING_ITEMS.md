@@ -32,12 +32,8 @@
 ### AIR_SOLVER_IMPROVEMENT_PLAN.md - Phase 2 (Dependencies)
 
 #### 3. Custom heat transfer and heat capacity (Section 1, item 4)
-**Status**: Not implemented
-- Current: Particle-air heat transfer uses `hv` but ignores air heat capacity (ρ·c_v)
-- **Action**: Implement heat-capacity-aware transfer:
-  - Use air heat capacity: `ρ·c_v·V_cell` per cell
-  - Use particle heat capacity: `DEFAULT_PARTICLE_HEAT_CAPACITY` or per-element `HeatCapacity`
-  - Feed updated `hv` into solver (already works since `sync_from_tpt` uses `hv`)
+**Status**: Partially done — particle-air and particle-particle heat use Fourier + heat capacity; particle temp is now fed to air for **all** particles (not only BLOCKAIR), so e.g. IRON heats the air.
+- **Action (remaining)**: Move heat operations from Simulation into the heat/air solver so all particle↔air heat is handled in one place (heat solver), not in Simulation.cpp.
 
 #### 4. Advanced HUD (F3): air energy and particle energy (Section 0)
 **Status**: Not implemented
@@ -71,6 +67,11 @@
 **Status**: Not done
 - **Action**: Profile one frame; tune `airSolverStepsPerFrame` or CFL if needed
 
+#### 10. Move heat operations to heat solver (architecture)
+**Status**: Not done
+- Current: Particle-air and particle-particle heat transfer live in `Simulation.cpp`; heat solver only does air diffusion and wall→fluid convection.
+- **Action**: Refactor so all particle↔air heat is handled in the air/heat pipeline (e.g. in `Air.cpp` or `air_solver_rusanov.cpp` / `heat.cpp`), and Simulation only does particle-particle heat (or move that into solver too if desired). Single place for heat logic, easier to reason about and tune.
+
 ---
 
 ## Priority Order (Recommended)
@@ -79,8 +80,9 @@
 2. **Energy conservation verification** (#1) - Foundation, verify it works
 3. **Custom heat transfer** (#3) - Important for proper physics
 4. **Advanced HUD** (#4) - User-facing feature
-5. **Velocity strength tuning** (#2) - Gameplay tuning
-6. **Unused buffers** (#7) - Cleanup
-7. **Constants documentation** (#8) - Documentation
-8. **Performance profiling** (#9) - Optimization
-9. **Pressure-dependent conductivity** (#5) - Optional enhancement
+5. **Move heat to solver** (#10) - Architecture: heat logic in heat solver, not Simulation
+6. **Velocity strength tuning** (#2) - Gameplay tuning
+7. **Unused buffers** (#7) - Cleanup
+8. **Constants documentation** (#8) - Documentation
+9. **Performance profiling** (#9) - Optimization
+10. **Pressure-dependent conductivity** (#5) - Optional enhancement

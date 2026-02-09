@@ -252,13 +252,13 @@ void Air::update_air(void)
 		// Loop = periodic wrap. Void = open (leak). Solid = reflective only where bmap_blockair is set (from sync).
 		// Open boundary ghost must be low pressure so pressure actually leaks; use 1 kPa so void always drains.
 		rusanovSolver.set_boundary_mode(sim.edgeMode, 1000.0);
-		// So heat diffusion gets current-frame temps: set hv for wall cells from particle temps (e.g. hot TTAN).
-		// Particle heat transfer runs after update_air, so without this, sync would only see last frame's hv for walls.
+		// So heat diffusion sees current particle temps: set hv for every cell that has a particle (blocking or not).
+		// Previously we only did this when bmap_blockair[cy][cx], so non-blocking particles (e.g. IRON) never heated the air.
 		for (int i = 0; i < sim.parts.active; i++) {
 			if (!sim.parts[i].type) continue;
 			int cx = (int)(sim.parts[i].x + 0.5f) / CELL;
 			int cy = (int)(sim.parts[i].y + 0.5f) / CELL;
-			if (cy >= 0 && cy < YCELLS && cx >= 0 && cx < XCELLS && bmap_blockair[cy][cx]) {
+			if (cy >= 0 && cy < YCELLS && cx >= 0 && cx < XCELLS) {
 				float T = sim.parts[i].temp;
 				if (T >= 1.0f && T <= MAX_TEMP) sim.hv[cy][cx] = T;
 			}

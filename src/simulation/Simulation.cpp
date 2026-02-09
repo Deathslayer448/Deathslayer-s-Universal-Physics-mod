@@ -2516,14 +2516,28 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 			{
 				float hc_part = get_particle_heat_capacity(i);
 				float T_part = parts[i].temp;
-				float T_air = hv[y/CELL][x/CELL];
+				// Use neighborhood average for T_air so hot particles still see a gradient (cold neighbors)
+				// and cool down. Otherwise hv[cell] was set to T_part before the solver, so T_air ≈ T_part and the particle never cools.
+				int cy = y / CELL, cx = x / CELL;
+				float T_air_sum = hv[cy][cx];
+				int T_air_n = 1;
+				for (int dy = -1; dy <= 1; dy++)
+					for (int dx = -1; dx <= 1; dx++)
+						if (dy != 0 || dx != 0) {
+							int ny = cy + dy, nx = cx + dx;
+							if (ny >= 0 && ny < YCELLS && nx >= 0 && nx < XCELLS) {
+								T_air_sum += hv[ny][nx];
+								T_air_n++;
+							}
+						}
+				float T_air = T_air_sum / (float)T_air_n;
 				float dT = T_air - T_part; // Temperature difference (air - particle)
 
-				// Air properties: heat capacity and thermal conductivity
+				// Air properties: heat capacity and thermal conductivity (use cell's own hv for density)
 				constexpr float R_air = 287.0f;   // J/(kg·K) - matches solver R_gas
 				constexpr float c_v_air = 717.5f;  // J/(kg·K) - matches solver c_v = R/(γ-1)
 				constexpr float k_air = 0.026f;    // W/(m·K) - air thermal conductivity at 300K
-				float T_air_safe = std::max(T_air, 1.0f);
+				float T_air_safe = std::max(hv[cy][cx], 1.0f);
 				float p_air = std::max(pv[y/CELL][x/CELL], 1.0f);
 				float rho_air = p_air / (R_air * T_air_safe);
 				float cell_area_m2 = (float)(CELL * 0.01) * (float)(CELL * 0.01); // dx² for 2D solver
@@ -2551,7 +2565,7 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 				float dT_air = -Q / C_air_safe;
 
 				parts[i].temp = restrict_flt(T_part + dT_part, MIN_TEMP, MAX_TEMP);
-				hv[y/CELL][x/CELL] = restrict_flt(T_air + dT_air, MIN_TEMP, MAX_TEMP);
+				hv[cy][cx] = restrict_flt(hv[cy][cx] + dT_air, MIN_TEMP, MAX_TEMP);
 			}
 
 			// Heat transfer with other particles: Physics-based using Fourier's law Q = k·A·(T1-T2)/dx
