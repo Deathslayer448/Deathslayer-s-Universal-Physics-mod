@@ -1723,6 +1723,18 @@ void GameView::OnKeyPress(int key, int scan, bool repeat, bool shift, bool ctrl,
 			c->SetInfoTip("Velocity (normalized to map)");
 		}
 	}
+	else if (shift && key == '9')
+	{
+		// Gravity field as deformed grid (spacetime-curvature style)
+		if (rendererSettings)
+		{
+			uint32_t displayMode = rendererSettings->displayMode;
+			displayMode &= ~DISPLAY_AIR;
+			displayMode |= DISPLAY_GRAVGRID;
+			rendererSettings->displayMode = displayMode;
+			c->SetInfoTip("Gravity field (deformed grid)");
+		}
+	}
 	else if (key >= '0' && key <= '9')
 	{
 		c->LoadRenderPreset(key-'0');

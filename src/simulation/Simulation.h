@@ -87,6 +87,7 @@ struct RenderableSimulation
 {
 	GravityInput gravIn;
 	GravityOutput gravOut; // invariant: when grav is empty, this is in its default-constructed state
+	GravityOutput gravDisplay; // combined gravity (vertical/radial/custom + Newtonian) for gravity grid view
 	bool gravForceRecalc = true;
 	std::vector<sign> signs;
 

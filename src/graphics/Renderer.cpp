@@ -365,7 +365,7 @@ void Renderer::render_parts()
 				pixel_mode &= renderMode;
 
 				// When using custom air overlays (pressure/visc/velocity normalized), use normal particle colour so particles don't keep heat/life/grad from a previous view. Re-apply per-particle hot glow (PROP_HOT_GLOW) so hot TTAN etc. still glow orange.
-				const uint32_t customAirOverlays = DISPLAY_AIRPN | DISPLAY_AIRPN_HIGH | DISPLAY_AIRPN_LOW | DISPLAY_AIRVIS | DISPLAY_AIRVN;
+				const uint32_t customAirOverlays = DISPLAY_AIRPN | DISPLAY_AIRPN_HIGH | DISPLAY_AIRPN_LOW | DISPLAY_AIRVIS | DISPLAY_AIRVN | DISPLAY_GRAVGRID;
 				if (displayMode & customAirOverlays)
 				{
 					colr = colour.Red;
@@ -948,6 +948,91 @@ void Renderer::draw_air()
 		return;
 	if(!(displayMode & DISPLAY_AIR))
 		return;
+	// Gravity field as deformed grid: cell-aligned, lines bend toward gravity. Mode-specific so vertical is prominent and radial stays clean.
+	if (displayMode & DISPLAY_GRAVGRID)
+	{
+		const int gridStep = CELL;
+		const bool verticalGravity = (sim->gravityMode == GRAV_VERTICAL);
+		// Vertical: strong local + cumulative Y sag so map gravity is very visible. Radial/Custom: local only, capped to avoid center pinch.
+		const float deformScale = verticalGravity ? 14.0f : 11.0f;
+		const float mapSagScale = verticalGravity ? 1.6f : 0.f;
+		const float maxDisp = float(2 * CELL);  // cap displacement per cell for radial so center doesn't look like a knot
+		const float perspectiveStrength = 0.04f;
+		auto &fX = sim->gravDisplay.forceX;
+		auto &fY = sim->gravDisplay.forceY;
+		float maxForce = 0.f;
+		for (int cy = 0; cy < YCELLS; cy++)
+			for (int cx = 0; cx < XCELLS; cx++) {
+				float fx = fX[Vec2<int>{ cx, cy }], fy = fY[Vec2<int>{ cx, cy }];
+				maxForce = std::max(maxForce, std::sqrt(fx * fx + fy * fy));
+			}
+		const float verticalFallback = 0.25f;
+		bool useFallback = (maxForce < 0.001f);
+		std::vector<float> sumY(verticalGravity ? int(XCELLS * YCELLS) : 0, 0.f);
+		if (verticalGravity) {
+			for (int cy = 0; cy < YCELLS; cy++)
+				for (int cx = 0; cx < XCELLS; cx++) {
+					int i = cy * XCELLS + cx;
+					float fy = useFallback ? verticalFallback : fY[Vec2<int>{ cx, cy }];
+					sumY[i] = (cy > 0 ? sumY[i - XCELLS] : 0.f) + fy;
+				}
+		}
+		for (int py = 0; py < YRES; py++)
+			for (int px = 0; px < XRES; px++)
+				DrawPixel({ px, py }, 0x0A0A12_rgb);
+		auto cellAt = [&fX, &fY, &sumY, verticalGravity, deformScale, mapSagScale, maxDisp, useFallback, verticalFallback](int gx, int gy) -> Vec2<float> {
+			int cx = std::clamp(gx / CELL, 0, XCELLS - 1);
+			int cy = std::clamp(gy / CELL, 0, YCELLS - 1);
+			int i = cy * XCELLS + cx;
+			float fx = useFallback ? 0.f : fX[Vec2<int>{ cx, cy }];
+			float fy = useFallback ? verticalFallback : fY[Vec2<int>{ cx, cy }];
+			float dx = fx * deformScale;
+			float dy = fy * deformScale + (verticalGravity && !sumY.empty() ? sumY[i] * mapSagScale : 0.f);
+			if (!verticalGravity) {
+				float mag = std::sqrt(dx * dx + dy * dy);
+				if (mag > maxDisp && mag > 1e-6f) {
+					float s = maxDisp / mag;
+					dx *= s; dy *= s;
+				}
+			}
+			return Vec2<float>{ float(gx) + dx, float(gy) + dy };
+		};
+		auto depthAt = [&fX, &fY, useFallback, verticalFallback, maxForce](int gx, int gy) -> float {
+			int cx = std::clamp(gx / CELL, 0, XCELLS - 1);
+			int cy = std::clamp(gy / CELL, 0, YCELLS - 1);
+			float fx = useFallback ? 0.f : fX[Vec2<int>{ cx, cy }];
+			float fy = useFallback ? verticalFallback : fY[Vec2<int>{ cx, cy }];
+			float mag = std::sqrt(fx * fx + fy * fy);
+			return (maxForce > 0.001f) ? (mag / maxForce) : 0.f;
+		};
+		RGB gridColBase(80, 100, 140);
+		// Grid only inside [0,XRES] x [0,YRES] at cell boundaries so no wrap from the other side.
+		for (int gy = 0; gy <= YRES; gy += gridStep)
+		{
+			for (int gx = 0; gx <= XRES; gx += gridStep)
+			{
+				float depth = depthAt(gx, gy) * perspectiveStrength;
+				RGB gridCol = RGB(
+					(int)(gridColBase.Red   * (1.0f - depth) + 0.5f),
+					(int)(gridColBase.Green * (1.0f - depth) + 0.5f),
+					(int)(gridColBase.Blue  * (1.0f - depth) + 0.5f));
+				auto p0 = cellAt(gx, gy);
+				if (gx + gridStep <= XRES)
+				{
+					auto p1h = cellAt(gx + gridStep, gy);
+					DrawLine(Vec2<int>(int(p0.X + 0.5f), int(p0.Y + 0.5f)),
+					        Vec2<int>(int(p1h.X + 0.5f), int(p1h.Y + 0.5f)), gridCol);
+				}
+				if (gy + gridStep <= YRES)
+				{
+					auto p1v = cellAt(gx, gy + gridStep);
+					DrawLine(Vec2<int>(int(p0.X + 0.5f), int(p0.Y + 0.5f)),
+					        Vec2<int>(int(p1v.X + 0.5f), int(p1v.Y + 0.5f)), gridCol);
+				}
+			}
+		}
+		return;
+	}
 	stats.airNormPressureValid = false;
 	stats.airNormViscosityValid = false;
 	stats.airNormVelocityValid = false;

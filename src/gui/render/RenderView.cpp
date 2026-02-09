@@ -94,6 +94,7 @@ RenderView::RenderView():
 	addDisplayModeCheckbox(DISPLAY_AIRW, IconVort      , ui::Point(199,  4), "Displays vorticity, red is clockwise and blue is anticlockwise");
 	addDisplayModeCheckbox(DISPLAY_AIRVIS, IconGradient , ui::Point(199, 22), "Viscosity (normalized): blue = low, black = mid, red = high");
 	addDisplayModeCheckbox(DISPLAY_AIRVN, IconVelocity  , ui::Point(231,  4), "Velocity magnitude (normalized): blue = still, black = mid, red = fast");
+	addDisplayModeCheckbox(DISPLAY_GRAVGRID, IconGradient , ui::Point(231, 22), "Gravity field as deformed grid (spacetime-curvature style), Shift+9");
 	line2 = 232;
 	addDisplayModeCheckbox(DISPLAY_WARP, IconWarp      , ui::Point(237, 22), "Gravity lensing, Newtonian Gravity bends light with this on");
 	addDisplayModeCheckbox(DISPLAY_EFFE, IconEffect    , ui::Point(237,  4), "Enables moving solids, stickmen guns, and premium(tm) graphics");

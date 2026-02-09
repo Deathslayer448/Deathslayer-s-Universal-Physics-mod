@@ -54,7 +54,8 @@ constexpr auto DISPLAY_AIRPN_HIGH = UINT32_C(0x00000200); // Pressure in high ra
 constexpr auto DISPLAY_AIRPN_LOW  = UINT32_C(0x00000400); // Pressure in low range (0.1–5 kPa) for gradient visibility
 constexpr auto DISPLAY_AIRVIS  = UINT32_C(0x00001000); // Normalized kinematic viscosity view (nu=μ/ρ)
 constexpr auto DISPLAY_AIRVN   = UINT32_C(0x00002000); // Normalized velocity magnitude view (blue=still, red=fast)
-constexpr auto DISPLAY_AIR     = UINT32_C(0x0000378F); // 'or' of all air modes
+constexpr auto DISPLAY_GRAVGRID = UINT32_C(0x00004000); // Gravity field as deformed grid (spacetime-curvature style)
+constexpr auto DISPLAY_AIR     = UINT32_C(0x0000778F); // 'or' of all air modes (incl. GRAVGRID)
 constexpr auto DISPLAY_WARP    = UINT32_C(0x00000010);
 constexpr auto DISPLAY_PERS    = UINT32_C(0x00000020);
 constexpr auto DISPLAY_EFFE    = UINT32_C(0x00000040);

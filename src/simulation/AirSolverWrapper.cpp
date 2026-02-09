@@ -68,11 +68,6 @@ void AirSolverWrapper::step(Simulation& sim, double dt_frame, int max_steps)
 {
 	if (!state)
 		return;
-	static bool first = true;
-	if (first) {
-		AIR_WRAP_DBG("air solver step() active (stderr is working)\n");
-		first = false;
-	}
 	// Build gravity in m/s² from TPT (vertical + Newtonian). TPT: vy += g_game per frame → a = g_game/dt_frame (game units) → a_mps2 = g_game * (dx_m / dt_frame²).
 	static std::vector<float> gx_mps2, gy_mps2;
 	size_t ncell = (size_t)ny * (size_t)nx;
@@ -80,8 +75,9 @@ void AirSolverWrapper::step(Simulation& sim, double dt_frame, int max_steps)
 		gx_mps2.resize(ncell);
 		gy_mps2.resize(ncell);
 	}
-	// g_game = velocity increment per frame (pixels/frame); a = g_game/dt_frame → m/s²: a_mps2 = (g_game/dt_frame)*(dx_m/pixel) = g_game*dx_m/dt_frame.
-	double scale = (dt_frame > 1e-12) ? (dx_m / dt_frame) : 0.0;
+	// g_game = velocity increment per frame (pixels/frame), i.e. acceleration in game units (pixels/frame²).
+	// a_mps2 = g_game * (dx_m/pixel) / (dt_frame² s²/frame²) = g_game * dx_m / dt_frame².
+	double scale = (dt_frame > 1e-12) ? (dx_m / (dt_frame * dt_frame)) : 0.0;
 	for (int iy = 0; iy < ny; iy++)
 		for (int ix = 0; ix < nx; ix++) {
 			float gx_game = 0.f, gy_game = 0.f;
@@ -101,10 +97,9 @@ void AirSolverWrapper::step(Simulation& sim, double dt_frame, int max_steps)
 		if (dt <= 0.0)
 		{
 			reject++;
-			AIR_WRAP_DBG("step returned dt=0 (reject #%d)\n", reject);
 			if (reject > 5)
 			{
-				AIR_WRAP_DBG("too many rejects, breaking (advance=%.6e)\n", advance);
+				AIR_WRAP_DBG("air solver break: too many rejects (advance=%.6e)\n", advance);
 				break;
 			}
 			continue;
@@ -119,9 +114,9 @@ void AirSolverWrapper::step(Simulation& sim, double dt_frame, int max_steps)
 	double heat_dt = dt_frame - advance;
 	if (heat_dt > 1e-12)
 		air_solver_apply_heat_diffusion(s, heat_dt);
-	// Only warn when we actually had rejects (dt=0); small advance with no rejects is normal when CFL dt is tiny.
+	// Log only when solver effectively breaks (couldn't advance enough).
 	if (reject > 0 && advance < dt_frame * 0.5)
-		AIR_WRAP_DBG("rejects=%d advance=%.6e (dt_frame=%.6e) => sim crawls\n", reject, advance, dt_frame);
+		AIR_WRAP_DBG("air solver break: advance=%.6e (dt_frame=%.6e) after %d rejects\n", advance, dt_frame, reject);
 }
 
 void AirSolverWrapper::get_wall_heat_lost(float* out)

@@ -683,9 +683,6 @@ struct State {
         double dt_diff = max_diffusion_dt();
         double dt = std::min({ dt_cfl, dt_diff, 0.01 });
 
-        if (dt < 1e-3)
-            AIR_DBG("dt tiny: lam=%.6e dt_cfl=%.6e dt=%.6e (frame advance tiny => stuck)\n", lam, dt_cfl, dt);
-
         const int max_retries = 4;  // fix bad cell in pre-step state and re-step instead of stuck reject loop
         for (int retry = 0; retry < max_retries; retry++) {
             sanitize_U0();  // never compute fluxes from NaN/inf so invalid state cannot spread

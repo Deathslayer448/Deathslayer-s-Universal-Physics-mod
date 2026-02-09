@@ -2042,12 +2042,13 @@ void Simulation::create_cherenkov_photon(int pp)//photons from NEUT going throug
 	parts[i].vy *= r;
 }
 
+// Returns gravity as acceleration in game units (pixels/frame²): v += pGrav*dt with dt=1 frame gives proper free fall.
 void Simulation::GetGravityField(int x, int y, float particleGrav, float newtonGrav, float & pGravX, float & pGravY) const
 {
 	switch (gravityMode)
 	{
 	default:
-	case GRAV_VERTICAL: //normal, vertical gravity
+	case GRAV_VERTICAL: // normal, vertical gravity (acceleration in pixels/frame²)
 		pGravX = 0;
 		pGravY = particleGrav;
 		break;
@@ -2400,11 +2401,11 @@ void Simulation::UpdateParticles(int start, int end)
 			parts[i].vx *= elements[t].Loss;
 			parts[i].vy *= elements[t].Loss;
 		}
-		// Drag coupling: v += alpha*(v_air - v). Small alpha = heavy particles (lava) barely move; no cap, proper relaxation.
+		// Drag coupling: v += alpha*(v_air - v). Gravity: v += a*dt (acceleration in pixels/frame²; dt=1 frame).
 		constexpr float AIR_TO_PARTICLE_ALPHA = 0.002f;  // Relaxation rate toward v_air per frame (alpha in v += alpha*(v_air - v)).
 		float alpha = AIR_TO_PARTICLE_ALPHA * elements[t].Advection;
 		float v_air_x = vx[y/CELL][x/CELL], v_air_y = vy[y/CELL][x/CELL];
-		parts[i].vx += alpha * (v_air_x - parts[i].vx) + neighbourhood.pGravX;
+		parts[i].vx += alpha * (v_air_x - parts[i].vx) + neighbourhood.pGravX;  // pGrav = acceleration (m/s² equivalent in game units)
 		parts[i].vy += alpha * (v_air_y - parts[i].vy) + neighbourhood.pGravY;
 
 
@@ -3735,6 +3736,14 @@ void Simulation::UpdateGravityMask()
 //updates pmap, gol, and some other simulation stuff (but not particles)
 void Simulation::BeforeSim(bool willUpdate)
 {
+	// Refresh gravDisplay every frame so gravity grid view (Shift+9) shows map gravity and Newtonian
+	for (int cy = 0; cy < YCELLS; cy++)
+		for (int cx = 0; cx < XCELLS; cx++) {
+			float gx = 0.f, gy = 0.f;
+			GetGravityField(cx * CELL, cy * CELL, 1.0f, 1.0f, gx, gy);
+			gravDisplay.forceX[Vec2<int>{ cx, cy }] = gx;
+			gravDisplay.forceY[Vec2<int>{ cx, cy }] = gy;
+		}
 	if (willUpdate)
 	{
 		// Update pressure block map from walls before air update so the solver sees current walls
@@ -3987,6 +3996,7 @@ void Simulation::EnableNewtonianGravity(bool enable)
 	{
 		grav.reset();
 		gravOut = {}; // reset as per the invariant
+		gravDisplay = {};
 		gravForceRecalc = true; // gravOut changed outside DispatchNewtonianGravity
 	}
 	if (!grav && enable)
