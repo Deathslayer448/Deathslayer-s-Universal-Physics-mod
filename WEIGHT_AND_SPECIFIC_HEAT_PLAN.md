@@ -8,6 +8,28 @@ Design decision (see `SIMULATION_UNITS.md` → **Design: Heat capacity vs specif
 
 ---
 
+## Pre-implementation: decisions locked in
+
+Before touching code, these are fixed so we don’t block implementation:
+
+| Topic | Decision |
+|-------|----------|
+| **Mass type** | `float` (was `int Weight`). Store mass in **kg**. |
+| **Mass scale** | m = ρ × V_pixel (V_pixel = 1e-4 m³). Water 0.1 kg, tungsten ~1.93 kg, gases ~0.0001 kg. |
+| **Per-particle mass** | Use element `Mass` only (no particle.mass override for now). |
+| **Specific heat defaults** | Gas: **717.5** J/(kg·K) (air c_v). Solid/liquid: **500.0** J/(kg·K). |
+| **Element default Mass** | **0.1f** kg (e.g. water-like). Replace in each element with real mass from density. |
+| **NoWeightSwitching** | Keep name and UI text (“weight-based”); meaning is mass-based. No rename to NoMassSwitching. |
+| **Legacy saves** | **Optional**: On load, if element “Weight” is int 1–1000, treat as old scale and convert to kg (e.g. mass_kg = old_value / 1000.0f) so old saves still load. New saves store Mass (float). If we don’t need old-save compat, we can break and document. |
+
+**Open choice (pick one and go):**
+
+- **Element Mass values**: (A) Bulk convert with a formula (e.g. mass_kg = old_Weight/1000.0f), then set water=0.1, tungsten=1.93, iron=0.787, gases=0.0001 etc. in key element files. (B) Assign real mass (kg) from density in every element file in one pass. Recommendation: **(A)** for speed; we can refine more elements later.
+
+Once (A) or (B) is chosen, we’re ready to implement.
+
+---
+
 ## Next steps (concrete order)
 
 1. **Rename Weight → Mass**  
