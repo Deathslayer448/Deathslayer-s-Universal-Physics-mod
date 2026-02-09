@@ -26,7 +26,7 @@ void Element::Element_TSNS()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 0;
 	Description = "Temperature sensor, creates a spark when there's a nearby particle with a greater temperature.";

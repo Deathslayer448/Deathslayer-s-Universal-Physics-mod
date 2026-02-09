@@ -27,7 +27,7 @@ void Element::Element_SNOW()
 	Hardness = 20;
 	PhotonReflectWavelengths = 0x03FFFFFF;
 
-	Weight = 50;
+	Mass = 50/1000.0f;
 
 	DefaultProperties.temp = R_TEMP - 30.0f + 273.15f;
 	HeatConduct = 46;

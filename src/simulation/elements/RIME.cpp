@@ -26,7 +26,7 @@ void Element::Element_RIME()
 	Meltable = 0;
 	Hardness = 32;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = -30.0f + 273.15f;
 	HeatConduct = 100;

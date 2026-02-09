@@ -29,7 +29,7 @@ void Element::Element_GOLD()
 	Hardness = 0;
 	PhotonReflectWavelengths = 0x3C038100;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Corrosion resistant metal, will reverse corrosion of iron. Excellent conductor.";

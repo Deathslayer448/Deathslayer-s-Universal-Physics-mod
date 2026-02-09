@@ -26,7 +26,7 @@ void Element::Element_CAUS()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Caustic Gas, acts like ACID.";

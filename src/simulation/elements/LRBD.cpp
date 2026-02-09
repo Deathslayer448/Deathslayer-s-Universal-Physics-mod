@@ -24,7 +24,7 @@ void Element::Element_LRBD()
 	Meltable = 0;
 	Hardness = 2;
 
-	Weight = 45;
+	Mass = 45/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 45.0f + 273.15f;
 	HeatConduct = 170;

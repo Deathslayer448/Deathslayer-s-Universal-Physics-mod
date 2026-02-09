@@ -13,7 +13,7 @@ std::vector<StructProperty> const &Particle::GetProperties()
 		{ "vx"     , StructProperty::Float       , (intptr_t)(offsetof(Particle, vx     )) },
 		{ "vy"     , StructProperty::Float       , (intptr_t)(offsetof(Particle, vy     )) },
 		{ "temp"   , StructProperty::Float       , (intptr_t)(offsetof(Particle, temp   )) },
-		{ "heatCapacity", StructProperty::Float , (intptr_t)(offsetof(Particle, heatCapacity)) },
+		{ "specificHeat", StructProperty::Float , (intptr_t)(offsetof(Particle, specificHeat)) },
 		{ "flags"  , StructProperty::UInteger    , (intptr_t)(offsetof(Particle, flags  )) },
 		{ "tmp"    , StructProperty::Integer     , (intptr_t)(offsetof(Particle, tmp    )) },
 		{ "tmp2"   , StructProperty::Integer     , (intptr_t)(offsetof(Particle, tmp2   )) },
@@ -27,10 +27,11 @@ std::vector<StructProperty> const &Particle::GetProperties()
 
 std::vector<StructPropertyAlias> const &Particle::GetPropertyAliases()
 {
-	static std::vector<StructPropertyAlias> aliases = {
+	static 	std::vector<StructPropertyAlias> aliases = {
 		{ "pavg0" , "tmp3"    },
 		{ "pavg1" , "tmp4"    },
 		{ "dcolor", "dcolour" },
+		{ "heatCapacity", "specificHeat" },  // legacy: was J/K per particle; now specificHeat J/(kg·K)
 	};
 	return aliases;
 }

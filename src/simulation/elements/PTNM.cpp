@@ -27,7 +27,7 @@ void Element::Element_PTNM()
 	Explosive = 0;
 	Meltable = 1;
 	Hardness = 0;
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Platinum. Catalyzes certain reactions.";

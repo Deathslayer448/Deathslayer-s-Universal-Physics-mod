@@ -27,7 +27,7 @@ void Element::Element_THRM()
 	Meltable = 2; // Thermite can melt normally
 	Hardness = 2;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 211;
 	Description = "Thermite. Burns into extremely hot molten metal.";

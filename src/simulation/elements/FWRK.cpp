@@ -27,7 +27,7 @@ void Element::Element_FWRK()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 97;
+	Mass = 97/1000.0f;
 
 	HeatConduct = 100;
 	Description = "Original version of fireworks, activated by heat/neutrons.";

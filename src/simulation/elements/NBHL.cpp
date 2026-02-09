@@ -26,7 +26,7 @@ void Element::Element_NBHL()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 186;
 	Description = "Black hole, sucks in particles using gravity. (Requires Newtonian gravity)";

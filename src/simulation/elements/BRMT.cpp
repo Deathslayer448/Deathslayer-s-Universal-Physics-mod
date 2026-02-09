@@ -26,7 +26,7 @@ void Element::Element_BRMT()
 	Meltable = 2;
 	Hardness = 2;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 211;
 	Description = "Broken metal. Created when iron rusts or when metals break from pressure.";

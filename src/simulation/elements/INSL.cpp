@@ -24,7 +24,7 @@ void Element::Element_INSL()
 	Meltable = 0;
 	Hardness = 10;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 0;
 	Description = "Insulator. Blocks heat, electricity, and radiation.";

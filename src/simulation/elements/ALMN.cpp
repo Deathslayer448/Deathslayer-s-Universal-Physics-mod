@@ -24,7 +24,7 @@ void Element::Element_ALMN() {
 	Explosive = 0;
 	Meltable = 1;
 	Hardness = 0;
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 255;
 	Description = "Aluminium. Blocks pressure, shatters when hit with high velocity particles.";

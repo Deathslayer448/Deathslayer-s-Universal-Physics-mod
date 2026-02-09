@@ -27,7 +27,7 @@ void Element::Element_LUNG() {
 	Meltable = 0;
 	Hardness = 10;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 104;
 	Description = "Lungs. Absorbs O2 and releases CO2.";

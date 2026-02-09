@@ -27,7 +27,7 @@ void Element::Element_NBLE()
 	Hardness = 1;
 	PhotonReflectWavelengths = 0x3FFF8000;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 2.0f + 273.15f;
 	HeatConduct = 106;

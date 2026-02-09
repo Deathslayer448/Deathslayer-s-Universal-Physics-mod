@@ -27,7 +27,7 @@ void Element::Element_GOO()
 	Hardness = 12;
 	PhotonReflectWavelengths = 0x3FFAAA00;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 75;
 	Description = "Deforms and disappears under pressure.";

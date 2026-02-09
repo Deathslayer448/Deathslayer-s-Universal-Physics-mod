@@ -26,7 +26,7 @@ void Element::Element_MUD() {
 	Meltable = 0;
 	Hardness = 20;
 
-	Weight = 35;
+	Mass = 35/1000.0f;
 
 	DefaultProperties.temp = 30.0f + 273.15f;
 	HeatConduct = 29;

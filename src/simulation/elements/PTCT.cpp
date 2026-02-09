@@ -26,7 +26,7 @@ void Element::Element_PTCT()
 	Meltable = 1;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "PTC Thermistor. Conducts with PSCN and NSCN, but only when cooled below 100C.";

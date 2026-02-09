@@ -27,10 +27,10 @@ void Element::Element_BASE()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 16;
+	Mass = 16/1000.0f;
 
 	HeatConduct = 31;
-	HeatCapacity = 1.5f;
+	SpecificHeat = 500.0f;  // J/(kg·K), default solid
 	Description = "Corrosive liquid. Rusts conductive solids, neutralizes acid.";
 
 	Properties = TYPE_LIQUID|PROP_DEADLY;

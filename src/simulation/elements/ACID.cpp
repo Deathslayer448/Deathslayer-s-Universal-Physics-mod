@@ -28,7 +28,7 @@ void Element::Element_ACID()
 	Hardness = 0;
 	PhotonReflectWavelengths = 0x1FE001FE;
 
-	Weight = 10;
+	Mass = 10/1000.0f;
 
 	HeatConduct = 34;
 	Description = "Dissolves almost everything.";

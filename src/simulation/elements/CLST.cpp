@@ -28,7 +28,7 @@ void Element::Element_CLST()
 	Meltable = 2;
 	Hardness = 2;
 
-	Weight = 55;
+	Mass = 55/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Clay dust. Produces paste when mixed with water.";

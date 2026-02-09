@@ -28,7 +28,7 @@ void Element::Element_FILT()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Filter. Changes color of PHOT and BIZR. Color depends on temperature.";

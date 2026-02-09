@@ -27,7 +27,7 @@ void Element::Element_EXOT()
 	Meltable = 0;
 	Hardness = 2;
 
-	Weight = 46;
+	Mass = 46/1000.0f;
 
 	DefaultProperties.temp = R_TEMP - 2.0f + 273.15f;
 	HeatConduct = 250;

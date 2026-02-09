@@ -28,7 +28,7 @@ void Element::Element_ALGE() {
 	Hardness = 30;
 	PhotonReflectWavelengths = 0x0007C000;
 
-	Weight = 20;
+	Mass = 20/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Algae. Grows on the surface of water.";

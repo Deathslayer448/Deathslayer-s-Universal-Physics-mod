@@ -27,7 +27,7 @@ void Element::Element_DCEL()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Decelerator, slows down nearby elements.";

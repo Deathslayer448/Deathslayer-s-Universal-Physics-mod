@@ -25,7 +25,7 @@ void Element::Element_NPLM() {
 	Meltable = 0;
 	Hardness = 0;
 	
-	Weight = 24;
+	Mass = 24/1000.0f;
 	
 	DefaultProperties.temp = R_TEMP + 273.15f;
 	DefaultProperties.life = 220;

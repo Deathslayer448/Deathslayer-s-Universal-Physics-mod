@@ -25,7 +25,7 @@ void Element::Element_BIZR()
 	Meltable = 0;
 	Hardness = 20;
 
-	Weight = 30;
+	Mass = 30/1000.0f;
 
 	HeatConduct = 29;
 	Description = "Bizarre... contradicts the normal state changes. Paints other elements with its deco color.";

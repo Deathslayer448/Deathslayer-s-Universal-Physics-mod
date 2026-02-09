@@ -28,7 +28,7 @@ void Element::Element_ETRD()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Electrode. Creates plasma arcs with electricity. (Use sparingly)";

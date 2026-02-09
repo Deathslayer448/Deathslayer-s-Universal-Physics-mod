@@ -25,7 +25,7 @@ void Element::Element_RFGL()
 	Meltable = 0;
 	Hardness = 21;
 
-	Weight = 10;
+	Mass = 10/1000.0f;
 
 	HeatConduct = 3;
 	Description = "Liquid refrigerant.";

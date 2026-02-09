@@ -32,7 +32,7 @@ void Element::Element_SPRK()
 	Hardness = 1;
 	PhotonReflectWavelengths = 0x00000000;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Electricity. The basis of all electronics in TPT, travels along conductive elements.";

@@ -29,7 +29,7 @@ void Element::Element_LAVA()
 	Hardness = 2;
 	PhotonReflectWavelengths = 0x3FF00000;
 
-	Weight = 45;
+	Mass = 45/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 1500.0f + 273.15f;
 	HeatConduct = 60;

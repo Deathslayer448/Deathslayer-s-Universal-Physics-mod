@@ -28,7 +28,7 @@ void Element::Element_BLOD() {
 	Meltable = 0;
 	Hardness = 20;
 
-	Weight = 65;
+	Mass = 65/1000.0f;
 
 	DefaultProperties.tmp2 = 2;
 	DefaultProperties.oxygens = 100;
@@ -756,7 +756,7 @@ if (parts[i].capacity == 0)
 				//  if ((elements[TYP(r)].Properties & TYPE_PART ||
 				// 	 elements[TYP(r)].Properties & TYPE_SOLID) && sim->rng.chance(parts[i].tmp2, 5 + parts[i].water / 10))
 				// 	 parts[i].vx = parts[i].vy = 0;
-			 		 if (sim->NoWeightSwitching && sim->pmap_count[y][x]<2 && TYP(r) != parts[i].type && sim->rng.chance(1, 8) && (y > parts[ID(r)].y && sim->rng.chance(1, restrict_flt(elements[parts[i].type].Weight - pow(elements[TYP(r)].Weight, 2) / 10.0f, 1, MAX_TEMP)) || y < parts[ID(r)].y && sim->rng.chance(1, 100)) && (elements[TYP(r)].Properties & TYPE_PART || elements[TYP(r)].Properties & TYPE_LIQUID) && TYP(r) != PT_HCL) {
+			 		 if (sim->NoWeightSwitching && sim->pmap_count[y][x]<2 && TYP(r) != parts[i].type && sim->rng.chance(1, 8) && (y > parts[ID(r)].y && sim->rng.chance(1, restrict_flt(elements[parts[i].type].Mass - pow(elements[TYP(r)].Mass, 2) / 10.0f, 1, MAX_TEMP)) || y < parts[ID(r)].y && sim->rng.chance(1, 100)) && (elements[TYP(r)].Properties & TYPE_PART || elements[TYP(r)].Properties & TYPE_LIQUID) && TYP(r) != PT_HCL) {
 				 	 	float temp = parts[i].x;
 				 	 	parts[i].x = parts[ID(r)].x;
 				 	 	parts[ID(r)].x = temp;

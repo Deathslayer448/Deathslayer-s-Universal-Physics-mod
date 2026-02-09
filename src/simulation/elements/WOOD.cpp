@@ -28,7 +28,7 @@ void Element::Element_WOOD()
 	Meltable = 0;
 	Hardness = 16;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 26;
 	Description = "Wood, flammable.";

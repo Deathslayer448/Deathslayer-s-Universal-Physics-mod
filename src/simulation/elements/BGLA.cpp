@@ -24,7 +24,7 @@ void Element::Element_BGLA()
 	Meltable = 5;
 	Hardness = 0;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 150;
 	Description = "Broken Glass, heavy particles formed when glass breaks under pressure. Meltable. Bagels.";

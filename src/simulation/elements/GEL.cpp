@@ -27,7 +27,7 @@ void Element::Element_GEL()
 	Meltable = 0;
 	Hardness = 19;
 
-	Weight = 35;
+	Mass = 35/1000.0f;
 
 	DefaultProperties.temp = R_TEMP - 2.0f + 273.15f;
 	HeatConduct = 29;

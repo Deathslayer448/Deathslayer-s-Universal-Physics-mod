@@ -27,7 +27,7 @@ void Element::Element_STMH() {
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 104;
 	Description = "Stomach. Releases HCl and absorbs nutrients.";

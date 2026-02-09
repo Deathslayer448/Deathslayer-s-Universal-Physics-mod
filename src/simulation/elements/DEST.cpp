@@ -27,7 +27,7 @@ void Element::Element_DEST()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 101;
+	Mass = 101/1000.0f;
 
 	HeatConduct = 150;
 	Description = "More destructive Bomb, can break through virtually anything.";

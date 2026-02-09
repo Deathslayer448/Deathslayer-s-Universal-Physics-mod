@@ -28,7 +28,7 @@ void Element::Element_ELEC()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = -1;
+	Mass = 0.0001f;  // energy particle, minimal mass
 
 	DefaultProperties.temp = R_TEMP + 200.0f + 273.15f;
 	HeatConduct = 251;

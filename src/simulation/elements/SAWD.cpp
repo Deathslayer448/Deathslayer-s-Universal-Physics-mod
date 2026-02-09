@@ -24,7 +24,7 @@ void Element::Element_SAWD()
 	Meltable = 0;
        	Hardness = 29;
 
-	Weight = 18;
+	Mass = 18/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Sawdust. Floats on water.";

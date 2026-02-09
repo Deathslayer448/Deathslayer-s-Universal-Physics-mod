@@ -28,7 +28,7 @@ void Element::Element_DESL()
 	Meltable = 0;
 	Hardness = 5;
 
-	Weight = 15;
+	Mass = 15/1000.0f;
 
 	HeatConduct = 42;
 	Description = "Liquid diesel. Explodes under high pressure and temperatures.";

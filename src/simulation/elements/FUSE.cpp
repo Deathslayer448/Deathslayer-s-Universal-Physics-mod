@@ -26,7 +26,7 @@ void Element::Element_FUSE()
 	Meltable = 0;
 	Hardness = 19;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 200;
 	Description = "Burns slowly. Ignites at very high temperatures or when sparked.";

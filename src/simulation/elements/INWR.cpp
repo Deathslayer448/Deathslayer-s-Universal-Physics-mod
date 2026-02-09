@@ -24,7 +24,7 @@ void Element::Element_INWR()
 	Meltable = 1;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Insulated wire. Only conducts to PSCN, NSCN, WIFI, and SWCH.";

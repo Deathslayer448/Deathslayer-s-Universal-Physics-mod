@@ -28,7 +28,7 @@ void Element::Element_PLSM()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	DefaultProperties.temp = MAX_TEMP;
 	HeatConduct = 5;

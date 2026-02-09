@@ -25,7 +25,7 @@ void Element::Element_RFRG()
 	Meltable = 0;
 	Hardness = 21;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	HeatConduct = 3;
 	Description = "Refrigerant. Heats up and liquefies under pressure.";

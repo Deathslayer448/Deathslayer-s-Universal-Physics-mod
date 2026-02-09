@@ -25,7 +25,7 @@ void Element::Element_PSCN()
 	Hardness = 1;
 	PhotonReflectWavelengths = 0x00000000;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "P-Type Silicon, Will transfer current to any conductor. Enables powered materials.";

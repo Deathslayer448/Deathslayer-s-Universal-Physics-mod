@@ -26,7 +26,7 @@ void Element::Element_BREC()
 	Meltable = 2;
 	Hardness = 2;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 211;
 	Description = "Broken electronics. Formed from EMP blasts, and when constantly sparked while under pressure, turns to EXOT.";

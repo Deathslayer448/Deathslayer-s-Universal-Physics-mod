@@ -27,7 +27,7 @@ void Element::Element_ACEL()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Accelerator, speeds up nearby elements.";

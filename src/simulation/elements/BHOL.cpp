@@ -24,7 +24,7 @@ void Element::Element_BHOL()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 70.0f + 273.15f;
 	HeatConduct = 255;

@@ -28,7 +28,7 @@ void Element::Element_MWAX()
 	Meltable = 0;
 	Hardness = 2;
 
-	Weight = 25;
+	Mass = 25/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 28.0f + 273.15f;
 	HeatConduct = 44;

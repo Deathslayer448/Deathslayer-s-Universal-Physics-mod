@@ -26,7 +26,7 @@ void Element::Element_SWTR() {
 	Meltable = 0;
 	Hardness = 20;
 
-	Weight = 35;
+	Mass = 35/1000.0f;
 
 	HeatConduct = 35;
 	Description = "Sugar water.";

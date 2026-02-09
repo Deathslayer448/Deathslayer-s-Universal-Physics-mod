@@ -27,7 +27,7 @@ void Element::Element_EMBR()
 	Meltable = 0;
 	Hardness = 21;
 
-	Weight = 30;
+	Mass = 30/1000.0f;
 
 	DefaultProperties.temp = 500.0f + 273.15f;
 	HeatConduct = 29;

@@ -27,7 +27,7 @@ void Element::Element_GLOW()
 	Meltable = 0;
 	Hardness = 2;
 
-	Weight = 40;
+	Mass = 40/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 20.0f + 273.15f;
 	HeatConduct = 44;

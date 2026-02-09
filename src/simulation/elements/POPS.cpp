@@ -27,7 +27,7 @@ Explosive = 0;
 Meltable = 0;
 Hardness = 20;
 
-Weight = 100;
+Mass = 100/1000.0f;
 
 HeatConduct = 104;
 Description = "Poop shoot. Releases waste and exess stuff.";

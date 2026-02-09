@@ -25,7 +25,7 @@ void Element::Element_PPIP()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = 295.15f;
 	HeatConduct = 251;

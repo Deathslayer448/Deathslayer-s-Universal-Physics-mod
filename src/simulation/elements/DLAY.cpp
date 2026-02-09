@@ -27,7 +27,7 @@ void Element::Element_DLAY()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = 4.0f + 273.15f;
 	HeatConduct = 0;

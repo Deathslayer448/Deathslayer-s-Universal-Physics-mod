@@ -26,7 +26,7 @@ void Element::Element_NWHL()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 186;
 	Description = "White hole, pushes away other particles with gravity. (Requires Newtonian gravity)";

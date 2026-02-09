@@ -27,7 +27,7 @@ void Element::Element_SING()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 86;
+	Mass = 86/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Singularity. Creates huge amounts of negative pressure and destroys everything.";

@@ -27,7 +27,7 @@ void Element::Element_NONE()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 0;
 	Description = "Erases particles.";

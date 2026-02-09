@@ -27,7 +27,7 @@ void Element::Element_THDR()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	DefaultProperties.temp = 9000.0f + 273.15f;
 	HeatConduct = 1;

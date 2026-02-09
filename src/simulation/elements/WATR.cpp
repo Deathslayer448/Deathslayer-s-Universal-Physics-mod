@@ -26,7 +26,7 @@ void Element::Element_WATR()
 	Meltable = 0;
 	Hardness = 20;
 
-	Weight = 30;
+	Mass = 30/1000.0f;
 
 	DefaultProperties.temp = R_TEMP - 2.0f + 273.15f;
 	HeatConduct = 29;

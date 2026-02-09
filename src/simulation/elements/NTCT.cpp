@@ -25,7 +25,7 @@ void Element::Element_NTCT()
 	Meltable = 1;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "NTC Thermistor. Conducts with PSCN and NSCN, but only when heated above 100C.";

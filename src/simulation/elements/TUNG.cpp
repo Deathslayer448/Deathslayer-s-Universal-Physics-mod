@@ -29,7 +29,7 @@ void Element::Element_TUNG()
 	Meltable = 1;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Tungsten. Brittle metal with a very high melting point.";

@@ -27,7 +27,7 @@ void Element::Element_CFLM()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 2;
+	Mass = 2/1000.0f;
 
 	DefaultProperties.temp = 0.0f;
 	HeatConduct = 88;

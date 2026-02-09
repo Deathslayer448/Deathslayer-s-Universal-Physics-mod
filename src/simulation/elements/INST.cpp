@@ -24,7 +24,7 @@ void Element::Element_INST()
 	Meltable = 1;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Instantly conducts, PSCN to charge, NSCN to take.";

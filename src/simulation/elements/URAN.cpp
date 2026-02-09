@@ -27,7 +27,7 @@ void Element::Element_URAN()
 	Hardness = 0;
 	PhotonReflectWavelengths = 0x003FC000;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 30.0f + 273.15f;
 	HeatConduct = 251;

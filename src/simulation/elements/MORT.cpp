@@ -26,7 +26,7 @@ void Element::Element_MORT()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = -1;
+	Mass = 0.0001f;  // energy particle, minimal mass
 
 	DefaultProperties.temp = R_TEMP + 4.0f + 273.15f;
 	HeatConduct = 60;

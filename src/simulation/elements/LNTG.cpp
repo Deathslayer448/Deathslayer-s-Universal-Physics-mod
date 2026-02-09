@@ -24,7 +24,7 @@ void Element::Element_LNTG()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 30;
+	Mass = 30/1000.0f;
 
 	DefaultProperties.temp = 70.15f;
 	HeatConduct = 70;

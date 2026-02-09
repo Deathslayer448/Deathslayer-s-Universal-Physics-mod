@@ -28,7 +28,7 @@ void Element::Element_EMP()
 	Meltable = 0;
 	Hardness = 3;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 121;
 	Description = "Electromagnetic pulse. Breaks activated electronics.";

@@ -27,7 +27,7 @@ void Element::Element_DUST()
 	Hardness = 30;
 	PhotonReflectWavelengths = 0x3FFFFFC0;
 
-	Weight = 85;
+	Mass = 85/1000.0f;
 
 	HeatConduct = 20;
 	Description = "Very light dust. Flammable, edible for some reason.";

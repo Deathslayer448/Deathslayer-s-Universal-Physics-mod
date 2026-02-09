@@ -28,7 +28,7 @@ void Element::Element_WAX()
 	Meltable = 0;
 	Hardness = 10;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 44;
 	Description = "Wax. Melts at moderately high temperatures.";

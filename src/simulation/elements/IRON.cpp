@@ -26,10 +26,10 @@ void Element::Element_IRON()
 	Meltable = 1;
 	Hardness = 49;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	// Volumetric heat capacity per particle in J/K (Iron ~450 J/(kg·K) for ~1 g equivalent).
-	HeatCapacity = 0.45f;
+	SpecificHeat = 450.0f;  // J/(kg·K), iron
 
 	HeatConduct = 251;
 	Description = "Rusts with salt, can be used for electrolysis of WATR.";

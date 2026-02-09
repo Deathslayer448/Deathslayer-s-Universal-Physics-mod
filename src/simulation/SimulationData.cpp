@@ -123,8 +123,8 @@ void SimulationData::init_can_move()
 	{
 		for (destinationType = 1; destinationType < PT_NUM; destinationType++)
 		{
-			//weight check, also prevents particles of same type displacing each other
-			if (elements[movingType].Weight <= elements[destinationType].Weight || destinationType == PT_GEL)
+			// Mass check: heavier can push lighter; same mass or lighter cannot displace
+			if (elements[movingType].Mass <= elements[destinationType].Mass || destinationType == PT_GEL)
 				can_move[movingType][destinationType] = 0;
 
 			//other checks for NEUT and energy particles

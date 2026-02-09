@@ -31,7 +31,7 @@ void Element::Element_STKM()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 50;
+	Mass = 50/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 14.6f + 273.15f;
 	HeatConduct = 0;
@@ -518,7 +518,7 @@ int Element_STKM_run_stickman(playerst *playerp, UPDATE_FUNC_ARGS)
 				{
 					parts[np].vx -= -mvy*(5*((((int)playerp->pcomm)&0x02) == 0x02) - 5*(((int)(playerp->pcomm)&0x01) == 0x01));
 					parts[np].vy -= mvx*(5*((((int)playerp->pcomm)&0x02) == 0x02) - 5*(((int)(playerp->pcomm)&0x01) == 0x01));
-					parts[i].vx -= (elements[(int)playerp->elem].Weight*parts[np].vx)/1000;
+					parts[i].vx -= (elements[(int)playerp->elem].Mass*parts[np].vx)/1000;
 				}
 				playerp->frames = 0;
 			}

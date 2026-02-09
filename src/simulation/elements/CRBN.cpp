@@ -30,7 +30,7 @@ void Element::Element_CRBN() {
 	Hardness = 2;
 	PhotonReflectWavelengths = 0x00000000;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 10;
 	Description = "Carbon dust. Turns into RDMD under heat and pressure, superconducts when cold.";

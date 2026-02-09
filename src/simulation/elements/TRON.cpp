@@ -31,7 +31,7 @@ void Element::Element_TRON()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = 0.0f;
 	HeatConduct = 40;

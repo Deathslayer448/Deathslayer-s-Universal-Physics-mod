@@ -26,7 +26,7 @@ void Element::Element_RSST()
 	Meltable = 0;
 	Hardness = 50;
 
-	Weight = 33;
+	Mass = 33/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 20.0f + 273.15f;
 	HeatConduct = 55;

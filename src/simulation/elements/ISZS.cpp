@@ -26,7 +26,7 @@ void Element::Element_ISZS()
 	Meltable = 1;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = 140.00f;
 	HeatConduct = 251;

@@ -30,7 +30,7 @@ void Element::Element_PIPE()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 0.1f;
 
 	DefaultProperties.temp = 295.15f;
 	HeatConduct = 251;
@@ -472,9 +472,13 @@ void Element_PIPE_transfer_part_to_pipe(Particle *part, Particle *pipe)
 	else
 	{
 		auto &elements = SimulationData::CRef().elements;
-		auto c_pipe = elements[pipe->type].HeatCapacity;
-		auto c_part = elements[part->type].HeatCapacity;
-
+		auto hc = [&](int pt) {
+			float m = elements[pt].Mass;
+			float c = elements[pt].SpecificHeat > 0.0f ? elements[pt].SpecificHeat : DEFAULT_SOLID_LIQUID_SPECIFIC_HEAT_J_PER_KG_K;
+			return m * c;
+		};
+		float c_pipe = hc(pipe->type);
+		float c_part = hc(part->type);
 		pipe->temp = (c_part*part->temp + c_pipe*pipe->temp) / (c_part + c_pipe);
 	}
 
@@ -520,10 +524,14 @@ static void transfer_pipe_to_pipe(Particle *src, Particle *dest, bool STOR)
 	else
 	{
 		auto &elements = SimulationData::CRef().elements;
-		auto src_ctype = src->ctype;
-		auto c_src = (0 < src_ctype && src_ctype < PT_NUM) ? elements[src_ctype].HeatCapacity : 1.0f;
-		auto c_dest = elements[dest->type].HeatCapacity;
-
+		auto hc = [&](int pt) {
+			float m = elements[pt].Mass;
+			float c = elements[pt].SpecificHeat > 0.0f ? elements[pt].SpecificHeat : DEFAULT_SOLID_LIQUID_SPECIFIC_HEAT_J_PER_KG_K;
+			return m * c;
+		};
+		int src_ctype = src->ctype;
+		float c_src = (0 < src_ctype && src_ctype < PT_NUM) ? hc(src_ctype) : DEFAULT_SOLID_LIQUID_SPECIFIC_HEAT_J_PER_KG_K * 0.1f;
+		float c_dest = hc(dest->type);
 		dest->temp = (c_src*src->temp + c_dest*dest->temp) / (c_src + c_dest);
 	}
 

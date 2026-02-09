@@ -29,7 +29,7 @@ void Element::Element_OIL()
 	Meltable = 0;
 	Hardness = 5;
 
-	Weight = 20;
+	Mass = 20/1000.0f;
 
 	HeatConduct = 42;
 	Description = "Flammable, turns into GAS at low pressure or high temperature.";

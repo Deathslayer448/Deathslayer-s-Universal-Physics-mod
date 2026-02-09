@@ -27,7 +27,7 @@ void Element::Element_WIFI()
 	Meltable = 0;
 	Hardness = 2;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 0;
 	Description = "Wireless transmitter, transfers spark to any other wifi on the same temperature channel.";

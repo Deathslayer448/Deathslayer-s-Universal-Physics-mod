@@ -29,7 +29,7 @@ void Element::Element_PLEX()
 	Hardness = 1;
 	PhotonReflectWavelengths = 0x1F00003E;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 88;
 	Description = "Primary plastic explosive, works best with another explosive.";

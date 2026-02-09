@@ -25,7 +25,7 @@ void Element::Element_ANT() {
 	Meltable = 0;
 	Hardness = 2;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 150;
 	Description = "Ants, digs tunnels in soil and eats SUGR. Flammable.";

@@ -479,7 +479,7 @@ do
 		[ "explosive"        ] = "Explosive"       ,
 		[ "meltable"         ] = "Meltable"        ,
 		[ "hardness"         ] = "Hardness"        ,
-		[ "weight"           ] = "Weight"          ,
+		[ "weight"           ] = "Mass"            ,  -- was Weight; now Mass (kg)
 		[ "heat"             ] = "Temperature"     ,
 		[ "hconduct"         ] = "HeatConduct"     ,
 		[ "description"      ] = "Description"     ,

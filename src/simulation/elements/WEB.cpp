@@ -29,7 +29,7 @@ void Element::Element_WEB() {
 	Meltable = 0;
 	Hardness = 12;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 75;
 	Description = "Spider web. Sticky, captures light powders and prey.";
@@ -117,7 +117,7 @@ static int update(UPDATE_FUNC_ARGS) {
 				if (particles_supporting < 2 && 
 					(sim->sim->elements()[rt].Properties & TYPE_PART ||
 						sim->sim->elements()[rt].Properties & TYPE_LIQUID) &&
-						sim->sim->elements()[rt].Weight < 50 && !is_alive) {
+						sim->sim->elements()[rt].Mass < 0.05f && !is_alive) {
 					++particles_supporting;
 					parts[ID(r)].vx = 0;
 					parts[ID(r)].vy = 0;

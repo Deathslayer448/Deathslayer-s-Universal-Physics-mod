@@ -38,9 +38,9 @@ public:
 	int Hardness;
 	// Photon wavelengths are ANDed with this value when a photon hits an element, meaning that only wavelengths present in both this value and the original photon will remain in the reflected photon
 	unsigned int PhotonReflectWavelengths;
-	int Weight;
+	float Mass;         // Mass per particle in kg. Fixed volume 0.1 L → m = ρ×V_pixel. Water ≈ 0.1, tungsten ≈ 1.93, gases ~0.0001.
 	unsigned char HeatConduct;
-	float HeatCapacity; // Volumetric heat capacity per one pixel. Must be nonzero. The default value is 1.0f.
+	float SpecificHeat; // J/(kg·K). Heat capacity C = Mass * SpecificHeat.
 	String Description;
 	unsigned int Properties;
 	unsigned int CarriesTypeIn;

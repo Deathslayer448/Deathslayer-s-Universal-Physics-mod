@@ -27,7 +27,7 @@ void Element::Element_GLAS()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 150;
 	Description = "Glass. Meltable. Shatters under pressure, and refracts photons.";

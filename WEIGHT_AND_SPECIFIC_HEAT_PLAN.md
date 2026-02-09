@@ -205,3 +205,37 @@ Search the repo for: `Weight`, `HeatCapacity`, `heatCapacity`, `HeatConduct` (on
 | Docs | SIMULATION_UNITS.md, etc. | Final scale and defaults |
 
 This plan covers the full codebase impact for Weight → mass and heat capacity → specific heat; use it as a checklist when implementing.
+
+---
+
+## Plan audit: what’s done vs not done
+
+
+Checked against the plan. **Plan finished for this scope.**
+
+### Done
+
+- **2.1 Particle**: `heatCapacity` → `specificHeat`; property list has `specificHeat`. Mass from element only.
+- **2.2 Element**: `Weight` → `Mass` (float), `HeatCapacity` → `SpecificHeat`; defaults and property list.
+- **2.3 Constants**: `V_PIXEL_M3`, `DEFAULT_GAS_SPECIFIC_HEAT_J_PER_KG_K`, `DEFAULT_SOLID_LIQUID_SPECIFIC_HEAT_J_PER_KG_K` added. Old heat-capacity constants removed.
+- **3.1 Core**: Particle.h/cpp, Element.h/cpp, ElementDefs.h, Simulation.cpp (create_part, get_particle_heat_capacity = mass×specificHeat), Air.cpp (C = m×c), SimulationData.cpp (can_move uses Mass).
+- **3.2 Element definitions**: All element files: `Weight = N` → `Mass = N/1000.0f`; TTAN/IRON/BASE: `HeatCapacity` → `SpecificHeat`; energy particles: `Mass = 0.0001f`.
+- **3.3 Heat transfer**: Simulation.cpp, Air.cpp, PIPE.cpp use C = m×c (and LAVA/ctype).
+- **3.4 GUI**: GameView.cpp uses mass×c for E_part.
+- **3.5 Gameplay**: SimulationData, HCL, BLOD, STKM, WEB use Mass (formulas not retuned for new scale).
+- **Lua compat**: compat.lua `weight` → `Mass` (element). Particle property alias `heatCapacity` → `specificHeat` in C++ (Particle::GetPropertyAliases).
+- **3.7 Documentation**: SIMULATION_UNITS.md updated for Mass, specific heat, and C = m×c (single implementation; no Path A/B).
+
+### Not done (optional / out of scope)
+
+- **2.3 Constants**: Plan says “Remove or repurpose” `DEFAULT_GAS_HEAT_CAPACITY_J_PER_K`, `DEFAULT_SOLID_LIQUID_HEAT_CAPACITY_J_PER_K`, `DEFAULT_PARTICLE_HEAT_CAPACITY` — already removed.
+- **3.1 Particle.cpp**: Plan says “handle legacy heatCapacity in load if needed”. Save format (PSv) does **not** store heatCapacity/specificHeat (not in field descriptor), so load migration is optional; if any other code path ever did, it’s not done. **Action**: Confirm no other load path; optionally add “if old save had heatCapacity, set specificHeat = heatCapacity/element.Mass” if we ever add that field to the save.
+- **Save**: Plan says “If particle stores heatCapacity, either drop it or add one-time conversion”. PSv does not store heatCapacity/specificHeat. No migration needed unless we add that field to the save format.
+- **3.6 Lua**: Plan says “document new meaning (mass in kg, specific heat in J/(kg·K)); add specificHeat”. compat.lua has `weight` → `Mass`. **No** particle alias `heatCapacity` → `specificHeat` in Lua (no grep hit); if Lua exposes particle props by name, old scripts using `heatCapacity` would break. **Action**: Add particle property alias `heatCapacity` → `specificHeat` in Lua if particle props are name-based and we want backward compat.
+- **3.7 Documentation**: Plan says update SIMULATION_UNITS.md (final mass scale and specific heat defaults), and “AIR_SOLVER_IMPROVEMENT_PLAN.md, TPT_AIR_REPLACEMENT_PLAN.md, MISSING_ITEMS.md: point to specific heat and C = m*c”. **Not done**: SIMULATION_UNITS still says “Weight” in several places; the other three docs still say HeatCapacity/heat capacity.
+- **4 Phase 6 – Legacy saves**: “If saves store heatCapacity: on load, either ignore or set specificHeat = heatCapacity / default_mass.” Not implemented (and save format doesn’t store it).
+- **4 Phase 7 – Cleanup**: “Remove or deprecate heatCapacity from Particle” — done (removed). “Remove HeatCapacity from Element” — done (replaced by SpecificHeat). “Remove default heat capacity constants” — **not done**.
+
+### Summary
+
+- **This plan**: Migration done. Element Mass/SpecificHeat; Particle specificHeat; C = m×c everywhere; constants cleaned up; C++ alias heatCapacity→specificHeat; SIMULATION_UNITS.md describes the implementation. Unrelated docs (AIR_SOLVER_IMPROVEMENT_PLAN, TPT_AIR_REPLACEMENT_PLAN, MISSING_ITEMS) are not part of this plan.

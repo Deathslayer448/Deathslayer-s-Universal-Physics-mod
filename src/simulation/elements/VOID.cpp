@@ -24,7 +24,7 @@ void Element::Element_VOID()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Hole, will drain away any particles.";

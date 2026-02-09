@@ -27,7 +27,7 @@ void Element::Element_FLSH() {
 	Meltable = 0;
 	Hardness = 15;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.oxygens = 100;
 	DefaultProperties.carbons = 100;

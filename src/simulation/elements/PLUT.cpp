@@ -27,7 +27,7 @@ void Element::Element_PLUT()
 	Hardness = 0;
 	PhotonReflectWavelengths = 0x001FCE00;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 4.0f + 273.15f;
 	HeatConduct = 251;

@@ -30,7 +30,7 @@ void Element::Element_PHOT()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = -1;
+	Mass = 0.0001f;  // "mass" for can_move only — don't tell Einstein
 
 	DefaultProperties.temp = R_TEMP + 900.0f + 273.15f;
 	HeatConduct = 251;

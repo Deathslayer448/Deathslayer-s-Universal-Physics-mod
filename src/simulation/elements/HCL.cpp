@@ -27,7 +27,7 @@ void Element::Element_HCL() {
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 31;
+	Mass = 31/1000.0f;
 	HeatConduct = 74;
 	Description = "Hydrochloric acid. Acid used by the stomach.";
 
@@ -218,7 +218,7 @@ static int update(UPDATE_FUNC_ARGS) {
 					}
 				}
 				// Weight switching
-				if (sim->NoWeightSwitching && sim->pmap_count[y][x]<2 && TYP(r) != parts[i].type && sim->rng.chance(1, 8) && ((y > parts[ID(r)].y && sim->rng.chance(1, restrict_flt(elements[parts[i].type].Weight - pow(elements[TYP(r)].Weight, 2) / 10.0f, 1.0f, MAX_TEMP))) || (y < parts[ID(r)].y && sim->rng.chance(1, 100))) && (elements[TYP(r)].Properties & TYPE_PART || elements[TYP(r)].Properties & TYPE_LIQUID)) {
+				if (sim->NoWeightSwitching && sim->pmap_count[y][x]<2 && TYP(r) != parts[i].type && sim->rng.chance(1, 8) && ((y > parts[ID(r)].y && sim->rng.chance(1, restrict_flt(elements[parts[i].type].Mass - pow(elements[TYP(r)].Mass, 2) / 10.0f, 1.0f, MAX_TEMP))) || (y < parts[ID(r)].y && sim->rng.chance(1, 100))) && (elements[TYP(r)].Properties & TYPE_PART || elements[TYP(r)].Properties & TYPE_LIQUID)) {
 					float temp = parts[i].x;
 					parts[i].x = parts[ID(r)].x;
 					parts[ID(r)].x = temp;

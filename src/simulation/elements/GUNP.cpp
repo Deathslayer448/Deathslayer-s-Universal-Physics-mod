@@ -24,7 +24,7 @@ void Element::Element_GUNP()
 	Meltable = 0;
 	Hardness = 10;
 
-	Weight = 85;
+	Mass = 85/1000.0f;
 
 	HeatConduct = 97;
 	Description = "Gunpowder. Light dust, explodes on contact with fire or spark.";

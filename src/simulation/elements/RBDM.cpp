@@ -24,7 +24,7 @@ void Element::Element_RBDM()
 	Meltable = 50;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 240;
 	Description = "Rubidium. Explosive, especially on contact with water. Low melting point.";

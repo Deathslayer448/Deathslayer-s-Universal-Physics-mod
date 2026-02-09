@@ -26,7 +26,7 @@ void Element::Element_UDDR() {
 	Meltable = 0;
 	Hardness = 15;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 104;
 	Description = "Udder. Makes milk when squeezed (pressure). Requires nutrients to make more milk.";

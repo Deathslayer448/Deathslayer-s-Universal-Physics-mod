@@ -27,7 +27,7 @@ void Element::Element_ARAY()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 0;
 	Description = "Ray Emitter. Rays create points when they collide.";

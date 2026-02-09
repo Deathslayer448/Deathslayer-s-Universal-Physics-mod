@@ -27,7 +27,7 @@ void Element::Element_ROCK()
 	Meltable = 5;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 200;
 	Description = "Solid, melts into various elements.";

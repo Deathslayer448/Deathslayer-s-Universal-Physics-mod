@@ -27,7 +27,7 @@ void Element::Element_GPMP()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 0;
 	Description = "Gravity pump. Changes gravity to its temp when activated. (use HEAT/COOL)";

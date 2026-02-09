@@ -24,7 +24,7 @@ void Element::Element_E116()
 	Meltable = 0;
 	Hardness = 30;
 
-	Weight = 85;
+	Mass = 85/1000.0f;
 
 	HeatConduct = 70;
 	Description = "A failed shared velocity test.";

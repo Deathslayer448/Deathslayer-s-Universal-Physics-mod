@@ -25,7 +25,7 @@ void Element::Element_AMNA() {
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 2;
+	Mass = 2/1000.0f;
 	HeatConduct = 20;
 	Description = "Ammonia. Created from nitrogen and hydrogen, decomposes in an endothermic reaction.";
 

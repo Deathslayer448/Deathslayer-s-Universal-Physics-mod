@@ -25,7 +25,7 @@ void Element::Element_LOLZ()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = 373.0f;
 	HeatConduct = 40;

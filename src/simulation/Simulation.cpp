@@ -1919,9 +1919,8 @@ int Simulation::create_part(int p, int x, int y, int t, int v)
 	parts[i].type = t;
 	parts[i].x = (float)x;
 	parts[i].y = (float)y;
-	// Initialize per-particle heat capacity (J/K). Element value if set; else gas default for TYPE_GAS, solid/liquid default otherwise.
-	float defaultHC = (elements[t].Properties & TYPE_GAS) ? DEFAULT_GAS_HEAT_CAPACITY_J_PER_K : DEFAULT_SOLID_LIQUID_HEAT_CAPACITY_J_PER_K;
-	parts[i].heatCapacity = (elements[t].HeatCapacity > 0.0f) ? elements[t].HeatCapacity : defaultHC;
+	// Per-particle specific heat (J/(kg·K)). 0 = use element default. C = mass * specificHeat.
+	parts[i].specificHeat = (elements[t].SpecificHeat > 0.0f) ? elements[t].SpecificHeat : 0.0f;
 
 	//and finally set the pmap/photon maps to the newly created particle
 	if (elements[t].Properties & TYPE_ENERGY)
@@ -2490,20 +2489,22 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 			}
 		}
 
-		// Helper: Get effective heat capacity for a particle in J/K (per-particle property, with LAVA/ctype support).
+		// Helper: C = mass * specificHeat (J/K). Mass from element; specific heat from particle override or element.
 		auto get_particle_heat_capacity = [&](int part_id) -> float {
 			int part_type = parts[part_id].type;
-			// LAVA: use ctype's heat capacity if ctype is set (e.g., LAVA from TTAN vs LAVA from IRON)
+			float mass = elements[part_type].Mass;
+			float c = parts[part_id].specificHeat > 0.0f ? parts[part_id].specificHeat
+				: (elements[part_type].SpecificHeat > 0.0f ? elements[part_type].SpecificHeat
+				   : ((elements[part_type].Properties & TYPE_GAS) ? DEFAULT_GAS_SPECIFIC_HEAT_J_PER_KG_K : DEFAULT_SOLID_LIQUID_SPECIFIC_HEAT_J_PER_KG_K));
+			// LAVA: use ctype's mass and specific heat when set (e.g. LAVA from TTAN vs IRON)
 			if (part_type == PT_LAVA && parts[part_id].ctype > 0 && parts[part_id].ctype < PT_NUM)
 			{
-				float hc_ctype = elements[parts[part_id].ctype].HeatCapacity;
-				if (hc_ctype > 0.0f)
-					return hc_ctype;
+				int ct = parts[part_id].ctype;
+				mass = elements[ct].Mass;
+				c = elements[ct].SpecificHeat > 0.0f ? elements[ct].SpecificHeat
+					: ((elements[ct].Properties & TYPE_GAS) ? DEFAULT_GAS_SPECIFIC_HEAT_J_PER_KG_K : DEFAULT_SOLID_LIQUID_SPECIFIC_HEAT_J_PER_KG_K);
 			}
-			// Use per-particle heatCapacity (J/K); if unset/zero, use gas vs solid/liquid default by element type
-			if (parts[part_id].heatCapacity > 0.0f)
-				return parts[part_id].heatCapacity;
-			return (elements[part_type].Properties & TYPE_GAS) ? DEFAULT_GAS_HEAT_CAPACITY_J_PER_K : DEFAULT_SOLID_LIQUID_HEAT_CAPACITY_J_PER_K;
+			return mass * c;
 		};
 
 		// Heat transfer code: Physics-based using Fourier's law Q = k·A·(T1-T2)/dx

@@ -24,7 +24,7 @@ void Element::Element_STNE()
 	Meltable = 5;
 	Hardness = 1;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 150;
 	Description = "Stone. Heavy particles, meltable.";

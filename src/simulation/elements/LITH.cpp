@@ -27,7 +27,7 @@ void Element::Element_LITH()
 	Meltable = 0;
 	Hardness = 14;
 
-	Weight = 17;
+	Mass = 17/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Lithium. Reactive element that explodes on contact with water.";

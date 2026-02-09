@@ -2679,9 +2679,9 @@ void GameView::OnDraw()
 				auto &sd = SimulationData::CRef();
 				if (sd.elements[type].Enabled)
 				{
-					float hc = sd.elements[type].HeatCapacity;
-					float T_K = sample.particle.temp;
-					float E_part = hc * T_K;
+					float mass = sd.elements[type].Mass;
+					float c = sd.elements[type].SpecificHeat > 0.0f ? sd.elements[type].SpecificHeat : 500.0f;
+					float E_part = mass * c * sample.particle.temp;
 					sampleInfo << " E_part: " << Format::Precision(2) << E_part << " (HC×T)";
 				}
 			}

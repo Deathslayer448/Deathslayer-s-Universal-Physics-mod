@@ -26,7 +26,7 @@ void Element::Element_FOG()
 	Meltable = 0;
 	Hardness = 30;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	DefaultProperties.temp = 243.15f;
 	HeatConduct = 100;

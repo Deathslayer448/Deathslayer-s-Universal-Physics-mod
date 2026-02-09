@@ -32,7 +32,7 @@ void Element::Element_PSTN()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = 10.0f + 273.15f;
 	HeatConduct = 0;

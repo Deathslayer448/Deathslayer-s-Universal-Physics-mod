@@ -26,7 +26,7 @@ void Element::Element_FRME()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 0;
 	Description = "Frame, can be used with pistons to push many particles.";

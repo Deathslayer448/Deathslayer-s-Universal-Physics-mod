@@ -27,7 +27,7 @@ void Element::Element_WIRE()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 250;
 	Description = "WireWorld wires, conducts based on a set of GOL-like rules.";

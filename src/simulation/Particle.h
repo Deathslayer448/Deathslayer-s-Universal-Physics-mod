@@ -8,7 +8,7 @@ struct Particle
 	int life, ctype, ctype2;
 	float x, y, vx, vy;
 	float temp;
-	float heatCapacity; // Per-particle heat capacity in J/K (joules per kelvin). Defaults: gas 1 mJ/K, solid/liquid 0.5 J/K. Editable via property tool.
+	float specificHeat; // J/(kg·K). If > 0 overrides element default. Heat capacity C = mass * specificHeat.
 	int flags;
 	int tmp;
 	int tmp2;

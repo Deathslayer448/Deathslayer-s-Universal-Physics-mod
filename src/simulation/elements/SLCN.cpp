@@ -28,7 +28,7 @@ void Element::Element_SLCN()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 100;
 	Description = "Powdered Silicon. A key ingredient in producing multiple materials.";

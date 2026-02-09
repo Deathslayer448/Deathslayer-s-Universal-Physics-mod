@@ -25,7 +25,7 @@ void Element::Element_N2() {
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 	HeatConduct = 60;
 	Description = "Nitrogen gas. Non-flammable. Puts out fires.";
 	PhotonReflectWavelengths = 0xFFF;

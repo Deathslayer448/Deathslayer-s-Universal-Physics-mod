@@ -24,7 +24,7 @@ void Element::Element_PSTS()
 	Meltable = 0;
 	Hardness = 18;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = R_TEMP - 2.0f + 273.15f;
 	HeatConduct = 29;

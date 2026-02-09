@@ -27,7 +27,7 @@ void Element::Element_VIRS()
 	Meltable = 0;
 	Hardness = 20;
 
-	Weight = 31;
+	Mass = 31/1000.0f;
 
 	DefaultProperties.temp = 72.0f + 273.15f;
 	HeatConduct = 251;

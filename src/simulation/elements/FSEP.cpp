@@ -26,7 +26,7 @@ void Element::Element_FSEP()
 	Meltable = 0;
 	Hardness = 27;
 
-	Weight = 70;
+	Mass = 70/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Fuse Powder. Burns slowly like FUSE.";

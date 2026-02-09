@@ -31,7 +31,7 @@ void Element::Element_LIGH()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 0;
 	Description = "Lightning. Change the brush size to set the size of the lightning.";

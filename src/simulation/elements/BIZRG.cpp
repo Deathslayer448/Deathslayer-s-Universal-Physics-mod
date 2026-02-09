@@ -25,7 +25,7 @@ void Element::Element_BIZRG()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	DefaultProperties.temp = R_TEMP - 200.0f + 273.15f;
 	HeatConduct = 42;

@@ -26,7 +26,7 @@ void Element::Element_MERC()
 	Meltable = 0;
 	Hardness = 18;
 
-	Weight = 91;
+	Mass = 91/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Mercury. Volume changes with temperature, Conductive.";

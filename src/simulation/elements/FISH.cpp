@@ -25,7 +25,7 @@ void Element::Element_FISH() {
 	Meltable = 0;
 	Hardness = 2;
 
-	Weight = 30;
+	Mass = 30/1000.0f;
 
 	HeatConduct = 150;
 	Description = "Freshwater fish, swims in water and eats ANT and SEED.";

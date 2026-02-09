@@ -26,7 +26,7 @@ void Element::Element_PAPR() {
 	Meltable = 0;
 	Hardness = 50;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 40;
 	Description = "Paper. Can be stained, dissolves in water, burns quickly.";

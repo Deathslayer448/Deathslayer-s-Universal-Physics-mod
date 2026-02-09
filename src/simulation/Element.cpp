@@ -26,10 +26,10 @@ Element::Element():
 	Hardness(30),
 	PhotonReflectWavelengths(0x3FFFFFFF),
 
-	Weight(50),
+	Mass(0.1f),
 
 	HeatConduct(128),
-	HeatCapacity(1.0f),
+	SpecificHeat(DEFAULT_SOLID_LIQUID_SPECIFIC_HEAT_J_PER_KG_K),
 	Description("No description"),
 
 	Properties(TYPE_SOLID),
@@ -85,10 +85,10 @@ std::vector<StructProperty> const &Element::GetProperties()
 				{ "Hardness",                  StructProperty::Integer,  offsetof(Element, Hardness                 ) },
 				{ "PhotonReflectWavelengths",  StructProperty::UInteger, offsetof(Element, PhotonReflectWavelengths ) },
 				{ "CarriesTypeIn",             StructProperty::UInteger, offsetof(Element, CarriesTypeIn            ) },
-				{ "Weight",                    StructProperty::Integer,  offsetof(Element, Weight                   ) },
+				{ "Mass",                      StructProperty::Float,    offsetof(Element, Mass                     ) },
 				{ "Temperature",               StructProperty::Float,    offsetof(Element, DefaultProperties.temp   ) },
 				{ "HeatConduct",               StructProperty::UChar,    offsetof(Element, HeatConduct              ) },
-				{ "HeatCapacity",              StructProperty::Float,    offsetof(Element, HeatCapacity             ) },
+				{ "SpecificHeat",              StructProperty::Float,    offsetof(Element, SpecificHeat             ) },
 				{ "Description",               StructProperty::String,   offsetof(Element, Description              ) },
 				{ "State",                     StructProperty::Removed,  0                                            },
 				{ "Properties",                StructProperty::Integer,  offsetof(Element, Properties               ) },

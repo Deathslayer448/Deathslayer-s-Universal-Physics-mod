@@ -28,7 +28,7 @@ void Element::Element_GRAV()
 	Meltable = 0;
 	Hardness = 30;
 
-	Weight = 85;
+	Mass = 85/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Very light dust. Changes colour based on velocity.";

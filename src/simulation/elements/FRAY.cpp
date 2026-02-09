@@ -26,7 +26,7 @@ void Element::Element_FRAY()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = 20.0f + 273.15f;
 	HeatConduct = 0;

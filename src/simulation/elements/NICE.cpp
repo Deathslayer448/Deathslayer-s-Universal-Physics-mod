@@ -24,7 +24,7 @@ void Element::Element_NICE()
 	Meltable = 0;
 	Hardness = 20;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = 35.0f;
 	HeatConduct = 46;

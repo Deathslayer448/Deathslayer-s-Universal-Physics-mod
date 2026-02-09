@@ -29,7 +29,7 @@ void Element::Element_PLNT()
 	Hardness = 10;
 	PhotonReflectWavelengths = 0x0007C000;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 65;
 	Description = "Plant, drinks water and grows.";

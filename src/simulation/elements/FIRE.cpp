@@ -30,7 +30,7 @@ void Element::Element_FIRE()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 2;
+	Mass = 2/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 400.0f + 273.15f;
 	HeatConduct = 88;

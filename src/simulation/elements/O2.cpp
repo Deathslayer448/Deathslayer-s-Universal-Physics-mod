@@ -27,7 +27,7 @@ void Element::Element_O2()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Oxygen gas. Needed for most things to burn.";

@@ -26,7 +26,7 @@ void Element::Element_LO2()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 30;
+	Mass = 30/1000.0f;
 
 	DefaultProperties.temp = 80.0f;
 	HeatConduct = 70;

@@ -26,7 +26,7 @@ void Element::Element_FRZZ()
 	Meltable = 0;
 	Hardness = 20;
 
-	Weight = 50;
+	Mass = 50/1000.0f;
 
 	DefaultProperties.temp = 253.15f;
 	HeatConduct = 46;

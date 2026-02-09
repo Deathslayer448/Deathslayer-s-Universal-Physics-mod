@@ -28,7 +28,7 @@ void Element::Element_SMKE()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 120.0f + 273.15f;
 	HeatConduct = 88;

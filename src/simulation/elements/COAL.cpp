@@ -26,7 +26,7 @@ void Element::Element_COAL()
 	Hardness = 18;
 	PhotonReflectWavelengths = 0x00000000;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 200;
 	Description = "Coal, Burns very slowly. Gets red when hot.";

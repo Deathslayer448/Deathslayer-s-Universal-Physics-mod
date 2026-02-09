@@ -31,7 +31,7 @@ void Element::Element_PRTI()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 0;
 	Description = "Portal IN. Particles go in here. Also has temperature dependent channels. (same as WIFI)";

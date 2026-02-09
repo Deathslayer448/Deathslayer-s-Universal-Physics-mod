@@ -26,7 +26,7 @@ void Element::Element_SALT()
 	Meltable = 5;
 	Hardness = 1;
 
-	Weight = 75;
+	Mass = 75/1000.0f;
 
 	HeatConduct = 110;
 	Description = "Salt, dissolves in water.";

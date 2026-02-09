@@ -24,7 +24,7 @@ void Element::Element_DMND()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 186;
 	Description = "Diamond. Indestructible.";

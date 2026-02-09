@@ -26,7 +26,7 @@ void Element::Element_BANG()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 88;
 	Description = "TNT, explodes all at once.";

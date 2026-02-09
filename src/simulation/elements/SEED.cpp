@@ -28,7 +28,7 @@ void Element::Element_SEED() {
 	Hardness = 30;
 	PhotonReflectWavelengths = 0x3FFFFFC0;
 
-	Weight = 32;
+	Mass = 32/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Seed, sprouts into trees when planted in soil.";

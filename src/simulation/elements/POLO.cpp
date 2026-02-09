@@ -28,7 +28,7 @@ void Element::Element_POLO()
 	Hardness = 0;
 	PhotonReflectWavelengths = 0x000FF200;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	DefaultProperties.temp = 388.15f;
 	HeatConduct = 251;

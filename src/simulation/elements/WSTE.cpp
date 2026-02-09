@@ -26,7 +26,7 @@ void Element::Element_WSTE() {
 	Meltable = 0;
 	Hardness = 2;
 
-	Weight = 60;
+	Mass = 60/1000.0f;
 
 	HeatConduct = 60;
 	Description = "Waste from living things.";

@@ -26,7 +26,7 @@ void Element::Element_BCOL()
 	Hardness = 2;
 	PhotonReflectWavelengths = 0x00000000;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 150;
 	Description = "Broken Coal. Heavy particles, burns slowly.";

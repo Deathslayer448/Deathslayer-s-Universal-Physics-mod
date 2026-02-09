@@ -27,7 +27,7 @@ void Element::Element_C5()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 88;
 	Description = "Cold explosive, set off by anything cold.";

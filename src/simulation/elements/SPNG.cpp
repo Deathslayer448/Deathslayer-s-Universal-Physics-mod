@@ -27,7 +27,7 @@ void Element::Element_SPNG()
 	Meltable = 0;
 	Hardness = 31;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Sponge, absorbs water. Is not a moving solid.";

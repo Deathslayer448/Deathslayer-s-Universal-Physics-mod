@@ -25,7 +25,7 @@ void Element::Element_BRAS() {
 	Meltable = 1;
 	Hardness = 20;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Brass. Kills bacteria, made from mixing copper and zinc. Accelerates air.";

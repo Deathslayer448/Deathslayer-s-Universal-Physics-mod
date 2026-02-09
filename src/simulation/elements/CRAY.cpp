@@ -29,7 +29,7 @@ void Element::Element_CRAY()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 0;
 	Description = "Particle Ray Emitter. Creates a beam of particles set by its ctype, with a range set by tmp.";

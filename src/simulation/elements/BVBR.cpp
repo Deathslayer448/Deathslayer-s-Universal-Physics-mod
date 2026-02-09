@@ -25,7 +25,7 @@ void Element::Element_BVBR()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 67;
+	Mass = 67/1000.0f;
 
 	DefaultProperties.temp = 273.15f;
 	HeatConduct = 164;

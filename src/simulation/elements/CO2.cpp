@@ -26,7 +26,7 @@ void Element::Element_CO2()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	HeatConduct = 88;
 	Description = "Carbon Dioxide. Heavy gas, drifts downwards. Carbonates water and turns to dry ice when cold.";

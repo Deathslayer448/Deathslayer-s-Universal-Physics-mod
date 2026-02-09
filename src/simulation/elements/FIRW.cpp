@@ -27,7 +27,7 @@ void Element::Element_FIRW()
 	Meltable = 0;
 	Hardness = 28;
 
-	Weight = 55;
+	Mass = 55/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Fireworks! Colorful, set off by fire.";

@@ -26,7 +26,7 @@ void Element::Element_YEST()
 	Meltable = 0;
 	Hardness = 31;
 
-	Weight = 80;
+	Mass = 80/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Yeast, grows when warm (~37C).";

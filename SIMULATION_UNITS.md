@@ -101,39 +101,33 @@ From ideal gas law: `ρ = p/(R·T)` where:
 
 ## Particles
 
-### Mass (Weight Property)
+### Mass (element and particle)
 
-**Status**: `Weight` property exists but is currently **not physically meaningful**. It's used for some gravity/physics but doesn't represent actual mass.
+**Status**: Element has **Mass** (float, kg). Particle mass comes from element; no per-particle mass override yet.
 
-**Future**: Should represent **mass per particle** in **kg** or **g**.
+**Current usage**: Used for:
+- Heat capacity: `C = Mass × SpecificHeat` (element Mass and SpecificHeat, or particle `specificHeat` if set)
+- `can_move`: heavier (higher Mass) can push lighter
+- HCL, BLOD, STKM, WEB: mass-based formulas (tuning deferred)
 
-**Current usage**: Used in some element interactions, but not for:
-- Heat capacity calculations (we use per-particle `heatCapacity` in J/K)
-- Momentum/force calculations (particles use velocity directly)
+### Specific heat and heat capacity
 
-### Heat Capacity
+**Units**: **Specific heat** = J/(kg·K). **Heat capacity** = `C = Mass × SpecificHeat` (J/K per particle).
 
-**Units**: **J/K (joules per kelvin) per particle**
-
-**Defaults**:
-- **Gas particles**: `DEFAULT_GAS_HEAT_CAPACITY_J_PER_K = 0.001 J/K` (1 mJ/K)
-- **Solid/Liquid particles**: `DEFAULT_SOLID_LIQUID_HEAT_CAPACITY_J_PER_K = 0.5 J/K`
+**Defaults** (when element has no explicit SpecificHeat):
+- **Gas particles**: `DEFAULT_GAS_SPECIFIC_HEAT_J_PER_KG_K = 717.5` J/(kg·K) (air c_v)
+- **Solid/Liquid particles**: `DEFAULT_SOLID_LIQUID_SPECIFIC_HEAT_J_PER_KG_K = 500.0` J/(kg·K)
 
 **Element-specific** (examples):
-- **TTAN (Titanium)**: `0.52 J/K` (based on ~520 J/(kg·K) for ~1 g equivalent)
-- **IRON**: `0.45 J/K` (based on ~450 J/(kg·K) for ~1 g equivalent)
+- **TTAN (Titanium)**: `SpecificHeat = 520` J/(kg·K)
+- **IRON**: `SpecificHeat = 450` J/(kg·K)
 
-**Note**: These assume ~1 g per particle. **Long-term**: we will store **specific heat** (J/(kg·K)) and compute `C = m × c` once mass is defined; see **Design: Heat capacity vs specific heat**.
+**Particle**: `parts[i].specificHeat` (J/(kg·K)); if > 0 overrides element default. Legacy Lua/property name `heatCapacity` is aliased to `specificHeat` (values are now specific heat, not J/K).
 
-### Particle Volume
+### Particle volume and mass scale
 
-- **Volume per particle**: `V_particle = 0.1 L = 1.0×10⁻⁴ m³` (same as pixel volume)
-- **Mass per particle** (if we assume density):
-  - Water (1000 kg/m³): `m = 1000 × 1.0×10⁻⁴ = 0.1 kg = 100 g`
-  - Iron (~7870 kg/m³): `m = 7870 × 1.0×10⁻⁴ = 0.787 kg = 787 g`
-  - Air (1.2 kg/m³ at 1 atm): `m = 1.2 × 1.0×10⁻⁴ = 0.00012 kg = 0.12 g`
-
-**But**: Current `Weight` values don't match these. Need to define what `Weight` actually represents.
+- **Volume per particle**: `V_particle = 0.1 L = 1.0×10⁻⁴ m³` (same as pixel volume). Constant: `V_PIXEL_M3 = 1e-4f`.
+- **Mass scale** (element `Mass` in kg): water-like default 0.1 kg; tungsten ~1.93 kg; gases ~0.0001 kg. See element definitions and `WEIGHT_AND_SPECIFIC_HEAT_PLAN.md`.
 
 ---
 
@@ -174,7 +168,7 @@ Quick reference for tuning and debugging.
 | Quantity | Units | Storage | Conversion / typical |
 |----------|--------|---------|------------------------|
 | Temperature | K | `parts[i].temp`, `hv[y][x]` | Ambient ~295 K (22°C), range 0–99990 K |
-| Heat capacity (particle) | J/K | `parts[i].heatCapacity` | Gas default 0.001, solid/liquid 0.5 |
+| Heat capacity (particle) | J/K | `Mass × specificHeat` | C = m×c; specificHeat J/(kg·K), gas default 717.5, solid/liquid 500 |
 | Heat capacity (air cell) | J/K | derived | `C_air = ρ·c_v·V_cell`, c_v = 717.5 J/(kg·K) |
 | Thermal conductivity | W/(m·K) | `HeatConduct` 0–255 | `k = (HeatConduct/255) × 400` |
 | Heat transfer rate | W | derived | `Q = k·A·ΔT/dx`; per frame: `Q×dt_frame` (J) |
@@ -281,8 +275,7 @@ Quick reference for tuning and debugging.
 
 ### Particles
 
-- **Not explicitly stored** (would need `Weight` to represent mass, then `ρ = m/V_particle`)
-- **Would be**: `ρ_particle = Weight / V_pixel` (kg/m³) if `Weight` is in kg
+- **Derived**: `ρ_particle = Mass / V_PIXEL_M3` (kg/m³); Mass is element mass in kg
 
 ---
 
@@ -383,9 +376,9 @@ Quick reference for tuning and debugging.
 | **Area (contact)** | m² | derived | `1.0×10⁻⁶ m²` (1 mm²) |
 | **Pressure** | Pa | `pv[y][x]` | 1 atm = 101325 Pa |
 | **Mass (air cell)** | kg | derived | `ρ·V_cell` from pressure |
-| **Mass (particle)** | kg | `Weight` (not meaningful yet) | **Needs definition** |
+| **Mass (particle)** | kg | Element `Mass` | Per-element; default 0.1 |
 | **Temperature** | K | `parts[i].temp`, `hv[y][x]` | Kelvin |
-| **Heat capacity** | J/K | `parts[i].heatCapacity` | Per particle |
+| **Heat capacity** | J/K | `Mass × specificHeat` | C = m×c; specificHeat J/(kg·K) |
 | **Velocity (game)** | pixels/frame | `vx`, `vy` | `game_vel_scale = 0.06` |
 | **Velocity (solver)** | m/s | `ux`, `uy` | Meters per second |
 | **Gravity (game)** | pixels/frame² | `pGravX/Y` | Acceleration |
@@ -412,13 +405,13 @@ Quick reference for tuning and debugging.
 
 ## Undefined / To Be Decided
 
-### Particle Mass (planned: rename `Weight` → `Mass`)
+### Particle mass (from element)
 
-**Current status**: Exists as `Weight` but **not physically meaningful**. Used for:
+**Status**: Element has **Mass** (float, kg). Used for:
 - Movement rules (`can_move` checks: lighter particles can't push heavier ones)
 - Some gravity calculations (but not consistent)
 
-**Chosen plan** (see `WEIGHT_AND_SPECIFIC_HEAT_PLAN.md`): Rename **Weight → Mass** (float, kg). Fixed volume 0.1 L per particle → **m = ρ × V_pixel** (denser = more mass, same volume).
+**Implemented** (see `WEIGHT_AND_SPECIFIC_HEAT_PLAN.md`): Element **Mass** (float, kg). Fixed volume 0.1 L per particle → **m = ρ × V_pixel** (denser = more mass, same volume).
 - **Water** (ρ ≈ 1000 kg/m³): `m = 0.1 kg`
 - **Tungsten** (ρ ≈ 19,250 kg/m³): `m ≈ 1.93 kg`
 - **Iron** (ρ ≈ 7870 kg/m³): `m ≈ 0.787 kg`
@@ -473,33 +466,15 @@ Quick reference for tuning and debugging.
 
 ---
 
-## Design: Heat capacity vs specific heat
+## Thermal properties: mass and specific heat
 
-**Decision**: Once **Weight** means **mass** (kg) and we have a known **volume** (hence density), we will treat thermal properties via **specific heat**, not stored heat capacity. Do **not** mix the two approaches.
-
-| Approach | What we store | Heat capacity used in code |
-|----------|----------------|----------------------------|
-| **Path A** (current / short-term) | `heatCapacity` (J/K) per particle | Use stored `C` directly. Particles are “thermally abstract” (no need for mass for heat). |
-| **Path B** (long-term, chosen) | **mass** (kg) + **specificHeat** (J/(kg·K)) | Compute `C = m × c` on the fly wherever heat capacity is needed. |
-
-**Why Path B once mass exists**:
-- **Consistent**: Mass, volume, density, and specific heat are standard physics; `C` is then derived.
-- **No conceptual mismatch**: We avoid “mass means something but heat capacity is unrelated.”
-- **Density from mass + volume**: `ρ = m / V_pixel` is well-defined; specific heat stays per unit mass.
-
-**Migration plan**:
-1. Define **Weight** as mass (kg) and document volume → density.
-2. Introduce **specificHeat** (J/(kg·K)) per particle (and/or per element as default).
-3. Replace all use of stored `heatCapacity` with `C = mass × specificHeat` (with fallbacks for legacy saves if needed).
-4. Remove or deprecate the `heatCapacity` field; do not keep both `heatCapacity` and `specificHeat` as independent inputs.
-
-**Do not mix**: Either we use stored `C` and do not derive it from mass (Path A), or we use mass + `c` and always compute `C` (Path B). We do not store both `C` and `c` and use them interchangeably.
+**Implementation**: Element has **Mass** (kg) and **SpecificHeat** (J/(kg·K)). Particle has **specificHeat** (overrides element default if > 0). Heat capacity is **not** stored; it is computed as `C = Mass × specificHeat` everywhere (heat transfer, HUD, wall loss). Legacy Lua/property name `heatCapacity` is aliased to `specificHeat` for backward compat.
 
 ---
 
 ## Notes for Future Tuning
 
-1. **Particle mass**: Define `Weight` as actual mass in **kg** or **g**. Then heat capacity can be computed from specific heat: `C = m × c` where `c` is J/(kg·K).
+1. **Particle mass**: Element **Mass** (kg) is implemented. Heat capacity is `C = m × c` where `c` is specific heat J/(kg·K).
 
 2. **Consistency**: Ensure all physics uses consistent units (SI preferred for solver, game units for display/storage).
 
@@ -509,7 +484,7 @@ Quick reference for tuning and debugging.
 
 5. **Velocity scale**: `game_vel_scale = 0.06` converts m/s to pixels/frame. May need tuning if velocities feel too fast/slow.
 
-6. **Heat capacity vs specific heat**: See **Design: Heat capacity vs specific heat** below. We will use **specific heat** (Path B) once mass is defined; do not mix the two approaches.
+6. **Thermal**: Mass and specific heat are implemented; see **Thermal properties: mass and specific heat** above.
 
 7. **Contact area**: Currently assumes `1 mm²` for particle-particle and particle-air contact. Could be tuned based on particle size/material properties.
 

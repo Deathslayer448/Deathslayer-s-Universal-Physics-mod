@@ -31,7 +31,7 @@ void Element::Element_STKM2()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 50;
+	Mass = 50/1000.0f;
 
 	DefaultProperties.temp = R_TEMP + 14.6f + 273.15f;
 	HeatConduct = 0;

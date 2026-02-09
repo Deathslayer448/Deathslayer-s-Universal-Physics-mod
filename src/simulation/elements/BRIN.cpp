@@ -27,7 +27,7 @@ void Element::Element_BRIN() {
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 104;
 	Description = "Brain. Receives, processes and outputs signals.";

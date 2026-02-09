@@ -27,7 +27,7 @@ void Element::Element_PHSP() {
 	Hardness = 2;
 	PhotonReflectWavelengths = 0xFFFFFFFF;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 150;
 	Description = "Phosphorus. Highly flammable powder.";

@@ -25,7 +25,7 @@ void Element::Element_VIBR()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = 273.15f;
 	HeatConduct = 251;

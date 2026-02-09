@@ -29,7 +29,7 @@ void Element::Element_STOR()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 0;
 	Description = "Storage. Captures and stores a single particle. Releases when charged with PSCN, also passes to PIPE.";

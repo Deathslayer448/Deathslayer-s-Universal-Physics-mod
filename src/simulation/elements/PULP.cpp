@@ -25,7 +25,7 @@ void Element::Element_PULP() {
 	Meltable = 0;
 	Hardness = 50;
 
-	Weight = 31;
+	Mass = 31/1000.0f;
 
 	DefaultProperties.temp = R_TEMP - 2.0f + 273.15f;
 	DefaultProperties.tmp3 = 40;

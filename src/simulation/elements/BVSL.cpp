@@ -30,7 +30,7 @@ void Element::Element_BVSL() {
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 250;
 	Description = "Blood vessel. Transports nutrients, co2 and oxygen.";

@@ -27,7 +27,7 @@ void Element::Element_VRSG()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	DefaultProperties.temp = 522.0f + 273.15f;
 	HeatConduct = 251;

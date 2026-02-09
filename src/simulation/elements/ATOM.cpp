@@ -29,7 +29,7 @@ void Element::Element_ATOM()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	DefaultProperties.temp = 8273.15;
 	HeatConduct = 5;

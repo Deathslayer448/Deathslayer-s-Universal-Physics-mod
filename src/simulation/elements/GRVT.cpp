@@ -28,7 +28,7 @@ void Element::Element_GRVT()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = -1;
+	Mass = 0.0001f;  // energy particle, minimal mass
 
 	HeatConduct = 61;
 	Description = "Gravitons. Create Newtonian Gravity.";

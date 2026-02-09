@@ -25,7 +25,7 @@ void Element::Element_NSCN()
 	Hardness = 1;
 	PhotonReflectWavelengths = 0x00000000;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "N-Type Silicon, Will not transfer current to P-Type Silicon. Disables powered materials.";

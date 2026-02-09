@@ -25,7 +25,7 @@ void Element::Element_NITR()
 	Hardness = 3;
 	PhotonReflectWavelengths = 0x0007C000;
 
-	Weight = 23;
+	Mass = 23/1000.0f;
 
 	HeatConduct = 50;
 	Description = "Nitroglycerin. Pressure sensitive explosive. Mix with CLST to make TNT.";

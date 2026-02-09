@@ -24,7 +24,7 @@ void Element::Element_DRIC()
 	Meltable = 0;
 	Hardness = 20;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	DefaultProperties.temp = 172.65f;
 	HeatConduct = 2;

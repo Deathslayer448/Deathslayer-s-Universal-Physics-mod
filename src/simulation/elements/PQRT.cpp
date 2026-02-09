@@ -27,7 +27,7 @@ void Element::Element_PQRT()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 3;
 	Description = "Powdered quartz, broken form of QRTZ.";

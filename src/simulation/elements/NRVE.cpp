@@ -27,7 +27,7 @@ void Element::Element_NRVE() {
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 104;
 	Description = "Nerves. Transports signals from organs or brain.";

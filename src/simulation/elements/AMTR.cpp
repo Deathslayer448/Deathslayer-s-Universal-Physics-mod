@@ -27,7 +27,7 @@ void Element::Element_AMTR()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Anti-Matter, destroys a majority of particles.";

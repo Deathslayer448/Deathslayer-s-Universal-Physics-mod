@@ -26,7 +26,7 @@ void Element::Element_BRKN() {
 	Meltable = 0;
 	Hardness = 2;
 
-	Weight = 90;
+	Mass = 90/1000.0f;
 
 	HeatConduct = 111;
 	Description = "A generic broken solid.";

@@ -27,7 +27,7 @@ void Element::Element_ANAR()
 	Meltable = 0;
 	Hardness = 29;
 
-	Weight = 85;
+	Mass = 85/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Anti-air. Very light gravity-defying dust. Burns cold instead of hot.";

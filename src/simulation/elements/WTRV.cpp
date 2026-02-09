@@ -26,7 +26,7 @@ void Element::Element_WTRV()
 	Meltable = 0;
 	Hardness = 4;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	DefaultProperties.tmpcity[7] = 400;
 	DefaultProperties.water = 100;

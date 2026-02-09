@@ -29,7 +29,7 @@ void Element::Element_PROT()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = -1;
+	Mass = 0.0001f;  // energy particle, minimal mass
 
 	HeatConduct = 61;
 	Description = "Protons. Transfer heat to materials, and remove sparks.";

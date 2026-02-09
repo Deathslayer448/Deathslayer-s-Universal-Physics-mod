@@ -28,7 +28,7 @@ void Element::Element_WARP()
 	Meltable = 0;
 	Hardness = 30;
 
-	Weight = 1;
+	Mass = 1/1000.0f;
 
 	HeatConduct = 100;
 	Description = "Displaces other elements.";

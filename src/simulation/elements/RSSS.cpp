@@ -26,7 +26,7 @@ void Element::Element_RSSS()
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 130;
 	Description = "Solidified resist. Blocks pressure and insulates electricity. Liquefies on contact with neutrons.";

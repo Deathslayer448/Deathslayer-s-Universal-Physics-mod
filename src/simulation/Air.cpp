@@ -288,11 +288,20 @@ void Air::update_air(void)
 						int cx = (int)(sim.parts[k].x + 0.5f) / CELL;
 						int cy = (int)(sim.parts[k].y + 0.5f) / CELL;
 						if (cy != j || cx != i) continue;
-						// Heat capacity in J/K: per-particle value or gas/solid default by type
+						// Heat capacity C = mass * specificHeat (J/K)
 						int pt = sim.parts[k].type;
-						float hc = (sim.parts[k].heatCapacity > 0.0f) ? sim.parts[k].heatCapacity
-							: ((elements[pt].HeatCapacity > 0.0f) ? elements[pt].HeatCapacity
-							   : ((elements[pt].Properties & TYPE_GAS) ? DEFAULT_GAS_HEAT_CAPACITY_J_PER_K : DEFAULT_SOLID_LIQUID_HEAT_CAPACITY_J_PER_K));
+						float mass = elements[pt].Mass;
+						float c = sim.parts[k].specificHeat > 0.0f ? sim.parts[k].specificHeat
+							: (elements[pt].SpecificHeat > 0.0f ? elements[pt].SpecificHeat
+							   : ((elements[pt].Properties & TYPE_GAS) ? DEFAULT_GAS_SPECIFIC_HEAT_J_PER_KG_K : DEFAULT_SOLID_LIQUID_SPECIFIC_HEAT_J_PER_KG_K));
+						if (pt == PT_LAVA && sim.parts[k].ctype > 0 && sim.parts[k].ctype < PT_NUM)
+						{
+							int ct = sim.parts[k].ctype;
+							mass = elements[ct].Mass;
+							c = elements[ct].SpecificHeat > 0.0f ? elements[ct].SpecificHeat
+								: ((elements[ct].Properties & TYPE_GAS) ? DEFAULT_GAS_SPECIFIC_HEAT_J_PER_KG_K : DEFAULT_SOLID_LIQUID_SPECIFIC_HEAT_J_PER_KG_K);
+						}
+						float hc = mass * c;
 						hc_total += hc;
 						count++;
 					}

@@ -27,7 +27,7 @@ void Element::Element_PVOD()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Powered VOID. When activated, destroys entering particles.";

@@ -27,7 +27,7 @@ void Element::Element_LQUD() {
 	Meltable = 0;
 	Hardness = 0;
 
-	Weight = 10;
+	Mass = 10/1000.0f;
 	HeatConduct = 34;
 	Description = "Generic liquid state.";
 	Properties = TYPE_LIQUID;

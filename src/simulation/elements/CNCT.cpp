@@ -24,7 +24,7 @@ void Element::Element_CNCT()
 	Meltable = 2;
 	Hardness = 2;
 
-	Weight = 55;
+	Mass = 55/1000.0f;
 
 	HeatConduct = 100;
 	Description = "Concrete. Can stack on itself or ROCK, collapses with pressure.";

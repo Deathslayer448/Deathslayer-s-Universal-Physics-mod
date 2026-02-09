@@ -28,7 +28,7 @@ void Element::Element_POTO() {
 	Meltable = 0;
 	Hardness = 20;
 
-	Weight = 50;
+	Mass = 50/1000.0f;
 
 	HeatConduct = 150;
 	Description = "Potato. The essence of life";

@@ -26,7 +26,7 @@ void Element::Element_TESC()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Tesla coil! Creates lightning when sparked.";

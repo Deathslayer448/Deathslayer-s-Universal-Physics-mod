@@ -27,7 +27,7 @@ void Element::Element_HEAC()
 	Meltable = 1;
 	Hardness = 0;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 255;
 	Description = "Rapid heat conductor.";

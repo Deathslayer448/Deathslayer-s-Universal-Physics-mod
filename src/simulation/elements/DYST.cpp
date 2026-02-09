@@ -24,7 +24,7 @@ void Element::Element_DYST()
 	Meltable = 0;
 	Hardness = 30;
 
-	Weight = 80;
+	Mass = 80/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Dead Yeast.";

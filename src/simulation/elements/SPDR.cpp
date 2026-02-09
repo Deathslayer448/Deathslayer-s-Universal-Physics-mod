@@ -32,7 +32,7 @@ void Element::Element_SPDR() {
 	Meltable = 0;
 	Hardness = 30;
 
-	Weight = 32;
+	Mass = 32/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Spider. Spins webs and eats captured creatures.";

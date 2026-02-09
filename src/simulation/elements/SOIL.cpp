@@ -27,7 +27,7 @@ void Element::Element_SOIL() {
 	Meltable = 2;
 	Hardness = 2;
 
-	Weight = 55;
+	Mass = 55/1000.0f;
 
 	HeatConduct = 70;
 	Description = "Soil. Turns into mud when wet, great for growing seeds.";

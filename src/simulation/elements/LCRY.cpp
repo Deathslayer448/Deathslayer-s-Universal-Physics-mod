@@ -27,7 +27,7 @@ void Element::Element_LCRY()
 	Meltable = 0;
 	Hardness = 1;
 
-	Weight = 100;
+	Mass = 100/1000.0f;
 
 	HeatConduct = 251;
 	Description = "Liquid Crystal. Changes colour when charged. (PSCN Charges, NSCN Discharges)";
