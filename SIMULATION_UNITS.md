@@ -51,9 +51,9 @@ From `Air.cpp` (`update_air`):
 
 From air cell volume:
 - **Air cell**: 16 pixels = 1.6 L = 1.6×10⁻³ m³
-- **Volume per pixel**: `V_pixel = 1.6 L / 16 = 0.1 L = 100 mL = 1.0×10⁻⁴ m³`
+- **Volume per pixel**: `V_pixel = 1.6 L / 16 = 0.1 L = 100 mL = 100 cm³ = 1.0×10⁻⁴ m³`
 
-**Note**: This assumes 2D simulation (per unit depth). The air solver treats cells as 2D (area), so volume is per unit depth.
+**Note**: This assumes 2D simulation (per unit depth). The air solver treats cells as 2D (area), so volume is per unit depth. For heat transfer, 0.1 L = 100 cm³ implies a pixel depth of 100 cm (so 1 cm × 1 cm in-plane × 100 cm depth = 100 cm³).
 
 ### Pixel Dimensions (if cubic)
 
@@ -301,6 +301,7 @@ Quick reference for tuning and debugging.
 - **Units**: **Watts (W)** = J/s
 - **Heat flux**: `Q = k × A × (T1 - T2) / dx` (W) — used in particle heat transfer
 - **Heat transfer per frame**: `Q_frame = Q × dt_frame` (J) — energy transferred
+- **Particle–air**: `Q = k_eff × contact_area_m2 × ΔT / contact_distance_m × dt_frame`; `k_air = 0.026` W/(m·K), `contact_area_m2 = 0.04` m², `contact_distance_m = 0.01` m, `dt_frame = 1/60` s. See § Area / Particle–air heat transfer.
 
 ---
 
@@ -373,7 +374,8 @@ Quick reference for tuning and debugging.
 | **Length** | meters (m) | pixels | 1 pixel ≈ 1 cm (from air solver) |
 | **Volume (pixel)** | m³ | derived | `1.0×10⁻⁴ m³ = 0.1 L` |
 | **Volume (air cell)** | m³ | derived | `1.6×10⁻³ m³ = 1.6 L` (4×4 pixels) |
-| **Area (contact)** | m² | derived | `1.0×10⁻⁶ m²` (1 mm²) |
+| **Area (contact, particle–particle)** | m² | derived | `1.0×10⁻⁶ m²` (1 mm²) |
+| **Area (contact, particle–air)** | m² | derived | `0.04 m²` (4 sides × 0.01 m²; from V_pixel = 0.1 L = 100 cm³) |
 | **Pressure** | Pa | `pv[y][x]` | 1 atm = 101325 Pa |
 | **Mass (air cell)** | kg | derived | `ρ·V_cell` from pressure |
 | **Mass (particle)** | kg | Element `Mass` | Per-element; default 0.1 |
@@ -486,7 +488,7 @@ Quick reference for tuning and debugging.
 
 6. **Thermal**: Mass and specific heat are implemented; see **Thermal properties: mass and specific heat** above.
 
-7. **Contact area**: Currently assumes `1 mm²` for particle-particle and particle-air contact. Could be tuned based on particle size/material properties.
+7. **Contact area**: Particle–particle: `1 mm²`. Particle–air: `0.04 m²` (4 sides × 0.01 m² from V_pixel = 0.1 L = 100 cm³, contact distance 0.01 m). See SIMULATION_UNITS.md § Area / Particle–air heat transfer.
 
 ---
 

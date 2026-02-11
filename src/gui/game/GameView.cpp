@@ -2640,6 +2640,15 @@ void GameView::OnDraw()
 			if (gravtot)
 				sampleInfo << ", GX: " << sample.GravityVelocityX << " GY: " << sample.GravityVelocityY;
 
+			if (type > 0 && type < PT_NUM)
+			{
+				float vx = sample.particle.vx;
+				float vy = sample.particle.vy;
+				float v_mag = std::sqrt(vx * vx + vy * vy);
+				if (v_mag > 0.001f)
+					sampleInfo << ", VX: " << Format::Precision(2) << vx << " VY: " << Format::Precision(2) << vy << " |V|: " << Format::Precision(2) << v_mag;
+			}
+
 			if (c->GetAHeatEnable())
 			{
 				sampleInfo << ", AHeat: ";
@@ -2679,10 +2688,21 @@ void GameView::OnDraw()
 				auto &sd = SimulationData::CRef();
 				if (sd.elements[type].Enabled)
 				{
-					float mass = sd.elements[type].Mass;
-					float c = sd.elements[type].SpecificHeat > 0.0f ? sd.elements[type].SpecificHeat : 500.0f;
-					float E_part = mass * c * sample.particle.temp;
-					sampleInfo << " E_part: " << Format::Precision(2) << E_part << " (HC×T)";
+				float mass = sd.elements[type].Mass;
+				float c = sample.particle.specificHeat > 0.0f ? sample.particle.specificHeat : (sd.elements[type].SpecificHeat > 0.0f ? sd.elements[type].SpecificHeat : 500.0f);
+				float E_part = mass * c * sample.particle.temp;
+				sampleInfo << " ";
+				if (std::isfinite(E_part) && E_part >= 0.f)
+				{
+					if (E_part >= 1.0f)
+						sampleInfo << "E_part: " << Format::Precision(2) << E_part << " J";
+					else if (E_part >= 1e-3f)
+						sampleInfo << "E_part: " << Format::Precision(4) << (E_part * 1000.0f) << " mJ";
+					else
+						sampleInfo << "E_part: " << Format::Precision(2) << E_part << " J";
+				}
+				else
+					sampleInfo << "E_part: ---";
 				}
 			}
 

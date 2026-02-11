@@ -181,50 +181,6 @@ void Air::update_airh(void)
 			if (dh < MIN_TEMP) dh = MIN_TEMP;
 
 			ohv[y][x] = dh;
-
-			// TEMPORARILY DISABLED: Air convection modifies velocity, interfering with our physics
-			// This is called AFTER update_air() and overwrites our velocity calculations
-			// TODO: Integrate heat effects properly into the physics system
-			/*
-			// Air convection.
-			// We use the Boussinesq approximation, i.e. we assume density to be nonconstant only
-			// near the gravity term of the fluid equation, and we suppose that it depends linearly on the
-			// difference between the current temperature (hv[y][x]) and some "stationary" temperature (ambientAirTemp).
-			float dvx, dvy;
-			dvx = vx[y][x];
-		       	dvy = vy[y][x];
-
-			if (x>=2 && x<XCELLS-2 && y>=2 && y<YCELLS-2)
-			{
-				float convGravX, convGravY;
-				sim.GetGravityField(x*CELL, y*CELL, -1.0f, -1.0f, convGravX, convGravY);
-
-				// Cap the gravity field
-				float gravMagn = std::sqrt(convGravX*convGravX + convGravY*convGravY);
-				if (gravMagn > 10.0f)
-				{
-					convGravX /= 0.1f*gravMagn;
-					convGravY /= 0.1f*gravMagn;
-				}
-
-				auto weight = (hv[y][x] - ambientAirTemp) / 10000.0f;
-
-				// Our approximation works best when the temperature difference is small, so we cap it from above.
-				if (weight > 0.01f) weight = 0.01f;
-
-				dvx += weight * convGravX;
-				dvy += weight * convGravY;
-			}
-
-			// Velocity cap
-			if (dvx > MAX_PRESSURE) dvx = MAX_PRESSURE;
-			if (dvx < MIN_PRESSURE) dvx = MIN_PRESSURE;
-			if (dvy > MAX_PRESSURE) dvy = MAX_PRESSURE;
-			if (dvy < MIN_PRESSURE) dvy = MIN_PRESSURE;
-
-			vx[y][x] = dvx;
-			vy[y][x] = dvy;
-			*/
 		}
 	}
 	memcpy(hv, ohv, sizeof(hv));
@@ -252,16 +208,28 @@ void Air::update_air(void)
 		// Loop = periodic wrap. Void = open (leak). Solid = reflective only where bmap_blockair is set (from sync).
 		// Open boundary ghost must be low pressure so pressure actually leaks; use 1 kPa so void always drains.
 		rusanovSolver.set_boundary_mode(sim.edgeMode, 1000.0);
-		// So heat diffusion sees current particle temps: set hv for every cell that has a particle (blocking or not).
-		// Previously we only did this when bmap_blockair[cy][cx], so non-blocking particles (e.g. IRON) never heated the air.
+		// Set hv for particles that DON'T participate in heat transfer (they directly set air temp).
+		// Particles that DO participate in heat transfer (like IRON) will have their hv updated by the heat transfer code in Simulation.cpp,
+		// so we don't touch it here - it should start at ambient and be updated by heat transfer.
+		auto &sd = SimulationData::CRef();
+		auto &elements = sd.elements;
 		for (int i = 0; i < sim.parts.active; i++) {
 			if (!sim.parts[i].type) continue;
-			int cx = (int)(sim.parts[i].x + 0.5f) / CELL;
-			int cy = (int)(sim.parts[i].y + 0.5f) / CELL;
-			if (cy >= 0 && cy < YCELLS && cx >= 0 && cx < XCELLS) {
-				float T = sim.parts[i].temp;
-				if (T >= 1.0f && T <= MAX_TEMP) sim.hv[cy][cx] = T;
+			int pt = sim.parts[i].type;
+			// Only set hv for particles that DON'T participate in heat transfer
+			// (PROP_NOAMBHEAT or heat insulators). For particles that DO participate,
+			// let the heat transfer code in Simulation.cpp handle updating hv.
+			if ((elements[pt].Properties & PROP_NOAMBHEAT) || sd.IsHeatInsulator(sim.parts[i])) {
+				int cx = (int)(sim.parts[i].x + 0.5f) / CELL;
+				int cy = (int)(sim.parts[i].y + 0.5f) / CELL;
+				if (cy >= 0 && cy < YCELLS && cx >= 0 && cx < XCELLS) {
+					float T = sim.parts[i].temp;
+					if (T >= 1.0f && T <= MAX_TEMP) {
+						sim.hv[cy][cx] = T; // Always set for non-participating particles
+					}
+				}
 			}
+			// For participating particles, do nothing - let heat transfer code handle hv[cy][cx]
 		}
 		rusanovSolver.sync_from_sim(sim, *this);
 		{ static bool once = false; if (!once) { std::fprintf(stderr, "[AIR] update_air: Rusanov path active (run from terminal to see logs)\n"); std::fflush(stderr); once = true; } }
