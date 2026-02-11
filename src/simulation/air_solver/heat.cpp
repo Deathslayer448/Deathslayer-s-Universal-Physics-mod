@@ -22,11 +22,18 @@ void heat_diffusion_step(int ny, int nx, double dx, double dt,
     const Grid2& rho, const Grid2& rhou, const Grid2& rhov, Grid2& E,
     const WallMask* wall, const Grid2* wall_T, const WallMask* wall_blocks_heat, Grid2* wall_heat_lost, double heat_scale) {
     const double e_min = 1e-6;
-    const double dt_eff = dt * std::max(heat_scale, 0.1);
+    double dt_eff = dt * std::max(heat_scale, 0.1);
     auto is_wall = [&](int iy, int ix) -> bool {
         if (!wall) return false;
         return (iy >= 0 && iy < ny && ix >= 0 && ix < nx) && (*wall)[iy][ix];
     };
+    double rho_min = 1e30;
+    for (int iy = 0; iy < ny; iy++)
+        for (int ix = 0; ix < nx; ix++)
+            if (!is_wall(iy, ix))
+                rho_min = std::min(rho_min, std::max(rho[iy][ix], 1e-30));
+    rho_min = std::max(rho_min, 1e-30);
+    dt_eff = std::min(dt_eff, max_heat_dt(ny, nx, dx, rho_min));
     auto wall_temperature = [&](int iy, int ix) -> double {
         if (!wall_T || iy < 0 || iy >= ny || ix < 0 || ix >= nx) return 300.0;
         return (*wall_T)[iy][ix];
@@ -70,7 +77,7 @@ void heat_diffusion_step(int ny, int nx, double dx, double dt,
             if (ix < nx - 1)   div_F -= Fx[iy*(nx+1)+ix+1] / dx;
             if (iy > 0)        div_F += Fy[iy*nx+ix] / dx;
             if (iy < ny - 1)   div_F -= Fy[(iy+1)*nx+ix] / dx;
-            E[iy][ix] += dt * div_F;
+            E[iy][ix] += dt_eff * div_F;
         }
     }
     // Wall→fluid: natural-convection heat transfer (Nusselt correlation). h = Nu*k/L, Nu = f(Gr, Pr).
@@ -125,7 +132,7 @@ void heat_diffusion_step(int ny, int nx, double dx, double dt,
                 double h = convective_h(Tw, T_fluid, rho_fluid, dx);
                 double flux = h * (Tw - T_fluid);
                 rate += flux / dx;
-                if (wall_heat_lost) (*wall_heat_lost)[iy - 1][ix] += flux * dx * dt;
+                if (wall_heat_lost) (*wall_heat_lost)[iy - 1][ix] += flux * dx * dt_eff;
             }
             if (iy < ny - 1   && is_wall(iy + 1, ix) && !wall_blocks_heat_at(iy + 1, ix)) {
                 double Tw = wall_temperature(iy + 1, ix);

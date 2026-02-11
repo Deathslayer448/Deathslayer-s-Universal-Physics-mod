@@ -2572,16 +2572,21 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 				constexpr float contact_distance_m = 0.01f; // 1 pixel = 1 cm
 
 				// Two-body exact solution: particle (C_part, T_part) and air in cell (C_air, T_air_cell) coupled by conductance G.
-				// dT1/dt = G*(T2-T1)/C1, dT2/dt = G*(T1-T2)/C2 → exponential relaxation to T_eq. No Euler overshoot.
+				// Scale = heat transfer rate multiplier: use G_eff = G*scale so relaxation is scale times faster (same physics).
 				float T_part_current = parts[i].temp;
-				float T_air_cell = (hv[cy][cx] < 1.0f) ? air->ambientAirTemp : hv[cy][cx];
+				// In blocked cells hv is written from other particles; use ambient for transfer so one hot particle doesn't heat the whole cell via hv.
+				float T_air_cell = air->bmap_blockair[cy][cx]
+					? air->ambientAirTemp
+				: ((hv[cy][cx] < 1.0f) ? air->ambientAirTemp : hv[cy][cx]);
+				float scale = std::max(air->heatTransferScale, 0.1f);
 				float G = k_eff * contact_area_m2 / contact_distance_m;  // thermal conductance (W/K)
+				float G_eff = G * scale;  // scale = faster equilibration (same math, scale times the rate)
 				float C_part_safe = std::max(hc_part, 0.1f);
 				float T_eq = (C_part_safe * T_part_current + C_air_safe * T_air_cell) / (C_part_safe + C_air_safe);
-				float tau = (C_part_safe * C_air_safe) / (G * (C_part_safe + C_air_safe) + 1e-30f);  // time constant (s)
+				float tau = (C_part_safe * C_air_safe) / (G_eff * (C_part_safe + C_air_safe) + 1e-30f);  // tau_eff = tau_base/scale
 				constexpr float dt_frame = 1.0f / 60.0f;
-				float dt_eff = dt_frame * std::max(air->heatTransferScale, 0.1f);
-				float exp_minus_dt_tau = std::exp(-dt_eff / tau);
+				float exp_minus_dt_tau = std::exp(-dt_frame / tau);  // advance by dt_frame with scale already in tau
+				exp_minus_dt_tau = std::max(exp_minus_dt_tau, 0.05f);  // cap: move at most 95% toward equilibrium per frame (stability at 1000x)
 				float T_part_new = T_eq + (T_part_current - T_eq) * exp_minus_dt_tau;
 				float T_air_new = T_eq + (T_air_cell - T_eq) * exp_minus_dt_tau;
 				float dT_part = T_part_new - T_part_current;
@@ -2659,10 +2664,12 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 				hc_self += hc_contents; // Add contents heat capacity
 			}
 
-			// Pairwise heat transfer: Q = k_eff * A * (T_neighbor - T_self) / dx * dt
+			// Pairwise: two-body exact per neighbor (scale in dt_eff; same physics, scale = faster)
 			constexpr float contact_area_m2 = 0.001f * 0.001f; // 1 mm²
 			constexpr float contact_distance_m = 0.001f; // 1 mm
-			constexpr float dt_frame = 1.0f / 60.0f; // Frame time in seconds
+			constexpr float dt_frame = 1.0f / 60.0f;
+			float dt_eff = dt_frame * std::max(air->heatTransferScale, 0.1f);
+			float hc_self_safe = std::max(hc_self, 0.1f);
 
 			float dT_self_total = 0.0f;
 			std::vector<float> dT_neighbors(neighbors.size(), 0.0f);
@@ -2671,23 +2678,17 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 			{
 				float T_neighbor = neighbors[n].temp;
 				float k_neighbor = neighbors[n].k;
-				float hc_neighbor = neighbors[n].hc;
+				float hc_neighbor = std::max(neighbors[n].hc, 0.1f);
 
-				// Effective thermal conductivity (harmonic mean)
 				float k_eff = (k_self * k_neighbor) / (k_self + k_neighbor + 1e-6f);
+				float G = k_eff * contact_area_m2 / contact_distance_m;
+				float T_eq = (hc_self_safe * T_self + hc_neighbor * T_neighbor) / (hc_self_safe + hc_neighbor);
+				float tau = (hc_self_safe * hc_neighbor) / (G * (hc_self_safe + hc_neighbor) + 1e-30f);
+				float frac = 1.0f - std::exp(-dt_eff / tau);
+				frac = std::min(frac, 0.95f);  // cap per-frame step so 1000x doesn't blow up from multiple neighbors
 
-				// Same physics: Q = k_eff * A * dT / dx * dt_eff (scale = effective time, so quicker)
-				float dT = T_neighbor - T_self;
-				float dt_eff = dt_frame * std::max(air->heatTransferScale, 0.1f);
-				float Q = k_eff * contact_area_m2 * dT / contact_distance_m * dt_eff;
-
-				float dT_self_pair = Q / std::max(hc_self, 0.1f);
-				float dT_neighbor_pair = -Q / std::max(hc_neighbor, 0.1f);
-				// Don't overshoot equilibrium with neighbor (physical bound; keeps stability at high scale)
-				float dT_eq = T_neighbor - T_self;
-				float pair_lo = std::min(0.0f, dT_eq), pair_hi = std::max(0.0f, dT_eq);
-				dT_self_pair = restrict_flt(dT_self_pair, pair_lo, pair_hi);
-				dT_neighbor_pair = -dT_self_pair * std::max(hc_self, 0.1f) / std::max(hc_neighbor, 0.1f);
+				float dT_self_pair = (T_eq - T_self) * frac;
+				float dT_neighbor_pair = (T_eq - T_neighbor) * frac;
 
 				dT_self_total += dT_self_pair;
 				dT_neighbors[n] += dT_neighbor_pair;
