@@ -32,6 +32,7 @@ public:
 	void SetAirSolverStepsPerFrame(int steps);
 	void SetAmbientAirTemperature(float ambientAirTemp);
 	void SetVorticityCoeff(float vorticityCoeff);
+	void SetHeatTransferScale(float heatTransferScale);
 	void SetEdgeMode(int edgeMode);
 	void SetTemperatureScale(TempScale temperatureScale);
 	void SetThreadedRendering(bool newThreadedRendering);

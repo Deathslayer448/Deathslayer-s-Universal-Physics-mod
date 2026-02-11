@@ -31,7 +31,8 @@ void air_solver_sync_to_tpt(AirSolverState* state,
 double air_solver_step(AirSolverState* state);
 
 /** Apply heat diffusion for dt (call after step with same dt). */
-void air_solver_apply_heat_diffusion(AirSolverState* state, double dt);
+/** heat_scale: solver setting (1 = physics-based; >1 = faster). Applied to air-air diffusion and wall-fluid. */
+void air_solver_apply_heat_diffusion(AirSolverState* state, double dt, double heat_scale = 1.0);
 
 /** Apply gravity source terms: momentum += dt*rho*g, energy += dt*rho*g·v. gx, gy in m/s², row-major [iy*nx+ix]. Call after step and heat with same dt. */
 void air_solver_apply_gravity(AirSolverState* state, double dt, const float* gx_mps2, const float* gy_mps2);

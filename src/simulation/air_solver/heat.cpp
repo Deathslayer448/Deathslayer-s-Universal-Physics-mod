@@ -20,8 +20,9 @@ double max_heat_dt(int ny, int nx, double dx, double rho_min) {
 // wall_heat_lost: if non-null, accumulated energy lost from each wall cell (J/m per unit depth) so TPT can cool particles.
 void heat_diffusion_step(int ny, int nx, double dx, double dt,
     const Grid2& rho, const Grid2& rhou, const Grid2& rhov, Grid2& E,
-    const WallMask* wall, const Grid2* wall_T, const WallMask* wall_blocks_heat, Grid2* wall_heat_lost) {
+    const WallMask* wall, const Grid2* wall_T, const WallMask* wall_blocks_heat, Grid2* wall_heat_lost, double heat_scale) {
     const double e_min = 1e-6;
+    const double dt_eff = dt * std::max(heat_scale, 0.1);
     auto is_wall = [&](int iy, int ix) -> bool {
         if (!wall) return false;
         return (iy >= 0 && iy < ny && ix >= 0 && ix < nx) && (*wall)[iy][ix];
@@ -110,14 +111,14 @@ void heat_diffusion_step(int ny, int nx, double dx, double dt,
                 double h = convective_h(Tw, T_fluid, rho_fluid, dx);
                 double flux = h * (Tw - T_fluid);
                 rate += flux / dx;
-                if (wall_heat_lost) (*wall_heat_lost)[iy][ix - 1] += flux * dx * dt;  // J/m per unit depth
+                if (wall_heat_lost) (*wall_heat_lost)[iy][ix - 1] += flux * dx * dt_eff;  // J/m per unit depth
             }
             if (ix < nx - 1   && is_wall(iy, ix + 1) && !wall_blocks_heat_at(iy, ix + 1)) {
                 double Tw = wall_temperature(iy, ix + 1);
                 double h = convective_h(Tw, T_fluid, rho_fluid, dx);
                 double flux = h * (Tw - T_fluid);
                 rate += flux / dx;
-                if (wall_heat_lost) (*wall_heat_lost)[iy][ix + 1] += flux * dx * dt;
+                if (wall_heat_lost) (*wall_heat_lost)[iy][ix + 1] += flux * dx * dt_eff;
             }
             if (iy > 0        && is_wall(iy - 1, ix) && !wall_blocks_heat_at(iy - 1, ix)) {
                 double Tw = wall_temperature(iy - 1, ix);
@@ -131,9 +132,9 @@ void heat_diffusion_step(int ny, int nx, double dx, double dt,
                 double h = convective_h(Tw, T_fluid, rho_fluid, dx);
                 double flux = h * (Tw - T_fluid);
                 rate += flux / dx;
-                if (wall_heat_lost) (*wall_heat_lost)[iy + 1][ix] += flux * dx * dt;
+                if (wall_heat_lost) (*wall_heat_lost)[iy + 1][ix] += flux * dx * dt_eff;
             }
-            E[iy][ix] += dt * rate;
+            E[iy][ix] += dt_eff * rate;
         }
     }
 }

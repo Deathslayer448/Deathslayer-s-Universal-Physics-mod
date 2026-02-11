@@ -105,7 +105,7 @@ void AirSolverWrapper::step(Simulation& sim, double dt_frame, int max_steps)
 			continue;
 		}
 		reject = 0;
-		air_solver_apply_heat_diffusion(s, dt);
+		air_solver_apply_heat_diffusion(s, dt, (double)sim.air->heatTransferScale);
 		air_solver_apply_gravity(s, dt, gx_mps2.data(), gy_mps2.data());
 		advance += dt;
 		steps++;
@@ -113,7 +113,7 @@ void AirSolverWrapper::step(Simulation& sim, double dt_frame, int max_steps)
 	// Advance thermal diffusion (incl. wall→fluid) by full frame so transfer is visible; CFL dt alone is too small per frame.
 	double heat_dt = dt_frame - advance;
 	if (heat_dt > 1e-12)
-		air_solver_apply_heat_diffusion(s, heat_dt);
+		air_solver_apply_heat_diffusion(s, heat_dt, (double)sim.air->heatTransferScale);
 	// Log only when solver effectively breaks (couldn't advance enough).
 	if (reject > 0 && advance < dt_frame * 0.5)
 		AIR_WRAP_DBG("air solver break: advance=%.6e (dt_frame=%.6e) after %d rejects\n", advance, dt_frame, reject);

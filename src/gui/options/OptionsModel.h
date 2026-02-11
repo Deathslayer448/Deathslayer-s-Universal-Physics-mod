@@ -43,6 +43,8 @@ public:
 	void SetAmbientAirTemperature(float ambientAirTemp);
 	float GetVorticityCoeff();
 	void SetVorticityCoeff(float vorticityCoeff);
+	float GetHeatTransferScale();
+	void SetHeatTransferScale(float heatTransferScale);
 	int GetEdgeMode();
 	void SetEdgeMode(int edgeMode);
 	TempScale GetTemperatureScale();

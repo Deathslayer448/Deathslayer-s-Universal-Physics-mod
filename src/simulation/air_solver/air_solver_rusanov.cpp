@@ -458,11 +458,11 @@ struct State {
     }
 
     // Thermal diffusion (heat.cpp); call after step() with same dt. Adiabatic only at wall_blocks_heat (actual walls).
-    void apply_heat_diffusion(double dt) {
+    void apply_heat_diffusion(double dt, double heat_scale = 1.0) {
         for (int iy = 0; iy < ny; iy++)
             for (int ix = 0; ix < nx; ix++)
                 wall_heat_lost[iy][ix] = 0.0;
-        heat::heat_diffusion_step(ny, nx, dx, dt, U0[0], U0[1], U0[2], U0[3], &wall, &wall_T, &wall_blocks_heat, &wall_heat_lost);
+        heat::heat_diffusion_step(ny, nx, dx, dt, U0[0], U0[1], U0[2], U0[3], &wall, &wall_T, &wall_blocks_heat, &wall_heat_lost, heat_scale);
     }
 
     // Gravity source terms (Euler with body force): d(rho*u)/dt += rho*gx, d(rho*v)/dt += rho*gy, dE/dt += rho*g·v.
@@ -934,8 +934,8 @@ void air_solver_sync_to_tpt(AirSolverState* state,
 double air_solver_step(AirSolverState* state) {
     return S(state)->step();
 }
-void air_solver_apply_heat_diffusion(AirSolverState* state, double dt) {
-    S(state)->apply_heat_diffusion(dt);
+void air_solver_apply_heat_diffusion(AirSolverState* state, double dt, double heat_scale) {
+    S(state)->apply_heat_diffusion(dt, heat_scale);
 }
 void air_solver_apply_gravity(AirSolverState* state, double dt, const float* gx_mps2, const float* gy_mps2) {
     S(state)->apply_gravity(dt, gx_mps2, gy_mps2);

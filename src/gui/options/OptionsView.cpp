@@ -200,6 +200,23 @@ OptionsView::OptionsView() : ui::Window(ui::Point(-1, -1), ui::Point(320, 340))
 		scrollPanel->AddChild(label);
 		currentY += 20;
 	}
+	{
+		heatTransferScale = new ui::Textbox(ui::Point(Size.X - 95, currentY), ui::Point(80, 16));
+		heatTransferScale->SetActionCallback({ [this] {
+			UpdateHeatTransferScale(heatTransferScale->GetText(), false);
+		} });
+		heatTransferScale->SetDefocusCallback({ [this] {
+			UpdateHeatTransferScale(heatTransferScale->GetText(), true);
+		} });
+		heatTransferScale->SetLimit(7);  // e.g. "1000" or "999.9"
+		scrollPanel->AddChild(heatTransferScale);
+		auto *label = new ui::Label(ui::Point(8, currentY), ui::Point(Size.X - 105, 16), "Heat transfer scale");
+		label->Appearance.HorizontalAlign = ui::Appearance::AlignLeft;
+		label->Appearance.VerticalAlign = ui::Appearance::AlignMiddle;
+		scrollPanel->AddChild(label);
+		autoWidth(label, 85);
+		currentY += 20;
+	}
 	class GravityWindow : public ui::Window
 	{
 		void OnTryExit(ExitMethod method) override
@@ -499,6 +516,48 @@ void OptionsView::VorticityCoeffToTextBox(float vorticity)
 	vorticityCoeff->SetText(sb.Build());
 }
 
+void OptionsView::HeatTransferScaleToTextBox(float scale)
+{
+	StringBuilder sb;
+	sb << Format::Precision(2) << scale;
+	heatTransferScale->SetText(sb.Build());
+}
+
+void OptionsView::UpdateHeatTransferScale(String text, bool isDefocus)
+{
+	float scale = 1.0f;
+	bool isValid = false;
+	try
+	{
+		scale = text.ToNumber<float>();
+		isValid = true;
+	}
+	catch (const std::exception &)
+	{
+	}
+	if (isDefocus)
+	{
+		if (text.empty())
+		{
+			isValid = true;
+			scale = 1.0f;
+		}
+		else if (!isValid)
+			return;
+		else if (scale < 0.1f)
+			scale = 0.1f;
+		else if (scale > 1000.0f)
+			scale = 1000.0f;
+		HeatTransferScaleToTextBox(scale);
+	}
+	else if (isValid && scale >= 0.1f && scale <= 1000.0f)
+		;
+	else
+		isValid = false;
+	if (isValid && scale >= 0.1f && scale <= 1000.0f)
+		c->SetHeatTransferScale(scale);
+}
+
 void OptionsView::UpdateStartupRequestStatus()
 {
 	switch (Client::Ref().GetStartupRequestStatus())
@@ -688,6 +747,10 @@ void OptionsView::NotifySettingsChanged(OptionsModel * sender)
 	if (!vorticityCoeff->IsFocused())
 	{
 		VorticityCoeffToTextBox(sender->GetVorticityCoeff());
+	}
+	if (heatTransferScale && !heatTransferScale->IsFocused())
+	{
+		HeatTransferScaleToTextBox(sender->GetHeatTransferScale());
 	}
 	gravityMode->SetOption(sender->GetGravityMode());
 	customGravityX = sender->GetCustomGravityX();

@@ -62,6 +62,7 @@ GameModel::GameModel(GameView *newView):
 	edgeMode(EDGE_VOID),
 	ambientAirTemp(R_TEMP + 273.15f),
 	vorticityCoeff(0.0f),
+	heatTransferScale(1.0f),
 	decoSpace(DECOSPACE_SRGB),
 	view(newView)
 {
@@ -132,6 +133,10 @@ GameModel::GameModel(GameView *newView):
 		}
 	}
 	sim->air->vorticityCoeff = vorticityCoeff;
+
+	heatTransferScale = prefs.Get("Simulation.HeatTransferScale", 1.0f);
+	heatTransferScale = std::max(0.1f, std::min(heatTransferScale, 1000.0f));
+	sim->air->heatTransferScale = heatTransferScale;
 
 	decoSpace = prefs.Get("Simulation.DecoSpace", NUM_DECOSPACES, DECOSPACE_SRGB);
 	sim->SetDecoSpace(decoSpace);
@@ -334,6 +339,17 @@ void GameModel::SetVorticityCoeff(float vorticityCoeff)
 float GameModel::GetVorticityCoeff()
 {
 	return this->vorticityCoeff;
+}
+
+void GameModel::SetHeatTransferScale(float heatTransferScale)
+{
+	this->heatTransferScale = std::max(0.1f, std::min(heatTransferScale, 1000.0f));
+	sim->air->heatTransferScale = this->heatTransferScale;
+}
+
+float GameModel::GetHeatTransferScale()
+{
+	return this->heatTransferScale;
 }
 
 void GameModel::SetDecoSpace(int decoSpace)
@@ -767,6 +783,11 @@ void GameModel::SaveToSimParameters(const GameSave &saveData)
 		sim->air->airSolverStepsPerFrame = saveData.airSolverStepsPerFrame;
 	sim->air->ambientAirTemp = saveData.ambientAirTemp;
 	sim->air->vorticityCoeff = saveData.vorticityCoeff;
+	if (saveData.heatTransferScale >= 0.1f && saveData.heatTransferScale <= 1000.0f)
+	{
+		heatTransferScale = saveData.heatTransferScale;
+		sim->air->heatTransferScale = heatTransferScale;
+	}
 	sim->edgeMode = saveData.edgeMode;
 	sim->legacy_enable = saveData.legacyEnable;
 	sim->water_equal_test = saveData.waterEEnabled;
@@ -1182,6 +1203,7 @@ void GameModel::ClearSimulation()
 	sim->SetEdgeMode(edgeMode);
 	sim->air->ambientAirTemp = ambientAirTemp;
 	sim->air->vorticityCoeff = vorticityCoeff;
+	sim->air->heatTransferScale = heatTransferScale;
 
 	sim->clear_sim();
 	ren->ClearAccumulation();

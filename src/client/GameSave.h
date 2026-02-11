@@ -109,6 +109,7 @@ public:
 	int airSolverStepsPerFrame = 1;
 	float ambientAirTemp = R_TEMP + 273.15f;
 	float vorticityCoeff = 0.0f;
+	float heatTransferScale = 1.0f;
 	int edgeMode = 0;
 	bool wantAuthors = true;
 

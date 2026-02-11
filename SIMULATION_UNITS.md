@@ -302,6 +302,8 @@ Quick reference for tuning and debugging.
 - **Heat flux**: `Q = k × A × (T1 - T2) / dx` (W) — used in particle heat transfer
 - **Heat transfer per frame**: `Q_frame = Q × dt_frame` (J) — energy transferred
 - **Particle–air**: `Q = k_eff × contact_area_m2 × ΔT / contact_distance_m × dt_frame`; `k_air = 0.026` W/(m·K), `contact_area_m2 = 0.04` m², `contact_distance_m = 0.01` m, `dt_frame = 1/60` s. See § Area / Particle–air heat transfer.
+- **Heat transfer scale** (solver setting): `air->heatTransferScale` (float, default 1.0). Effective flux is `Q × max(heatTransferScale, 0.1)` for **all** heat transfer: particle–air, particle–particle, and air–air (thermal diffusion). Range in UI: 0.1–1000. **Settings → Solver and air → Heat transfer scale**. 1 = physics-based; >1 = faster cooling/heating everywhere.
+- **Per-particle heat transfer**: Each element has `HeatConduct` (0–255). It is converted to thermal conductivity `k` (W/(m·K)) and used in both particle–air and particle–particle Fourier flux: `k_part = (HeatConduct/255)*400`; effective `k_eff` is harmonic mean with the other side (air or neighbor). So e.g. higher `HeatConduct` = faster heat transfer for that element. Values are per-element in `elements/*.cpp` (e.g. IRON, TUNG, WOOD).
 
 ---
 
@@ -386,6 +388,7 @@ Quick reference for tuning and debugging.
 | **Gravity (game)** | pixels/frame² | `pGravX/Y` | Acceleration |
 | **Gravity (solver)** | m/s² | `gx`, `gy` | Meters per second squared |
 | **Thermal conductivity** | W/(m·K) | `HeatConduct` (0-255) | Converted to SI |
+| **Heat transfer scale** | — | `air->heatTransferScale` | 0.1–1000; 1 = physics-based. Scales particle–air, particle–particle, air–air. Settings → Solver and air. |
 | **Density (air)** | kg/m³ | `rho[y][x]` | From ideal gas law |
 | **Viscosity (air)** | Pa·s | derived | `μ(T)` via Sutherland's law |
 | **Momentum** | kg·m/s | derived | `m × v` (needs mass) |

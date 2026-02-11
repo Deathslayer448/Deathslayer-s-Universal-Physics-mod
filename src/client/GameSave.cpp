@@ -620,6 +620,7 @@ void GameSave::readOPS(const std::vector<char> &data)
 	copyIfInt32(b, "airSolverStepsPerFrame", airSolverStepsPerFrame);
 	copyIfFloat(b, "ambientAirTemp", ambientAirTemp);
 	copyIfFloat(b, "vorticityCoeff", vorticityCoeff);
+	copyIfFloat(b, "heatTransferScale", heatTransferScale);
 	copyIfInt32(b, "edgeMode", edgeMode);
 	copyIfInt32(b, "pmapbits", pmapbits);
 	copyIfBool(b, "ensureDeterminism", ensureDeterminism);
@@ -2495,6 +2496,8 @@ std::pair<bool, std::vector<char>> GameSave::serialiseOPS() const
 		b["vorticityCoeff"] = double(vorticityCoeff);
 		RESTRICTVERSION(100, 0);
 	}
+	if (fabsf(heatTransferScale - 1.0f) > 0.0001f)
+		b["heatTransferScale"] = double(heatTransferScale);
 	b["edgeMode"] = edgeMode;
 
 	if (stkm.hasData())

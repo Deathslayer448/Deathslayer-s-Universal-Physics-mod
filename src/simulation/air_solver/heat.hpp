@@ -40,10 +40,11 @@ double max_heat_dt(int ny, int nx, double dx, double rho_min = 1e-6);
 // wall: nullptr = periodic; else wall[iy][ix]==true means solid. wall_T: optional T (K) at wall cells for wall→fluid heat transfer.
 // wall_blocks_heat: optional; when set, true = actual wall (adiabatic), false = particle blocking air (convective).
 // wall_heat_lost: optional; if non-null, accumulated energy lost from each wall cell (J/m per unit depth) so TPT can cool particles.
+// heat_scale: solver setting (default 1). Multiplies effective diffusion/wall flux (e.g. 2 = twice as fast).
 void heat_diffusion_step(int ny, int nx, double dx, double dt,
     const Grid2& rho, const Grid2& rhou, const Grid2& rhov, Grid2& E,
     const WallMask* wall = nullptr, const Grid2* wall_T = nullptr, const WallMask* wall_blocks_heat = nullptr,
-    Grid2* wall_heat_lost = nullptr);
+    Grid2* wall_heat_lost = nullptr, double heat_scale = 1.0);
 
 } // namespace heat
 

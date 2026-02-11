@@ -16,7 +16,6 @@
 #include "elements/PIPE.h"
 #include "elements/FILT.h"
 #include "elements/PRTI.h"
-#include <cstdio>
 #include <iostream>
 #include <set>
 #include <stack>
@@ -467,6 +466,7 @@ void Simulation::SaveSimOptions(GameSave &gameSave)
 	gameSave.airSolverStepsPerFrame = air->airSolverStepsPerFrame;
 	gameSave.ambientAirTemp = air->ambientAirTemp;
 	gameSave.vorticityCoeff = air->vorticityCoeff;
+	gameSave.heatTransferScale = air->heatTransferScale;
 	gameSave.edgeMode = edgeMode;
 	gameSave.legacyEnable = legacy_enable;
 	gameSave.waterEEnabled = water_equal_test;
@@ -2520,8 +2520,6 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 			if (aheat_enable && !(elements[t].Properties&PROP_NOAMBHEAT))
 			{
 				float hc_part = get_particle_heat_capacity(i);
-				// Read particle temp at the start for T_air calculation
-				float T_part = parts[i].temp;
 				int cy = y / CELL, cx = x / CELL;
 				// Use neighborhood average for T_air (EXCLUDING center cell) so hot particles see actual air temperature
 				// The center cell hv[cy][cx] will be updated by heat transfer, so we use neighbors to get ambient air temp
@@ -2541,6 +2539,9 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 						}
 				// If no neighbors (edge case), use ambient
 				float T_air = (T_air_n > 0) ? (T_air_sum / (float)T_air_n) : air->ambientAirTemp;
+				// Sanity: unphysical / uninitialized reading
+				if (T_air < 200.0f)
+					T_air = air->ambientAirTemp;
 
 				// Air properties: heat capacity and thermal conductivity (use cell's own hv for density)
 				constexpr float R_air = 287.0f;   // J/(kg·K) - matches solver R_gas
@@ -2567,38 +2568,26 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 				float k_eff = (k_part * k_air) / (k_part + k_air + 1e-6f);
 
 				// Contact: 1 pixel = 0.01 m (1 cm), V_pixel = 0.1 L = 100 cm³ → depth = 100 cm so area per side = 1 cm × 100 cm = 0.01 m²
-				// Pixel has 4 sides → total contact area = 4 × 0.01 m² = 0.04 m²
 				constexpr float contact_area_m2 = 4.0f * 0.01f * 0.01f * 100.0f; // 4 sides × (1 cm × 100 cm) = 0.04 m²
 				constexpr float contact_distance_m = 0.01f; // 1 pixel = 1 cm
 
-				// Heat flux: Q = k_eff * A * dT / dx (W = J/s)
-				constexpr float dt_frame = 1.0f / 60.0f; // Frame time in seconds
-				// Recalculate dT using current particle temp (in case it changed)
+				// Two-body exact solution: particle (C_part, T_part) and air in cell (C_air, T_air_cell) coupled by conductance G.
+				// dT1/dt = G*(T2-T1)/C1, dT2/dt = G*(T1-T2)/C2 → exponential relaxation to T_eq. No Euler overshoot.
 				float T_part_current = parts[i].temp;
-				float dT_current = T_air - T_part_current;
-				float Q = k_eff * contact_area_m2 * dT_current / contact_distance_m * dt_frame; // Heat transferred (J)
+				float T_air_cell = (hv[cy][cx] < 1.0f) ? air->ambientAirTemp : hv[cy][cx];
+				float G = k_eff * contact_area_m2 / contact_distance_m;  // thermal conductance (W/K)
+				float C_part_safe = std::max(hc_part, 0.1f);
+				float T_eq = (C_part_safe * T_part_current + C_air_safe * T_air_cell) / (C_part_safe + C_air_safe);
+				float tau = (C_part_safe * C_air_safe) / (G * (C_part_safe + C_air_safe) + 1e-30f);  // time constant (s)
+				constexpr float dt_frame = 1.0f / 60.0f;
+				float dt_eff = dt_frame * std::max(air->heatTransferScale, 0.1f);
+				float exp_minus_dt_tau = std::exp(-dt_eff / tau);
+				float T_part_new = T_eq + (T_part_current - T_eq) * exp_minus_dt_tau;
+				float T_air_new = T_eq + (T_air_cell - T_eq) * exp_minus_dt_tau;
+				float dT_part = T_part_new - T_part_current;
+				float dT_air = T_air_new - T_air_cell;
 
-				// Energy conservation: Q_part + Q_air = 0
-				// Q < 0 means heat flows from particle to air (particle cools), Q > 0 means heat flows from air to particle (particle heats)
-				// Particle temperature change: dT_part = Q / C_part
-				float dT_part = Q / std::max(hc_part, 0.1f);
-				
-				// Air temperature change in the center cell: dT_air = -Q / C_air
-				// The particle is physically in the center cell, so it transfers heat directly to that cell only
-				// Neighbors get heat through air diffusion (handled by the solver), not direct contact
-				float dT_air = -Q / C_air_safe;
-
-				// Store the air heat transfer change - we'll apply it along with particle-to-particle changes
-				// Don't update particle temp here - apply it together with particle-to-particle changes
 				dT_air_transfer = dT_part;
-
-				// Debug log: heat transfer with air (rate-limited for IRON)
-				if (t == PT_IRON && (frameCount % 60 == 0)) {
-					std::fprintf(stderr, "[HEAT] air: T_part=%.1f T_air=%.1f dT=%.1f Q=%.6f hc_part=%.1f dT_part=%.6f dT_air_transfer=%.6f hv_after=%.1f\n",
-						T_part_current, T_air, dT_current, Q, hc_part, dT_part, dT_air_transfer,
-						restrict_flt(hv[cy][cx] + dT_air, MIN_TEMP, MAX_TEMP));
-					std::fflush(stderr);
-				}
 
 				// Update air temperature in the center cell (where the particle is)
 				if (air->bmap_blockair[cy][cx]) {
@@ -2687,13 +2676,18 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 				// Effective thermal conductivity (harmonic mean)
 				float k_eff = (k_self * k_neighbor) / (k_self + k_neighbor + 1e-6f);
 
-				// Heat flux: Q = k_eff * A * (T_neighbor - T_self) / dx * dt
+				// Same physics: Q = k_eff * A * dT / dx * dt_eff (scale = effective time, so quicker)
 				float dT = T_neighbor - T_self;
-				float Q = k_eff * contact_area_m2 * dT / contact_distance_m * dt_frame;
+				float dt_eff = dt_frame * std::max(air->heatTransferScale, 0.1f);
+				float Q = k_eff * contact_area_m2 * dT / contact_distance_m * dt_eff;
 
-				// Temperature changes: dT = Q / C (energy conservation)
 				float dT_self_pair = Q / std::max(hc_self, 0.1f);
 				float dT_neighbor_pair = -Q / std::max(hc_neighbor, 0.1f);
+				// Don't overshoot equilibrium with neighbor (physical bound; keeps stability at high scale)
+				float dT_eq = T_neighbor - T_self;
+				float pair_lo = std::min(0.0f, dT_eq), pair_hi = std::max(0.0f, dT_eq);
+				dT_self_pair = restrict_flt(dT_self_pair, pair_lo, pair_hi);
+				dT_neighbor_pair = -dT_self_pair * std::max(hc_self, 0.1f) / std::max(hc_neighbor, 0.1f);
 
 				dT_self_total += dT_self_pair;
 				dT_neighbors[n] += dT_neighbor_pair;
@@ -2701,11 +2695,6 @@ bool Simulation::TransitionPhase(int i, const Neighbourhood &neighbourhood)
 
 			// Apply temperature changes (both air heat transfer and particle-to-particle)
 			float new_temp = restrict_flt(T_self + dT_air_transfer + dT_self_total, MIN_TEMP, MAX_TEMP);
-			if (t == PT_IRON && (frameCount % 60 == 0)) {
-				std::fprintf(stderr, "[HEAT] apply: T_self=%.1f dT_air_transfer=%.6f dT_self_total=%.6f new_temp=%.1f n_neighbors=%zu\n",
-					T_self, dT_air_transfer, dT_self_total, new_temp, neighbors.size());
-				std::fflush(stderr);
-			}
 			parts[i].temp = new_temp;
 			for (size_t n = 0; n < neighbors.size(); n++)
 			{

@@ -958,6 +958,7 @@ Air::Air(Simulation & simulation):
 	airSolverStepsPerFrame(1),
 	ambientAirTemp(R_TEMP + 273.15f),
 	vorticityCoeff(0.0f),
+	heatTransferScale(1.0f),
 	useAtmosphericPressure(true), // Default: show relative pressure in UI
 	enablePressureBreak(false)    // Default off: experimental, may reduce FPS
 {

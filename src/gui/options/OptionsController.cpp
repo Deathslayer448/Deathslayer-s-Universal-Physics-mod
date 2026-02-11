@@ -107,6 +107,11 @@ void OptionsController::SetVorticityCoeff(float vorticityCoeff)
 	model->SetVorticityCoeff(vorticityCoeff);
 }
 
+void OptionsController::SetHeatTransferScale(float heatTransferScale)
+{
+	model->SetHeatTransferScale(heatTransferScale);
+}
+
 void OptionsController::SetEdgeMode(int edgeMode)
 {
 	model->SetEdgeMode(edgeMode);

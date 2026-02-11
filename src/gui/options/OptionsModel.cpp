@@ -224,6 +224,18 @@ void OptionsModel::SetVorticityCoeff(float vorticityCoeff)
 	notifySettingsChanged();
 }
 
+float OptionsModel::GetHeatTransferScale()
+{
+	return gModel->GetHeatTransferScale();
+}
+
+void OptionsModel::SetHeatTransferScale(float heatTransferScale)
+{
+	GlobalPrefs::Ref().Set("Simulation.HeatTransferScale", heatTransferScale);
+	gModel->SetHeatTransferScale(heatTransferScale);
+	notifySettingsChanged();
+}
+
 int OptionsModel::GetGravityMode()
 {
 	return sim->gravityMode;

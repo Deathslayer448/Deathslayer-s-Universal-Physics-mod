@@ -14,6 +14,7 @@ public:
 	int airSolverStepsPerFrame;  // max steps per display frame (1 = slow/stable, higher = faster sim)
 	float ambientAirTemp;
 	float vorticityCoeff;
+	float heatTransferScale;  // global heat transfer multiplier: particle-air, particle-particle, air-air (1 = physics-based, >1 = faster)
 	bool useAtmosphericPressure; // UI display mode: if true, show pressure relative to atmospheric
 	bool enablePressureBreak;     // When on: TUNG etc. can break from pressure difference (experimental; may reduce FPS)
 	float ovx[YCELLS][XCELLS];
